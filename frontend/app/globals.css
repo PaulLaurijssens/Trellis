@@ -1132,3 +1132,66 @@ button.chip:hover:not(:disabled) { border-color: rgba(84, 169, 255, 0.45); color
 .visual-roadmap .roadmap-conflicts { border:0; padding:8px 0; max-height:180px; color:var(--text-2); }
 .visual-roadmap .roadmap-conflicts summary { cursor:pointer; }
 .visual-roadmap .roadmap-conflicts .textlink { margin-left:12px; }
+
+/* ==========================================================================
+   Telefoon (< 750px): een ANDER layoutmodel, geen verschoven offsets.
+   Desktop is een vast canvas: .stage is fixed en elke regio is absoluut gepind op
+   harde pixels (sidebar 342px, paneel min. 470px). Op 390px breed overlapt dat
+   onvermijdelijk. Hier wordt .stage zelf de scrollcontainer en staan de regio's in
+   normale flow onder elkaar: zoeken, weergave-keuze, kaart, legenda, leerruimte.
+   Alleen wat óver alles hoort (les, review, profiel, toasts) is fixed.
+   Alles zit in deze ene media query, dus desktop en tablet veranderen niet.
+
+   iOS-PWA: layout.js zet statusBarStyle black-translucent + viewportFit cover. Dan
+   tekent iOS de statusbalk OVER de pagina, en een knop onder de statusbalk of het
+   Dynamic Island krijgt geen tikken. Explore/Learn staan precies in het midden van de
+   header, dus onder het eiland; "My profile" staat rechts en werkte wel. Vandaar
+   env(safe-area-inset-top) op de header en op alles wat fixed onder de header hangt.
+   Buiten een geïnstalleerde PWA is die inset 0.
+   ========================================================================== */
+@media (max-width: 749.98px) {
+  .stage.redesigned { overflow-x: hidden; overflow-y: auto; overscroll-behavior-y: contain; }
+
+  .stage.redesigned .workspace-header {
+    /* inset i.p.v. top + inset:auto: die shorthand zette top anders terug op auto. */
+    position: sticky; inset: 0 auto auto; flex-shrink: 0;
+    height: calc(66px + env(safe-area-inset-top)); padding-top: env(safe-area-inset-top);
+  }
+
+  /* Verkennen: in flow, van boven naar beneden. De DOM-volgorde is anders dan de
+     gewenste leesvolgorde, vandaar flex + order in plaats van de JSX om te gooien. */
+  .stage.redesigned .explore-workspace {
+    position: relative; inset: auto; display: flex; flex-direction: column; gap: 12px;
+    padding: 12px 16px calc(24px + env(safe-area-inset-bottom));
+  }
+  .stage.redesigned .cmd-wrap { order: 1; position: relative; inset: auto; width: 100%; max-width: none; margin: 0; }
+  .stage.redesigned .explore-view-switch { order: 2; position: relative; inset: auto; height: auto; align-self: stretch; }
+  .stage.redesigned .explore-view-switch button { flex: 1; }
+  .stage.redesigned .atlas-surface { order: 3; position: relative; inset: auto; flex-shrink: 0; height: min(62dvh, 560px); min-height: 340px; }
+  .stage.redesigned .map-legend { order: 4; position: static; display: flex; gap: 8px 16px; }
+  .stage.redesigned .learning-sidebar { order: 5; position: static; inset: auto; width: auto; max-height: none; overflow: visible; }
+
+  /* Binnen de kaart: de knoppen erboven hoefden niet meer ontweken te worden. */
+  .stage.redesigned .atlas-top { top: 8px; right: 8px; left: auto; }
+
+  /* Leerpad: het krijgt de hoogte van het scherm onder de bediening, en begint bovenaan
+     zijn eigen vlak (de 65-70px offset was er om de oude zwevende toggle te ontwijken). */
+  .stage.redesigned:has(.visual-roadmap) .atlas-surface { height: calc(100dvh - 230px - env(safe-area-inset-top)); min-height: 420px; }
+  .stage.redesigned .atlas-surface .learning-path { inset: 0; }
+
+  /* Wat óver de rest hoort: fixed, onder de header, zodat scrollpositie niet uitmaakt. */
+  .stage.redesigned .learn-workspace {
+    position: fixed; z-index: 25; inset: calc(66px + env(safe-area-inset-top)) 0 0;
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  .stage.redesigned .panel.review {
+    position: fixed; inset: calc(66px + env(safe-area-inset-top)) 0 0;
+    width: auto; min-width: 0; max-width: none;
+  }
+  .stage.redesigned .overlay {
+    position: fixed;
+    padding: calc(16px + env(safe-area-inset-top)) 16px calc(16px + env(safe-area-inset-bottom));
+  }
+  .stage.redesigned .profile { max-height: 100%; }
+  .stage.redesigned .toasts { position: fixed; top: calc(76px + env(safe-area-inset-top)) !important; left: 16px; right: 16px; align-items: stretch; }
+}
