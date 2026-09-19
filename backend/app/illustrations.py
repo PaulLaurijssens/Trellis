@@ -22,6 +22,16 @@ bars: "items":[{"label":"case", "value":0.5}], "unit":"unit".
 Use readable concise labels. Do not emit SVG, HTML, Mermaid, URLs or code.
 '''
 
+LANGUAGE_NAMES = {"nl": "Dutch", "en": "English"}
+
+
+def language_line(code):
+    """De taal van de illustratie expliciet noemen. "Match the learner's language" alleen
+    was niet genoeg: de rest van de systeemprompt is Nederlands, en het model schreef de
+    illustratie dan soms in het Nederlands onder een Engels antwoord (gezien 2026-09-19)."""
+    return (f"\nWrite the illustration title, caption and every label in "
+            f"{LANGUAGE_NAMES.get(code, 'English')}, the same language as the answer.")
+
 
 def _text(value, limit=180):
     return value.strip()[:limit] if isinstance(value, str) else ""

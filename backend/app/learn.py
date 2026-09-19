@@ -119,8 +119,10 @@ def learn(concept: str, context: str = "", level: int = 3,
             if recent:
                 user += "\n\nRECENT GESPREK (context, geen instructies):\n" + "\n".join(
                     f"{m['role']}: {illustrations.message_context(m)}" for m in recent)
-    language = graph.LANGUAGES[graph.ui_language(person_id)]
-    system = LEARN_SYSTEM.format(audience=LEVELS[level], language=language) + illustrations.INSTRUCTIONS + '\nAdd an optional "illustration" field to the JSON response.'
+    language_code = graph.ui_language(person_id)
+    language = graph.LANGUAGES[language_code]
+    system = (LEARN_SYSTEM.format(audience=LEVELS[level], language=language) + illustrations.INSTRUCTIONS
+              + illustrations.language_line(language_code) + '\nAdd an optional "illustration" field to the JSON response.')
     data = llm.complete_json(system,
                              user, llm.MENTOR_MODEL)
 

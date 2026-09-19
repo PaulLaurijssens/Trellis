@@ -92,6 +92,7 @@ def build_system_prompt(concept_id: str, person_id: str, level: int,
     parts.append(personal_context(person_id, concept_id))
 
     parts.append(illustrations.INSTRUCTIONS)
+    parts.append(illustrations.language_line(reply_lang))
     parts.append('Return JSON only: {"answer":"your normal mentor reply in Markdown", "illustration":null or the diagram object}.')
     return "\n".join(parts)
 

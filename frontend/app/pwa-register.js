@@ -8,6 +8,12 @@ import { useEffect } from "react";
 export default function PwaRegister() {
   useEffect(() => {
     if (!("serviceWorker" in navigator)) return;
+    // Alleen in productie. In `next dev` hebben /_next/static-bestanden geen hash in de naam,
+    // en de cache-first regel van sw.js serveerde dan oude JS op nieuwe HTML (hydratiefout).
+    if (process.env.NODE_ENV !== "production") {
+      navigator.serviceWorker.getRegistrations().then((regs) => regs.forEach((r) => r.unregister())).catch(() => {});
+      return;
+    }
     const register = () => {
       navigator.serviceWorker.register("/sw.js", { scope: "/" }).catch(() => {
         /* stil: een mislukte registratie mag de app nooit breken */

@@ -31,6 +31,7 @@ export default function Chat({
   concept, status, chat, busy, ending, onSend, onNew, onEnd, onExplain,
   suggestionBusy, onSuggestion,
   introduction, emptyState, examples=[], onSaveExample, exampleBusy,
+  nextTopic, sessionMenu = true,
 }) {
   const { t } = useT();
   const [text, setText] = useState("");
@@ -41,8 +42,20 @@ export default function Chat({
 
   const logRef = useRef(null);
   const nearBottom = useRef(true);
+  // Na een nieuw antwoord begin je bovenaan DAT antwoord, niet onderaan het gesprek: anders
+  // moet je eerst terugscrollen om het te lezen. Terwijl de mentor nadenkt blijft je eigen
+  // vraag met de denk-indicator onderaan in beeld.
   useEffect(() => {
-    if (messages.length && nearBottom.current && logRef.current) logRef.current.scrollTo({ top: logRef.current.scrollHeight, behavior: "auto" });
+    const log = logRef.current;
+    if (!log || !messages.length) return;
+    const last = messages[messages.length - 1];
+    if (busy || last.role !== "assistant") {
+      if (nearBottom.current) log.scrollTo({ top: log.scrollHeight, behavior: "auto" });
+      return;
+    }
+    const el = log.querySelector(`[data-seq="${last.seq}"]`);
+    // 48px: onder de vervaging die .chat-log bovenaan heeft (mask-image, 44px).
+    if (el) log.scrollTo({ top: log.scrollTop + el.getBoundingClientRect().top - log.getBoundingClientRect().top - 48, behavior: "auto" });
   }, [messages.length, busy]);
   useEffect(() => { nearBottom.current = true; setText(""); }, [concept]);
 
@@ -75,7 +88,15 @@ export default function Chat({
         {introduction}
         {messages.length === 0 && !busy && (emptyState || <section className="lesson-start"><h2>{t("lesson.startTitle")}</h2><p>{t("lesson.startHint")}</p><button className="btn primary" onClick={onExplain}>{t("lesson.start")}</button></section>)}
         {messages.map((m) => (
-          <div key={m.seq} className={"msg " + m.role}>{m.role === "assistant" ? <LocalizedText block render={render}>{m.content}</LocalizedText> : render(m.content)}{m.role === "assistant" && <><TeachingIllustration illustration={m.illustration} />{onSaveExample && <button className="textlink helpful-save" disabled={exampleBusy || !chat?.session_id || examples.some(e=>e.session_id===chat.session_id && e.seq===m.seq)} onClick={()=>onSaveExample(m.seq)}>{examples.some(e=>e.session_id===chat.session_id && e.seq===m.seq)?t("journey.exampleSaved"):t("journey.helped")}</button>}</>}</div>
+          <div key={m.seq} data-seq={m.seq} className={"msg " + m.role}>{m.role === "assistant" ? <LocalizedText block render={render}>{m.content}</LocalizedText> : render(m.content)}{m.role === "assistant" && <><TeachingIllustration illustration={m.illustration} />{onSaveExample && (() => {
+            // Feedback voor de mentor: bewaarde voorbeelden gaan mee in de prompt als je later
+            // bij dit onderwerp terugkomt (journey.prompt_context, max. 3 per onderwerp).
+            const saved = examples.some(e=>e.session_id===chat?.session_id && e.seq===m.seq);
+            return <div className="helpful-row">
+              <button className={"helpful-save" + (saved ? " saved" : "")} title={t("journey.helpedHint")} disabled={saved || exampleBusy || !chat?.session_id} onClick={()=>onSaveExample(m.seq)}>{saved ? t("journey.exampleSaved") : <><span aria-hidden="true">👍</span> {t("journey.helped")}</>}</button>
+              {saved && <span className="helpful-hint">{t("journey.helpedHint")}</span>}
+            </div>;
+          })()}</>}</div>
         ))}
         {busy && (
           <div className="msg thinking" aria-live="polite">
@@ -113,14 +134,17 @@ export default function Chat({
               : <svg width="13" height="13" viewBox="0 0 13 13"><path d="M1.5 6.5 H10 M7 3 L10.5 6.5 L7 10" stroke="#9CC8FF" strokeWidth="1.5" fill="none" /></svg>}
           </button>
         </div>
-        <details className="chat-session-menu"><summary>{t("learn.sessionMenu")}</summary><div className="chat-links">
+        {nextTopic && <button className="next-topic" disabled={busy || ending} onClick={nextTopic.go}>
+          <span>{t("learn.nextTopicHint")}</span><b>{t("learn.nextTopic")}: {nextTopic.name} →</b>
+        </button>}
+        {sessionMenu && <details className="chat-session-menu"><summary>{t("learn.sessionMenu")}</summary><div className="chat-links">
           <button className="textlink" onClick={onEnd} disabled={busy || ending || !messages.length}
                   title={t("chat.endTitle")}>
             {ending ? t("chat.ending") : t("chat.end")}
           </button>
           <button className="textlink" onClick={onNew} disabled={busy || ending}
                   title={t("chat.newTitle")}>{t("chat.new")}</button>
-        </div></details>
+        </div></details>}
       </div>
     </div>
   );

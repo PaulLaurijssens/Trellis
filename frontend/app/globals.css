@@ -1195,3 +1195,75 @@ button.chip:hover:not(:disabled) { border-color: rgba(84, 169, 255, 0.45); color
   .stage.redesigned .profile { max-height: 100%; }
   .stage.redesigned .toasts { position: fixed; top: calc(76px + env(safe-area-inset-top)) !important; left: 16px; right: 16px; align-items: stretch; }
 }
+
+/* ==========================================================================
+   Leren en leerpad (2026-09-19): feedback, volgend onderwerp, ingeklapte legenda,
+   twee-vingerbediening van de kaart, leerpad zonder scroll-in-scroll.
+   ========================================================================== */
+/* "Dit hielp mij" was 13px grijze tekst; het is feedback voor de mentor, dus een echte knop. */
+.helpful-row { display:flex; flex-wrap:wrap; align-items:center; gap:8px 12px; margin-top:16px; font-family:var(--font-ui); }
+.lesson-main .helpful-save, .redesigned .helpful-save {
+  display:inline-flex; align-items:center; gap:8px; margin:0; min-height:40px; padding:8px 14px; opacity:1;
+  border:1px solid var(--line-strong); border-radius:20px; background:transparent; color:var(--text-2); font:16px/1.4 var(--font-ui);
+}
+.lesson-main .helpful-save:hover:not(:disabled) { border-color:rgba(84,169,255,.5); color:var(--learning-soft); }
+.lesson-main .helpful-save.saved { opacity:1; border-color:var(--learned-line); color:var(--learned-soft); }
+.helpful-hint { font-size:15px; line-height:1.5; color:var(--text-3); }
+
+/* Volgend onderwerp: de plek waar eerst "Gespreksopties" stond. */
+.next-topic {
+  display:flex; flex-direction:column; align-items:flex-start; gap:2px; width:100%; margin-top:12px; padding:12px 16px;
+  border:1px solid #315473; border-radius:14px; background:#112638; color:var(--text); text-align:left; font-family:var(--font-ui);
+}
+.next-topic span { font-size:15px; color:var(--text-3); }
+.next-topic b { font-size:16px; font-weight:600; color:#c6e3ff; overflow-wrap:anywhere; }
+.next-topic:hover:not(:disabled) { border-color:#54a9ff; }
+.lesson-context .context-session .chat-links { flex-direction:column; align-items:flex-start; gap:10px; margin-top:12px; }
+
+.roadmap-updating { display:flex; align-items:center; gap:8px; margin:6px 0; font-size:15px; color:var(--text-3); }
+.gesture-hint {
+  position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); z-index:6; max-width:80%; padding:10px 14px;
+  border:1px solid var(--line-strong); border-radius:12px; background:rgba(7,11,17,.9); color:var(--text-1);
+  font-size:15px; line-height:1.4; text-align:center; pointer-events:none;
+}
+/* De legenda-knop bestaat alleen op de telefoon. */
+.legend-toggle { display:none; }
+
+@media (max-width: 749.98px) {
+  /* Legenda ingeklapt: vier gekleurde bolletjes + "Legenda"; tik om de uitleg te zien. */
+  .stage.redesigned .legend-toggle {
+    display:inline-flex; align-items:center; gap:8px; padding:6px 12px; border:1px solid var(--line); border-radius:14px;
+    background:none; color:var(--text-3); font-size:15px;
+  }
+  .stage.redesigned .legend-toggle .legend-dots { display:inline-flex; gap:4px; }
+  .stage.redesigned .map-legend { align-items:center; gap:8px 16px; }
+  .stage.redesigned .map-legend:not(.open) > span { display:none; }
+
+  /* Kaart: één vinger scrolt de pagina, twee vingers bedienen de kaart (GraphView). */
+  .stage.redesigned .atlas-layer svg { touch-action:pan-y; }
+
+  /* Leerpad loopt mee met de pagina. Eerst was het een scrollvlak in een scrollende pagina,
+     met de kop en de legenda erboven en eronder: er bleef nauwelijks ruimte over. */
+  .stage.redesigned:has(.visual-roadmap) .atlas-surface { height:auto; min-height:0; }
+  .stage.redesigned .atlas-surface .learning-path { position:static; inset:auto; display:block; overflow:visible; padding:4px 0 0; background:none; }
+  .stage.redesigned .curriculum-map { display:block; }
+  .stage.redesigned .map-viewport { overflow-x:auto; overflow-y:hidden; overscroll-behavior:auto; cursor:auto; min-height:0; }
+  .stage.redesigned .visual-roadmap header h1 { font-size:20px; margin:0 0 4px; }
+  .stage.redesigned .visual-roadmap .roadmap-summary { margin:8px 0; }
+  .stage.redesigned .visual-roadmap .roadmap-summary .btn { width:100%; justify-content:center; min-height:44px; }
+  .stage.redesigned .map-tools { padding:4px 0 8px; }
+  .stage.redesigned .map-tools > div { flex-wrap:nowrap; gap:6px; }
+  .stage.redesigned .map-tools .btn { min-height:38px; padding:6px 10px; font-size:15px; }
+  /* Een groep opent als paneel van onderen: altijd in beeld, los van de scrollpositie. */
+  .stage.redesigned .map-detail {
+    position:fixed; top:auto; left:0; right:0; bottom:0; width:auto; max-width:none; max-height:72dvh; z-index:35;
+    border-radius:18px 18px 0 0; padding-bottom:calc(20px + env(safe-area-inset-bottom));
+  }
+  .stage.redesigned .map-detail .map-topic-list { overflow-y:auto; }
+
+  /* Les: de onderbalk compact houden, anders blijft er weinig over voor het antwoord. */
+  .stage.redesigned .lesson-main .chat-foot { padding:8px 16px calc(8px + env(safe-area-inset-bottom)); }
+  .stage.redesigned .lesson-main .chat-chips { margin-bottom:8px; }
+  .stage.redesigned .next-topic { margin-top:8px; padding:8px 14px; }
+  .stage.redesigned .next-topic span { display:none; }
+}

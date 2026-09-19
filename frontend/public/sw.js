@@ -11,7 +11,7 @@
  *
  * CACHE bevat de versie. Bij een nieuwe deploy bump je die en ruimt activate de oude op.
  */
-const CACHE = "dendrite-v2";
+const CACHE = "dendrite-v3";
 const PRECACHE = ["/", "/manifest.webmanifest", "/icons/icon-192.png", "/icons/icon-512.png"];
 
 self.addEventListener("install", (event) => {

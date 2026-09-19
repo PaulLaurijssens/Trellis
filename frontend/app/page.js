@@ -14,6 +14,7 @@ import { api } from "../lib/api";
 import { buildIndex, findNode, subtree } from "../lib/tree";
 import { LangContext, DICTS, LANGS } from "../lib/i18n";
 import { readTrail, visitTrail } from "../lib/learningTrail.mjs";
+import { usePlan, nextInPlan } from "../lib/curriculum";
 
 const GraphView = dynamic(() => import("../components/GraphView"), { ssr: false });
 
@@ -49,6 +50,7 @@ export default function Page() {
   const [journeyBusy, setJourneyBusy] = useState(false);
   const [levels, setLevels] = useState(FALLBACK_LEVELS);
   const [exploreView, setExploreView] = useState("graph");
+  const [legendOpen, setLegendOpen] = useState(false);
   const [graph, setGraph] = useState({ nodes: [], links: [] });
   const [loaded, setLoaded] = useState(false);
   const [analysis, setAnalysis] = useState(null);  // laatste analyse: {source_id, title, candidates, relations, meta}
@@ -542,6 +544,10 @@ export default function Page() {
     return names;
   }, [selected, graph]);
   const empty = loaded && graph.nodes.length === 0;
+  // "Volgend onderwerp" in de les volgt het leerpad. Alleen ophalen in de lesweergave; het
+  // plan is gedeeld met de Leerpad-weergave en wordt server-side bewaard.
+  const { plan: learningPlan } = usePlan(graph, lang, !!(selected && expanded));
+  const next = useMemo(() => (selected && expanded ? nextInPlan(learningPlan, graph, selected.name) : null), [learningPlan, graph, selected, expanded]);
 
   return (
     <LangContext.Provider value={{ lang, setLang }}>
@@ -592,7 +598,8 @@ export default function Page() {
         onAnalyzeYoutube={handleYoutube}
       />
 
-      <div className="map-legend">{["learned","learning","queued","suggested"].map((status) => <span key={status}><i className={"status-dot " + status} />{t("status." + status)}</span>)}</div>
+      {/* Op de telefoon ingeklapt achter één knop (die knop is op desktop verborgen). */}
+      <div className={"map-legend" + (legendOpen ? " open" : "")}><button type="button" className="legend-toggle" aria-expanded={legendOpen} onClick={() => setLegendOpen((o) => !o)}><span className="legend-dots" aria-hidden="true">{["learned","learning","queued","suggested"].map((status) => <i key={status} className={"status-dot " + status} />)}</span>{t("legend.title")} {legendOpen ? "▴" : "▾"}</button>{["learned","learning","queued","suggested"].map((status) => <span key={status}><i className={"status-dot " + status} />{t("status." + status)}</span>)}</div>
 
 
       {reviewOpen && analysis && !selected && (
@@ -647,6 +654,7 @@ export default function Page() {
           onSelect={(name) => openConcept(name, { branch: true })}
           onToggleExpand={() => setExpanded(!expanded)}
           onClose={() => setExpanded(false)}
+          nextTopic={next ? { name: next.name, go: () => openConcept(next.name, { learn: true }) } : null}
         />
       )}
 

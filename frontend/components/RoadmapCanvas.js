@@ -12,9 +12,14 @@ export default function RoadmapCanvas({plan,graph,first,en,onLearn,onGraph}) {
  const selected=layout.groups.find(g=>g.key===expanded);
  function changeZoom(next){setZoom(Math.max(.3,Math.min(1.6,next)));}
  useEffect(()=>{const el=viewport.current;setScroll({x:el.scrollLeft,y:el.scrollTop});},[zoom,expanded]);
- function overview(){setExpanded(null);setZoom(mobile?1:Math.max(.3,Math.min(1,size.width/layout.width,size.height/layout.height)));viewport.current.scrollTo(0,0);setScroll({x:0,y:0});}
- function nextStep(){const g=layout.groups.find(g=>g.ids.includes(first?.id));if(!g)return;setExpanded(g.key);setZoom(1);requestAnimationFrame(()=>viewport.current.scrollTo({left:Math.max(0,g.x-size.width/2+g.width/2),top:Math.max(0,g.y-24),behavior:'smooth'}));}
- function down(e){if(e.button!==0||e.target.closest('button,a,input,summary,.map-topic-list'))return;drag.current={x:e.clientX,y:e.clientY,left:viewport.current.scrollLeft,top:viewport.current.scrollTop};e.currentTarget.setPointerCapture(e.pointerId);}
+ // Op de telefoon scrolt de kaart niet zelf maar loopt hij mee met de pagina (geen scroll in
+ // scroll). Dan moet "naar een groep gaan" de PAGINA scrollen in plaats van het kaartvlak.
+ const inFlow=()=>viewport.current.scrollHeight<=viewport.current.clientHeight+4;
+ function overview(){setExpanded(null);setZoom(mobile?1:Math.max(.3,Math.min(1,size.width/layout.width,size.height/layout.height)));if(inFlow())viewport.current.scrollIntoView({block:'start',behavior:'smooth'});else viewport.current.scrollTo(0,0);setScroll({x:0,y:0});}
+ function nextStep(){const g=layout.groups.find(g=>g.ids.includes(first?.id));if(!g)return;setExpanded(g.key);setZoom(1);requestAnimationFrame(()=>{if(inFlow())viewport.current.querySelector(`[data-group="${g.key}"]`)?.scrollIntoView({block:'center',behavior:'smooth'});else viewport.current.scrollTo({left:Math.max(0,g.x-size.width/2+g.width/2),top:Math.max(0,g.y-24),behavior:'smooth'});});}
+ // Slepen om te verschuiven is voor de muis. Op een touchscherm pant de browser zelf; pointer
+ // capture op een vinger zou dat alleen maar in de weg zitten.
+ function down(e){if(e.pointerType!=='mouse'||e.button!==0||e.target.closest('button,a,input,summary,.map-topic-list'))return;drag.current={x:e.clientX,y:e.clientY,left:viewport.current.scrollLeft,top:viewport.current.scrollTop};e.currentTarget.setPointerCapture(e.pointerId);}
  function move(e){if(!drag.current)return;viewport.current.scrollTo(drag.current.left+drag.current.x-e.clientX,drag.current.top+drag.current.y-e.clientY);}
  // Trackpad pinch emits a control-wheel event. Ordinary wheel retains native scrolling.
  useEffect(()=>{const el=viewport.current;const wheel=e=>{if(e.ctrlKey){e.preventDefault();changeZoom(zoom*Math.exp(-e.deltaY*.01));}};el.addEventListener('wheel',wheel,{passive:false});return()=>el.removeEventListener('wheel',wheel);},[zoom]);
@@ -24,7 +29,7 @@ export default function RoadmapCanvas({plan,graph,first,en,onLearn,onGraph}) {
  <div ref={viewport} className="map-viewport" aria-label={en?'Learning roadmap':'Leerroute'} tabIndex={0} onScroll={e=>setScroll({x:e.currentTarget.scrollLeft,y:e.currentTarget.scrollTop})} onPointerDown={down} onPointerMove={move} onPointerUp={()=>drag.current=null} onPointerCancel={()=>drag.current=null}>
  <div style={{width:layout.width*zoom,height:layout.height*zoom,position:'relative'}}><div className="map-world" style={{width:layout.width,height:layout.height,transform:`scale(${zoom})`}}>
  <svg className="map-connections" width={layout.width} height={layout.height} aria-hidden="true"><defs><marker id="curriculum-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#5d9ab1"/></marker></defs>{layout.edges.map(({a,b,suggested},i)=>{const x1=mobile?a.x+a.width/2:a.x+a.width,y1=mobile?a.y+a.height:a.y+56,x2=mobile?b.x+b.width/2:b.x,y2=mobile?b.y:b.y+56;return <path key={i} d={mobile?`M${x1},${y1} C${x1},${(y1+y2)/2} ${x2},${(y1+y2)/2} ${x2},${y2}`:`M${x1},${y1} C${x1+100},${y1} ${x2-100},${y2} ${x2},${y2}`} fill="none" stroke={suggested?"#56788d":"#65cbb0"} strokeDasharray={suggested?"6 7":undefined} strokeWidth="2" opacity=".8" markerEnd="url(#curriculum-arrow)"/>;})}</svg>
- {layout.groups.map(g=><article key={g.key} className={'map-group'+(g.ids.includes(first?.id)?' next-group':'')} style={{left:g.x,top:g.y,width:g.width,height:g.height}}>
+ {layout.groups.map(g=><article key={g.key} data-group={g.key} className={'map-group'+(g.ids.includes(first?.id)?' next-group':'')} style={{left:g.x,top:g.y,width:g.width,height:g.height}}>
  {mobile&&<span className="map-mobile-stage">{g.stage+1} · {titles[g.stage]}</span>}
  <button className="map-group-toggle" aria-expanded={expanded===g.key} onClick={()=>setExpanded(expanded===g.key?null:g.key)}><strong>{g.title}</strong><span>{g.ids.length} {en?'topics':'onderwerpen'} · {g.ids.filter(cid=>nodes.get(cid)?.status==='learned').length} {en?'understood':'begrepen'}</span><b>{g.ids.includes(first?.id)?(en?'Start here':'Begin hier'):(expanded===g.key?'−':'+')}</b></button>
 

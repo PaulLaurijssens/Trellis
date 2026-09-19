@@ -17,6 +17,9 @@ const labelLines = name => {
 export default function GraphView({ data, selectedName, highlightQuery = "", hoverName, onSelect, ambientMotion = true, reducedMotion = false, hidden = false, onStartLearning, starting = false, focusRequest, onGroupsChange, onScopeChange }) {
   const { t } = useT();
   const wrap=useRef(null), svg=useRef(null), drag=useRef(null), pointer=useRef(null), fitted=useRef(false), offsets=useRef(new Map());
+  // Aanraken: touches = actieve vingers, pinch = een lopend twee-vingergebaar.
+  const touches=useRef(new Map()), pinch=useRef(null), hintTimer=useRef(null);
+  const [gestureHint,setGestureHint]=useState(false);
   const [size,setSize]=useState({w:1000,h:680}), [camera,setCamera]=useState({x:-500,y:-340,k:1});
   const [scope,setScope]=useState(""), [edge,setEdge]=useState(null), [hovered,setHovered]=useState(null), [,setFrame]=useState(0);
   const portrait=size.w<size.h;
@@ -83,6 +86,33 @@ export default function GraphView({ data, selectedName, highlightQuery = "", hov
     const x=d.camera.x+(e.clientX-rect.left)/d.camera.k,y=d.camera.y+(e.clientY-rect.top)/d.camera.k;
     if(g&&Math.hypot((x-g.cx)/g.rx,(y-g.cy)/g.ry)>1)clearScope();
   };
+  // Telefoon (< 750px): de pagina scrolt, dus één vinger is voor de pagina en de kaart volgt
+  // pas bij twee vingers (verschuiven + knijpzoomen). Dat is het patroon van ingesloten kaarten;
+  // anders zit je met één veeg vast in de kaart en kom je de pagina niet meer door.
+  const pageScrolls=()=>typeof window!=="undefined"&&window.matchMedia("(max-width: 749.98px)").matches;
+  const showGestureHint=()=>{if(hintTimer.current)return;setGestureHint(true);hintTimer.current=setTimeout(()=>{setGestureHint(false);hintTimer.current=null;},1800);};
+  const startPinch=()=>{
+    const [a,b]=[...touches.current.values()],r=svg.current.getBoundingClientRect();
+    drag.current=null;pointer.current=null;
+    pinch.current={dist:Math.hypot(a.x-b.x,a.y-b.y)||1,mid:{x:(a.x+b.x)/2-r.left,y:(a.y+b.y)/2-r.top},camera};
+    for(const id of touches.current.keys()){try{svg.current.setPointerCapture(id);}catch{}}
+  };
+  const movePinch=()=>{
+    const p=pinch.current,[a,b]=[...touches.current.values()],r=svg.current.getBoundingClientRect();
+    const mid={x:(a.x+b.x)/2-r.left,y:(a.y+b.y)/2-r.top},k=clamp(p.camera.k*Math.hypot(a.x-b.x,a.y-b.y)/p.dist);
+    // Het wereldpunt dat onder het beginmidden lag, blijft onder de vingers: zoom en schuif tegelijk.
+    const wx=p.camera.x+p.mid.x/p.camera.k,wy=p.camera.y+p.mid.y/p.camera.k;
+    setCamera({k,x:wx-mid.x/k,y:wy-mid.y/k});
+  };
+  const endTouch=e=>{if(e.pointerType!=="touch")return;touches.current.delete(e.pointerId);if(touches.current.size<2)pinch.current=null;};
+  useEffect(()=>{
+    const el=svg.current;
+    // Twee vingers op de kaart: de browser mag dan niet de pagina scrollen of zoomen.
+    const move=e=>{if(e.touches.length>1&&e.cancelable)e.preventDefault();};
+    const gesture=e=>e.preventDefault(); // iOS Safari: geen pagina-zoom bij knijpen op de kaart
+    el.addEventListener("touchmove",move,{passive:false});el.addEventListener("gesturestart",gesture);
+    return()=>{el.removeEventListener("touchmove",move);el.removeEventListener("gesturestart",gesture);clearTimeout(hintTimer.current);};
+  },[]);
   const emphasized=n=>n.name===selectedName||n.id===hovered||n.name===hoverName||(query&&n.name.toLowerCase().includes(query));
   const shown=()=>true; // Keep the network visible; zoom controls names, not the existence of nodes.
 
@@ -119,12 +149,13 @@ export default function GraphView({ data, selectedName, highlightQuery = "", hov
       <p>{entry.route.cycle?t("explore.cycle"):entry.review?t("cluster.reviewHint"):entry.node.id!==entry.goal.id?t("cluster.prerequisiteHint",{name:entry.goal.name}):entry.goal.id!==focusedGroup.hubId?t("cluster.nextHint"):t("cluster.hubHint")}</p>
       <button className="btn primary" disabled={starting} onClick={()=>onStartLearning(entry.node.name)}>{starting?t("panel.thinking"):entry.review?t("cluster.review"):t("cluster.start")} →</button>
     </section>}
+    {gestureHint&&<div className="gesture-hint" role="status">{t("graph.twoFingers")}</div>}
     <svg ref={svg} width="100%" height="100%" viewBox={`${camera.x} ${camera.y} ${size.w/camera.k} ${size.h/camera.k}`} aria-label={t("explore.map")} tabIndex={0}
       onBlur={e=>{if(e.target===svg.current)delete svg.current.dataset.pointerFocus;}}
       onKeyDown={e=>{delete svg.current.dataset.pointerFocus;if(e.key==="Escape"&&scope){e.preventDefault();clearScope();return;}if(e.target!==svg.current)return;const shifts={ArrowLeft:[-60,0],ArrowRight:[60,0],ArrowUp:[0,-60],ArrowDown:[0,60]};if(shifts[e.key]){e.preventDefault();const[x,y]=shifts[e.key];setCamera(c=>({...c,x:c.x+x/c.k,y:c.y+y/c.k}));}if(e.key==="+"||e.key==="="){e.preventDefault();zoom(1.4);}if(e.key==="-"){e.preventDefault();zoom(1/1.4);}}}
-      onPointerDown={e=>{svg.current.dataset.pointerFocus="true";if(e.target.closest("[role=button]"))return;pointer.current=null;drag.current={x:e.clientX,y:e.clientY,camera,moved:false};svg.current.setPointerCapture(e.pointerId);}}
-      onPointerMove={e=>{const r=svg.current.getBoundingClientRect();const d=drag.current;if(d){if(Math.hypot(e.clientX-d.x,e.clientY-d.y)>5)d.moved=true;setCamera({...d.camera,x:d.camera.x-(e.clientX-d.x)/d.camera.k,y:d.camera.y-(e.clientY-d.y)/d.camera.k});}else if(e.pointerType!=="touch"){pointer.current={x:camera.x+(e.clientX-r.left)/camera.k,y:camera.y+(e.clientY-r.top)/camera.k};}}}
-      onPointerLeave={()=>{pointer.current=null;setHovered(null);}} onPointerUp={finishPan} onPointerCancel={()=>{drag.current=null;pointer.current=null;}}>
+      onPointerDown={e=>{svg.current.dataset.pointerFocus="true";if(e.pointerType==="touch"){touches.current.set(e.pointerId,{x:e.clientX,y:e.clientY});if(touches.current.size===2){startPinch();return;}}if(e.target.closest("[role=button]"))return;pointer.current=null;const passive=e.pointerType==="touch"&&pageScrolls();drag.current={x:e.clientX,y:e.clientY,camera,moved:false,passive};if(!passive)svg.current.setPointerCapture(e.pointerId);}}
+      onPointerMove={e=>{if(e.pointerType==="touch"&&touches.current.has(e.pointerId)){touches.current.set(e.pointerId,{x:e.clientX,y:e.clientY});if(pinch.current&&touches.current.size>=2){movePinch();return;}}const r=svg.current.getBoundingClientRect();const d=drag.current;if(d){if(Math.hypot(e.clientX-d.x,e.clientY-d.y)>5)d.moved=true;if(d.passive){if(Math.abs(e.clientX-d.x)>24&&Math.abs(e.clientX-d.x)>Math.abs(e.clientY-d.y))showGestureHint();return;}setCamera({...d.camera,x:d.camera.x-(e.clientX-d.x)/d.camera.k,y:d.camera.y-(e.clientY-d.y)/d.camera.k});}else if(e.pointerType!=="touch"){pointer.current={x:camera.x+(e.clientX-r.left)/camera.k,y:camera.y+(e.clientY-r.top)/camera.k};}}}
+      onPointerLeave={()=>{pointer.current=null;setHovered(null);}} onPointerUp={e=>{endTouch(e);finishPan(e);}} onPointerCancel={e=>{endTouch(e);drag.current=null;pointer.current=null;}}>
       <defs><marker id="atlas-route-arrow" viewBox="0 0 10 10" refX="10" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M0 0L10 5L0 10Z" fill="#54A9FF"/></marker></defs>
       {layout.groups.filter(g=>g.members.length>1).map(g=><ellipse key={g.key} className="cluster-outline" cx={g.cx} cy={g.cy} rx={g.rx} ry={g.ry} fill="#182b40" fillOpacity={scope===g.key ? .16 : .045} stroke="#6085A8" strokeOpacity={scope&&scope!==g.key ? .09 : .3} strokeWidth={1/camera.k} pointerEvents="none"/>)}
       {data.links.map((l,i)=>{
