@@ -1,0 +1,8 @@
+node_modules/
+.next/
+.gstack/
+tests/
+.env
+.env.*
+Dockerfile
+Dockerfile.prod

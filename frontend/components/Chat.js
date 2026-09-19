@@ -1,0 +1,127 @@
+"use client";
+import VoiceInput from "./VoiceInput";
+import LocalizedText from "./LocalizedText";
+import { useEffect, useRef, useState } from "react";
+import { useT } from "../lib/i18n";
+import ConversationSuggestions from "./ConversationSuggestions";
+import TeachingIllustration from "./TeachingIllustration";
+
+// De mentor gebruikt codeblokken; die moeten als code leesbaar zijn en niet
+// als lopende tekst met backticks erin.
+// Inline: `code` en **vet**; meer markdown doet de mentor niet.
+function inline(text) {
+  return text.split(/(`[^`]+`|\*\*[^*]+\*\*)/g).map((seg, i) => {
+    if (seg.startsWith("`")) return <code key={i}>{seg.slice(1, -1)}</code>;
+    if (seg.startsWith("**")) return <b key={i}>{seg.slice(2, -2)}</b>;
+    return seg;
+  });
+}
+
+function render(content) {
+  return String(content).split(/```/).map((part, i) =>
+    i % 2
+      ? <pre key={i}><code>{part.replace(/^[a-z]*\n/, "").trim()}</code></pre>
+      : part.split(/\n\s*\n/).filter(Boolean).map((para, j) => <p key={i + "-" + j}>{inline(para)}</p>)
+  );
+}
+
+export const CHIP_KEYS = ["chat.chip1", "chat.chip2", "chat.chip3", "chat.chip4", "chat.chip5"];
+
+export default function Chat({
+  concept, status, chat, busy, ending, onSend, onNew, onEnd, onExplain,
+  suggestionBusy, onSuggestion,
+  introduction, emptyState, examples=[], onSaveExample, exampleBusy,
+}) {
+  const { t } = useT();
+  const [text, setText] = useState("");
+  const [voiceBusy, setVoiceBusy] = useState(false);
+  const endRef = useRef(null);
+  const taRef = useRef(null);
+  const messages = chat?.messages || [];
+
+  const logRef = useRef(null);
+  const nearBottom = useRef(true);
+  useEffect(() => {
+    if (messages.length && nearBottom.current && logRef.current) logRef.current.scrollTo({ top: logRef.current.scrollHeight, behavior: "auto" });
+  }, [messages.length, busy]);
+  useEffect(() => { nearBottom.current = true; setText(""); }, [concept]);
+
+  useEffect(() => {
+    const ta = taRef.current;
+    if (!ta) return;
+    ta.style.height = "auto";
+    ta.style.height = Math.min(ta.scrollHeight, 120) + "px";
+  }, [text]);
+
+  const send = (value) => {
+    const msg = (value ?? text).trim();
+    if (!msg || busy || voiceBusy) return;
+    setText("");
+    nearBottom.current = true;
+    onSend(msg);
+  };
+
+  const onKeyDown = (e) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      send();
+    }
+  };
+
+  return (
+    <div className="chat">
+      <div className="chat-log" ref={logRef} onScroll={(e) => { const el = e.currentTarget; nearBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < 120; }}>
+        {chat?.memory_error&&<div className="memory-retry" role="alert"><p>{t("memory.failed")}</p><button className="btn" disabled={busy||ending} onClick={onEnd}>{ending?t("chat.ending"):t("memory.retry")}</button></div>}
+        {introduction}
+        {messages.length === 0 && !busy && (emptyState || <section className="lesson-start"><h2>{t("lesson.startTitle")}</h2><p>{t("lesson.startHint")}</p><button className="btn primary" onClick={onExplain}>{t("lesson.start")}</button></section>)}
+        {messages.map((m) => (
+          <div key={m.seq} className={"msg " + m.role}>{m.role === "assistant" ? <LocalizedText block render={render}>{m.content}</LocalizedText> : render(m.content)}{m.role === "assistant" && <><TeachingIllustration illustration={m.illustration} />{onSaveExample && <button className="textlink helpful-save" disabled={exampleBusy || !chat?.session_id || examples.some(e=>e.session_id===chat.session_id && e.seq===m.seq)} onClick={()=>onSaveExample(m.seq)}>{examples.some(e=>e.session_id===chat.session_id && e.seq===m.seq)?t("journey.exampleSaved"):t("journey.helped")}</button>}</>}</div>
+        ))}
+        {busy && (
+          <div className="msg thinking" aria-live="polite">
+            <span className="dots"><span /><span /><span /></span>
+            <span className="hint">{t("chat.thinking")}</span>
+          </div>
+        )}
+        <ConversationSuggestions suggestions={chat?.suggestions} busy={busy || ending || suggestionBusy} onAction={onSuggestion} />
+        <div ref={endRef} />
+      </div>
+
+      <div className="chat-foot">
+        <div className="chat-chips">
+          {["chat.chip2", "learn.visualRequest"].map((k) => (
+            <button key={k} className="chip" disabled={busy} onClick={() => send(t(k))}>{t(k)}</button>
+          ))}
+        </div>
+        <div className="chat-input">
+          <div className="pill">
+            <textarea
+              ref={taRef}
+              rows={1}
+              placeholder={t("learn.messagePlaceholder")}
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+              onKeyDown={onKeyDown}
+              disabled={busy}
+              aria-label={t("chat.aria")}
+            />
+          </div>
+          <VoiceInput key={concept+":"+(chat?.session_id||"")} disabled={busy||ending} onBusy={setVoiceBusy} onText={value=>{setText(previous=>previous ? previous.trimEnd()+" "+value : value);taRef.current?.focus();}} />
+          <button className="send" onClick={() => send()} disabled={busy || voiceBusy || !text.trim()} aria-label={t("chat.send")}>
+            {busy
+              ? <span className="spinner" />
+              : <svg width="13" height="13" viewBox="0 0 13 13"><path d="M1.5 6.5 H10 M7 3 L10.5 6.5 L7 10" stroke="#9CC8FF" strokeWidth="1.5" fill="none" /></svg>}
+          </button>
+        </div>
+        <details className="chat-session-menu"><summary>{t("learn.sessionMenu")}</summary><div className="chat-links">
+          <button className="textlink" onClick={onEnd} disabled={busy || ending || !messages.length}
+                  title={t("chat.endTitle")}>
+            {ending ? t("chat.ending") : t("chat.end")}
+          </button>
+          <button className="textlink" onClick={onNew} disabled={busy || ending}
+                  title={t("chat.newTitle")}>{t("chat.new")}</button>
+        </div></details>
+      </div>
+    </div>
+  );
+}

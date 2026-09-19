@@ -1,0 +1,128 @@
+"use client";
+import LocalizedText from "./LocalizedText";
+import { useState } from "react";
+import { GoalCard, HelpfulExamples } from "./LearningDirection";
+import LevelPills from "./LevelPills";
+import MemoryBlock from "./MemoryBlock";
+import MiniTree from "./MiniTree";
+import Progress from "./Progress";
+import Chat from "./Chat";
+import LearningTrail from "./LearningTrail";
+import { fmtTs, momentLink } from "../lib/time";
+import { useT } from "../lib/i18n";
+
+const ExpandIcon = () => (
+  <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><path d="M8.5 1.5 H12.5 V5.5 M12.5 1.5 L8 6 M5.5 12.5 H1.5 V8.5 M1.5 12.5 L6 8" stroke="currentColor" strokeWidth="1.3" fill="none" /></svg>
+);
+const CollapseIcon = () => (
+  <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><path d="M5.5 1.5 H1.5 V5.5 M1.5 1.5 L6 6 M8.5 12.5 H12.5 V8.5 M12.5 12.5 L8 8" stroke="currentColor" strokeWidth="1.3" fill="none" /></svg>
+);
+
+function Actions({ concept, level, busy, onExplain, onMarkLearned }) {
+  const { t } = useT();
+  const suggested = concept.status === "suggested" || concept.status === "queued";
+  return (
+    <>
+      <button className={"btn" + (suggested ? "" : " ghost")} disabled={busy.explain || busy.chat || busy.ending || busy.suggestion}
+              title={t("panel.explainTitle")}
+              onClick={() => onExplain(concept.name, level)}>
+        {busy.explain ? <><span className="spinner" /> {t("panel.thinking")}</> : suggested ? <>{t("panel.explain")} <small style={{ opacity: .7 }}>{t("panel.explainLevel", { n: level })}</small></> : t("panel.explain")}
+      </button>
+      <button className={"btn " + (concept.status === "learned" ? "ok" : "ghost")}
+              disabled={busy.mark || concept.status === "learned"}
+              onClick={() => onMarkLearned(concept.name)}>
+        {concept.status === "learned" ? t("panel.learned") : busy.mark ? "…" : t("panel.markLearned")}
+      </button>
+      {busy.explain && <span className="hint">{t("panel.thinkingHint")}</span>}
+    </>
+  );
+}
+
+// Tijdcode als "Spring naar 47:12": YouTube linkt naar url + t=<sec>s,
+// een andere bron met url naar die url, zonder url alleen als tekst.
+function Moment({ url, sec }) {
+  const { t } = useT();
+  const label = t("panel.jumpTo", { ts: fmtTs(sec) });
+  const href = momentLink(url, sec);
+  if (!href) return <span className="ts">{fmtTs(sec)}</span>;
+  return <a className="ts" href={href} target="_blank" rel="noopener noreferrer" title={label}>{label} ↗</a>;
+}
+
+export function Sources({ mentions, onAsk, busy }) {
+  const { t } = useT();
+  if (!mentions.length) return <div className="hint">{t("panel.noSources")}</div>;
+  return (
+    <div className="sources">
+      {mentions.map((m, i) => {
+        const list = (m.mentions || []).filter((x) => x.quote || x.start_sec != null);
+        return (
+          <div className="source" key={i}>
+            <i />
+            <div style={{ minWidth: 0, flex: 1 }}>
+              <div className="source-head">
+                <b>{m.url && !list.length ? <a href={m.url} target="_blank" rel="noopener noreferrer">{m.source} ↗</a> : m.source}</b>
+                {m.type && <span className="type">{m.type}</span>}
+              </div>
+              {m.context && <p><LocalizedText>{m.context}</LocalizedText></p>}
+              {onAsk && <button className="textlink" disabled={busy} onClick={()=>onAsk(t("journey.sourceQuestion",{name:m.source}))}>{t("journey.askSource")} →</button> }
+              {list.length > 0 && (
+                <ul className="moments">
+                  {list.map((x, j) => (
+                    <li key={j}>
+                      {x.start_sec != null ? <Moment url={m.url} sec={x.start_sec} /> : (m.url && <a className="ts" href={m.url} target="_blank" rel="noopener noreferrer">{t("panel.source")} ↗</a>)}
+                      {x.provenance === "ai_video_analysis" && <span className="hint">{t("video.approximate")}</span>}
+                      {x.quote && <span className="q">“{x.quote}”</span>}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+export default function MentorPanel({
+  concept, chat, graph, levels, level, busy, trail, onReturn, onSuggestion,
+  goal, review, examples=[], journeyBusy, onGoalUpdate, onSaveExample, onEditExample, onDeleteExample,
+  onLevel, onSend, onNewChat, onEndChat, onRemoveMemory, onObservation, onPosition,
+  onExplain, onMarkLearned, onSelect, onClose,
+}) {
+  const { t } = useT();
+  const [contextOpen, setContextOpen] = useState(false);
+  if (!concept) return null;
+  const mentions = (concept.mentions || []).filter((m) => m && m.source);
+  const firstQuestion = chat?.messages?.find((m) => m.role === "user")?.content;
+  const question = firstQuestion && firstQuestion.length <= 140 ? firstQuestion : concept.name;
+  const state = chat?.state;
+  const recap = (!state?.summary_stale && state?.summary) || (state?.covered?.length ? state.covered.slice(0, 2).join(" · ") : t("learn.freshStart"));
+  const introduction = <header className="lesson-heading">
+    <LearningTrail trail={trail} onReturn={onReturn} />
+    <div className="lesson-eyebrow"><span className={"status-dot " + concept.status} />{concept.name}<label className="depth-select">{t("learn.depth")}<select value={level} disabled={busy.chat || busy.explain} onChange={(e) => onLevel(Number(e.target.value))}>{[1,2,3,4,5].map((n) => <option key={n} value={n}>{t("depth." + n)}</option>)}</select></label></div>
+    <h1>{question}</h1>
+    <details className="memory-recap"><summary><span><LocalizedText>{recap}</LocalizedText></span><b>{t("learn.viewMemory")}</b></summary><MemoryBlock state={state} onRemove={onRemoveMemory} onObservation={onObservation} onPosition={onPosition} /></details>
+    {!chat?.messages?.length && <p className="lesson-definition"><LocalizedText>{concept.definition}</LocalizedText></p>}
+  </header>;
+  return <section className={"learn-workspace" + (contextOpen ? " context-open" : "")} aria-label={t("panel.mentor", { name: concept.name })}>
+    <div className="lesson-main">
+      <div className="lesson-toolbar"><button className="textlink" onClick={onClose}>← {t("nav.explore")}</button><button className="textlink" onClick={() => setContextOpen(!contextOpen)} aria-pressed={contextOpen}>{t("learn.context")}</button></div>
+      <Chat concept={concept.name} status={concept.status} chat={chat} busy={!!(busy.chat || busy.explain)} ending={!!busy.ending}
+        onSend={onSend} onNew={onNewChat} onEnd={onEndChat} onExplain={() => onExplain(concept.name, level)}
+        suggestionBusy={busy.suggestion} onSuggestion={onSuggestion} introduction={introduction}
+        examples={examples} onSaveExample={onSaveExample} exampleBusy={journeyBusy} />
+    </div>
+    <aside className="lesson-context" aria-label={t("learn.context")}>
+      <h2>{t("learn.context")}</h2>
+      <MiniTree graph={graph} name={concept.name} status={concept.status} big onSelect={onSelect} busy={busy.chat || busy.explain || busy.ending} onConnections={()=>onSend(t("tree.connectionsPrompt"))} />
+      {review && <section className="review-option"><p>{t("journey.reviewHint")}</p><button className="btn" disabled={busy.chat || busy.explain || busy.ending} onClick={()=>onSend(t("journey.reviewRequest"))}>{t("journey.reviewStart")}</button></section>}
+      <GoalCard goal={goal} onOpen={onSelect} onUpdate={onGoalUpdate} busy={journeyBusy} />
+      <HelpfulExamples examples={examples} onEdit={onEditExample} onDelete={onDeleteExample} busy={journeyBusy} />
+      {mentions.length > 0 && <details><summary>{t("panel.sources")} · {mentions.length}</summary><Sources mentions={mentions} onAsk={onSend} busy={busy.chat || busy.explain || busy.ending} /></details>}
+      <details><summary>{t("learn.notes")}</summary><MemoryBlock state={state} onRemove={onRemoveMemory} onObservation={onObservation} onPosition={onPosition} /></details>
+      <details><summary>{t("learn.conceptDetails")}</summary><p><LocalizedText>{concept.definition}</LocalizedText></p><Actions concept={concept} level={level} busy={busy} onExplain={onExplain} onMarkLearned={onMarkLearned} /></details>
+      {trail?.length > 1 && <button className="textlink context-return" onClick={() => onReturn(trail.length - 2)}>← {t("trail.return", { name: trail[trail.length - 2] })}</button>}
+    </aside>
+  </section>;
+}

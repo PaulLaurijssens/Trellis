@@ -1,0 +1,11 @@
+/backups/
+# Secrets: nooit in git. Zie .env.example voor de sleutels.
+.env
+# Build- en cache-mappen
+node_modules/
+.next/
+__pycache__/
+.pytest_cache/
+# Lokale tool-state
+.gstack/
+.DS_Store

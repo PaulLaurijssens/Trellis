@@ -1,0 +1,41 @@
+# Productie-image voor de Dendrite-frontend. Verschilt bewust van de dev-Dockerfile:
+#  - npm ci uit package-lock.json (reproduceerbaar) i.p.v. npm install
+#  - next build + next start i.p.v. next dev
+#  - code IN het image, geen bind-mount
+#  - NEXT_PUBLIC_API_URL is een BUILD-arg: Next bakt NEXT_PUBLIC_*-waarden in de bundel,
+#    dus dit runtime zetten doet niets. Default "/api" => same-origin, geen CORS, en de
+#    PWA praat met dezelfde herkomst als waar hij vandaan komt.
+ARG NODE_VERSION=22.23.2
+FROM node:${NODE_VERSION}-bookworm-slim AS build
+WORKDIR /app
+
+COPY package.json package-lock.json ./
+RUN npm ci
+
+COPY . .
+ARG NEXT_PUBLIC_API_URL=/api
+ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
+ENV NEXT_TELEMETRY_DISABLED=1
+RUN npm run build
+
+FROM node:${NODE_VERSION}-bookworm-slim AS runtime
+WORKDIR /app
+ENV NODE_ENV=production \
+    NEXT_TELEMETRY_DISABLED=1 \
+    PORT=3000
+
+# --chown is niet optioneel: COPY neemt anders de rechten van de build-context over, en een
+# context met 0640-bestanden levert een image op waarin de non-root user zijn eigen
+# package.json niet kan lezen (EACCES bij het starten). Numerieke ids mogen vooruitlopen
+# op de useradd hieronder.
+COPY --from=build --chown=10003:10003 /app/node_modules ./node_modules
+COPY --from=build --chown=10003:10003 /app/.next ./.next
+COPY --from=build --chown=10003:10003 /app/public ./public
+COPY --from=build --chown=10003:10003 /app/package.json ./package.json
+COPY --from=build --chown=10003:10003 /app/next.config.js ./next.config.js
+
+RUN groupadd -g 10003 dendrite && useradd -u 10003 -g 10003 -m -s /usr/sbin/nologin dendrite
+USER 10003:10003
+
+EXPOSE 3000
+CMD ["npm", "run", "start"]

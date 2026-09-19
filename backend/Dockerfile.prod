@@ -1,0 +1,31 @@
+# Productie-image voor de Dendrite-API. Verschilt bewust van de dev-Dockerfile:
+#  - gepinde basis + gepinde requirements (reproduceerbaar)
+#  - code IN het image, geen bind-mount: wat draait is wat gebouwd is
+#  - geen --reload: die watcht de hele boom en kost geheugen
+#  - non-root user
+# Exacte patch + digest. "3.12-slim-bookworm" was een zwevende tag, en met pull:true in de
+# rol haalde elke build de nieuwste op. 3.12.14 is wat de eerste geslaagde build gebruikte
+# (PYTHON_VERSION in de image-env); de digest is geverifieerd tegen Docker Hub (2026-09-19).
+# Bijwerken = tag én digest samen vervangen.
+FROM python:3.12.14-slim-bookworm@sha256:d5ae74acb8026b32a2f6deea45003c5bd4e2880700c19c44bda54670ad3eff90
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1
+
+WORKDIR /app
+
+COPY requirements.lock.txt ./
+RUN pip install --no-cache-dir -r requirements.lock.txt
+
+# --chown om dezelfde reden als in het frontend-image: COPY erft de rechten van de
+# build-context, en zonder dit kan de non-root user zijn eigen broncode niet lezen.
+COPY --chown=10002:10002 app ./app
+
+RUN groupadd -g 10002 dendrite && useradd -u 10002 -g 10002 -m -s /usr/sbin/nologin dendrite
+USER 10002:10002
+
+EXPOSE 8000
+# Eén worker: dit is een persoonlijke app op een gedeelde box. Meer workers = meer geheugen
+# en meer Neo4j-connecties, zonder dat er iemand op wacht.
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1"]
