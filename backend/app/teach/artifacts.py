@@ -69,6 +69,29 @@ def read_asset(name: str, version: str, file: str) -> str:
     return path.read_text(encoding="utf-8")
 
 
+def store_asset(name: str, files: dict) -> dict:
+    """A component proposed by the teaching agent, after the workbench linted it. Versions are
+    immutable: the next free patch version is used, an existing directory is never touched."""
+    if not ASSET_NAME.match(name or "") or name.startswith("dendrite-"):
+        raise ValueError("component name: lowercase letters, digits and dashes; 'dendrite-' is reserved")
+    if not files or len(files) > 8 or any(not ASSET_FILE.match(f) for f in files) or sum(len(v.encode()) for v in files.values()) > 512 * 1024:
+        raise ValueError("a component has 1-8 flat files (no folders), 512 KB in total")
+    if not any(f.lower() == "readme.md" for f in files):
+        raise ValueError("a component needs a README.md that says how a lesson uses it")
+    base = ROOT / "assets" / name
+    taken = [tuple(map(int, p.name.split("."))) for p in base.iterdir()] if base.is_dir() else []
+    version = "1.0.%d" % (max(v[2] for v in taken) + 1) if taken else "1.0.0"
+    target = base / version
+    target.mkdir(parents=True)
+    for file, text in files.items():
+        (target / file).write_text(text, encoding="utf-8")
+        (target / file).chmod(0o644)
+    for path in (base, target):
+        path.chmod(0o755)
+    digest = hashlib.sha256("".join(f + "\0" + files[f] for f in sorted(files)).encode()).hexdigest()
+    return {"name": name, "version": version, "sha256": digest, "files": sorted(files)}
+
+
 def script_hashes(html: str) -> list[str]:
     out = []
     for attrs, body in INLINE_SCRIPT.findall(html):

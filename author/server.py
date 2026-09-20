@@ -77,7 +77,23 @@ def op_validate(job, body):
     return {**report, **browser}
 
 
-OPS = {"write": op_write, "read": op_read, "list": op_list, "bundle": op_bundle, "validate": op_validate}
+def op_lint(job, body):
+    """Static rules for files proposed as a reusable component (same rules as lesson code)."""
+    errors, files = [], {}
+    for rel in (body.get("paths") or [])[:8]:
+        target = bundler.safe_job_path(job, rel)
+        if not target.is_file():
+            raise bundler.BundleError(f"file not found: {rel}")
+        text = target.read_text(encoding="utf-8")
+        kind = target.suffix.lower()
+        if kind not in (".js", ".css", ".svg", ".md"):
+            raise bundler.BundleError("a component may contain .js, .css, .svg and .md files")
+        errors += [f"{rel}: {e}" for e in bundler.lint(text if kind == ".svg" else "", text if kind == ".js" else "", text if kind == ".css" else "")]
+        files[rel] = text
+    return {"errors": errors, "files": files}
+
+
+OPS = {"lint": op_lint, "write": op_write, "read": op_read, "list": op_list, "bundle": op_bundle, "validate": op_validate}
 
 
 class Handler(BaseHTTPRequestHandler):

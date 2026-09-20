@@ -56,6 +56,10 @@ def bundle(job_id):
     return _call("POST", f"/jobs/{job_id}/bundle", timeout=60)
 
 
+def lint_files(job_id, paths):
+    return _call("POST", f"/jobs/{job_id}/lint", {"paths": paths})
+
+
 def delete_job(job_id):
     try:
         _call("DELETE", f"/jobs/{job_id}", timeout=10)

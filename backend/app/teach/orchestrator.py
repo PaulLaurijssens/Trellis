@@ -9,7 +9,7 @@ import os
 import time
 
 from .. import graph, llm, memory_model
-from . import lessons, model, objectives, skill, worker, workspace
+from . import artifacts, lessons, model, objectives, skill, worker, workspace
 
 log = logging.getLogger("uvicorn.error")
 MAX_STEPS = int(os.getenv("TEACH_MAX_STEPS", "40"))
@@ -32,6 +32,8 @@ TOOLS = [
     _tool("lesson_read_file", "Read back a lesson file you wrote.", {"path": S}, ["path"]),
     _tool("lesson_validate", "Bundle the lesson and test-run it in a sandboxed phone and desktop browser. Returns errors, warnings and a phone screenshot. Fix every error, then validate again.", {}),
     _tool("lesson_publish", "Publish the validated lesson as an immutable version. Only after lesson_validate returned ok and no file changed since.", {}),
+    _tool("asset_propose", "Submit files you wrote with lesson_write_file (e.g. components/matrix-grid/matrix-grid.js + README.md) as a reusable, versioned component. After approval, link it as assets/<name>/<version>/<file>.",
+          {"name": S, "paths": A(S)}, ["name", "paths"]),
     _tool("propose_reference", "Save a reference document (the compressed essence of the lesson, for quick reference). Same title again = a new revision, not a duplicate.",
           {"kind": {"type": "string", "enum": list(lessons.REFERENCE_KINDS)}, "title": S, "markdown": S, "concept_ids": A(S), "source_ids": A(S)}, ["kind", "title", "markdown"]),
     _tool("propose_glossary_term", "Add or revise one term of the learner's personal glossary. Needs evidence that the learner can use the term.",
@@ -160,6 +162,21 @@ class Job:
                                                  skill.provenance(), AUTHOR_MODEL, self.job_id, source_snapshot=snapshot)
         return {"published": True, "lesson_id": self.published["lesson_id"], "version_id": self.published["version_id"]}
 
+    def asset_propose(self, args):
+        paths = [p for p in args.get("paths") or [] if isinstance(p, str)][:8]
+        linted = worker.lint_files(self.job_id, paths)
+        if linted["errors"]:
+            return {"error": "The component breaks the lesson rules: " + "; ".join(linted["errors"][:6])}
+        stored = artifacts.store_asset(args.get("name"), {p.rsplit("/", 1)[-1]: text for p, text in linted["files"].items()})
+        graph.run('''MERGE (a:Asset {name:$name, version:$version}) SET a.sha256=$sha, a.status="approved", a.person_id=$pid,
+            a.origin_job_id=$job, a.created_at=$now''', name=stored["name"], version=stored["version"], sha=stored["sha256"],
+                  pid=self.person_id, job=self.job_id, now=graph._now())
+        for file in stored["files"]:
+            self.files[f"assets/{stored['name']}/{stored['version']}/{file}"] = None
+        self.dirty = True
+        return {"approved": True, "link_as": [f"assets/{stored['name']}/{stored['version']}/{f}" for f in stored["files"]],
+                "manifest_assets_entry": f"{stored['name']}@{stored['version']}"}
+
     def propose_reference(self, args):
         ref = lessons.save_reference(self.person_id, self.topic["id"], args.get("kind"), args.get("title"), args.get("markdown"),
                                      [c for c in args.get("concept_ids") or [] if c in self.concept_ids],
@@ -243,7 +260,7 @@ class Job:
         except Exception as exc:                      # a tool bug must not kill the job silently
             log.exception("teach tool %s failed", name)
             result = {"error": f"internal error in {name}"}
-        if name.startswith("propose_") or name in ("report_resource_gap", "recommend_topic"):
+        if name.startswith("propose_") or name in ("asset_propose", "report_resource_gap", "recommend_topic"):
             self.proposals.append({"tool": name, "ok": "error" not in result})
         brief = {k: (v if isinstance(v, (int, float, bool)) or v is None else str(v)[:120]) for k, v in args.items() if k not in ("content", "markdown")}
         self.trace.append({"tool": name, "args": brief, "ok": "error" not in result and result.get("ok", True) is not False,
