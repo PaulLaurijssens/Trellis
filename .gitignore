@@ -9,3 +9,5 @@ __pycache__/
 # Lokale tool-state
 .gstack/
 .DS_Store
+# Lokale lesartefacten (dev)
+.artifacts/

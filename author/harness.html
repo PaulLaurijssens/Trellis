@@ -1,0 +1,34 @@
+<!doctype html>
+<!-- Validation host: the same handshake as Dendrite's real host (frontend/lib/lessonBridge.js), minimal. -->
+<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>host</title>
+<style>html,body{margin:0;height:100%;background:#0e1116}iframe{border:0;width:100%;height:100%;display:block}</style>
+</head><body>
+<iframe id="lesson" sandbox="allow-scripts" src="/lesson" title="lesson"></iframe>
+<script>
+  window.__events = []; window.__loads = 0; window.__ready = false; window.__rejected = 0;
+  const frame = document.getElementById('lesson');
+  frame.addEventListener('load', () => { window.__loads += 1; });
+  const TYPES = ['lesson.ready', 'activity.state_changed', 'activity.answer_submitted', 'activity.hint_requested',
+                 'mentor.question_requested', 'source.open_requested', 'link.open_requested', 'lesson.resize'];
+  function record(msg) {
+    if (!msg || msg.v !== 1 || !TYPES.includes(msg.type) || JSON.stringify(msg).length > 16384) { window.__rejected += 1; return false; }
+    window.__events.push(JSON.parse(JSON.stringify(msg))); return true;
+  }
+  window.addEventListener('message', (event) => {
+    if (event.source !== frame.contentWindow || window.__ready) return;
+    const msg = event.data;
+    if (!record(msg) || msg.type !== 'lesson.ready') return;
+    const channel = new MessageChannel();
+    channel.port1.onmessage = (e) => {
+      if (!record(e.data)) return;
+      if (e.data.type === 'activity.answer_submitted') {
+        channel.port1.postMessage({ v: 1, type: 'host.feedback', activity_id: e.data.activity_id,
+          client_op_id: e.data.payload && e.data.payload.client_op_id, payload: { outcome: 'pending', message: '' } });
+      }
+    };
+    frame.contentWindow.postMessage({ v: 1, type: 'host.init', payload: { run_id: 'validation', channel: 'validation',
+      locale: 'en', reduced_motion: true, state: {}, current_activity: null } }, '*', [channel.port2]);
+    window.__ready = true;
+  });
+</script>
+</body></html>

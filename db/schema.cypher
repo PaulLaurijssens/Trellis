@@ -49,3 +49,23 @@ CREATE CONSTRAINT concept_suggestion_id IF NOT EXISTS FOR (s:ConceptSuggestion) 
 
 CREATE CONSTRAINT learning_goal_id IF NOT EXISTS FOR (g:LearningGoal) REQUIRE g.id IS UNIQUE;
 CREATE CONSTRAINT helpful_example_id IF NOT EXISTS FOR (e:HelpfulExample) REQUIRE e.id IS UNIQUE;
+
+// ---- /teach integration (additive; see docs M0 design §3.2) ----
+// Truth lives in these nodes. The Markdown workspace of the teaching agent is a one-way export.
+CREATE CONSTRAINT topic_id IF NOT EXISTS FOR (t:Topic) REQUIRE t.id IS UNIQUE;
+CREATE CONSTRAINT topic_objective_id IF NOT EXISTS FOR (o:TopicObjective) REQUIRE o.id IS UNIQUE;
+CREATE CONSTRAINT topic_recommendation_id IF NOT EXISTS FOR (r:TopicRecommendation) REQUIRE r.id IS UNIQUE;
+CREATE CONSTRAINT lesson_id IF NOT EXISTS FOR (l:Lesson) REQUIRE l.id IS UNIQUE;
+CREATE CONSTRAINT lesson_version_id IF NOT EXISTS FOR (v:LessonVersion) REQUIRE v.id IS UNIQUE;
+CREATE CONSTRAINT lesson_run_id IF NOT EXISTS FOR (r:LessonRun) REQUIRE r.id IS UNIQUE;
+CREATE CONSTRAINT lesson_job_id IF NOT EXISTS FOR (j:LessonJob) REQUIRE j.id IS UNIQUE;
+CREATE CONSTRAINT exercise_attempt_id IF NOT EXISTS FOR (a:ExerciseAttempt) REQUIRE a.id IS UNIQUE;
+CREATE CONSTRAINT reference_id IF NOT EXISTS FOR (r:Reference) REQUIRE r.id IS UNIQUE;
+// (:Topic {id,title,language,origin,seeded_from_plan_key,created_at})-[:COVERS]->(:Concept)
+// (:Person)-[:STUDIES {since,familiarity_self_report,approach,last_time_budget_min,resource_gaps_json}]->(:Topic)
+// (:TopicObjective {id,person_id,topic_id,revision,status:active|superseded|proposed|rejected,intent,
+//                   objective_markdown,observable_outcomes[],preferred_depth,constraints[],out_of_scope[]})
+//     -[:FOR_TOPIC]->(:Topic), -[:SUPERSEDES]->(:TopicObjective), -[:SERVES]->(:LearningGoal)
+// (:Lesson)-[:HAS_VERSION]->(:LessonVersion)   // version = immutable; files on the artifact volume
+// (:LessonRun)-[:OF_VERSION]->(:LessonVersion) // a run never changes version
+// (:ExerciseAttempt)-[:IN_RUN]->(:LessonRun)   // layer 1 for exercises, like :ChatMessage for chat

@@ -29,13 +29,39 @@ services:
     env_file: .env
     environment:
       NEO4J_URI: bolt://neo4j:7687
+      AUTHOR_URL: http://author:8700
+      TEACH_ARTIFACT_DIR: /artifacts
+      TEACH_MODE: "on"
     volumes:
       - ./backend:/app
       - ./db:/import
+      - ./.artifacts:/artifacts
     depends_on:
       neo4j:
         condition: service_healthy
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+
+  # Lesson workbench. In dev it shares the default network; in production it sits on its own
+  # internal network with only the API (see the Ansible role).
+  author:
+    build:
+      context: ./author
+      dockerfile: Dockerfile.prod
+    container_name: mentor-author
+    ports:
+      - "127.0.0.1:8700:8700"   # dev only: lets tests on the Mac reach the workbench
+    user: "10003:10002"
+    read_only: true
+    tmpfs:
+      - /work:size=256m,uid=10003,gid=10002,mode=0700
+      - /tmp:size=256m,uid=10003,gid=10002,mode=0700
+    volumes:
+      - ./.artifacts/assets:/assets:ro
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    pids_limit: 256
+    mem_limit: 1536m
+    cpus: 1.5
 
   frontend:
     build: ./frontend
