@@ -112,3 +112,48 @@ async def aembed(texts: list[str], usage: Usage | None = None, phase: str = "emb
             return resp.data[0]["embedding"]
 
     return list(await asyncio.gather(*(one(t) for t in texts)))
+
+
+class ToolLoopStopped(RuntimeError):
+    """Budget, wall clock or cancellation ended an agent loop before the model did."""
+
+
+def tool_loop(system: str, task: str, tools: list[dict], handler, model: str, max_steps: int = 30,
+              deadline: float | None = None, usage: Usage | None = None, phase: str = "agent",
+              should_stop=None, timeout: float = 180.0) -> str:
+    """Bounded agent loop over function calling. `handler(name, args)` returns (result_dict, extra_messages);
+    extra messages (e.g. a screenshot for the model to look at) are appended after the tool results.
+    The assistant message is passed back unmodified, so provider fields (Gemini thought signatures) survive."""
+    import time
+    messages = [{"role": "system", "content": system}, {"role": "user", "content": task}]
+    for _ in range(max_steps):
+        if should_stop and should_stop():
+            raise ToolLoopStopped("cancelled")
+        if deadline and time.monotonic() > deadline:
+            raise ToolLoopStopped("time budget used up")
+        resp = litellm.completion(model=model, messages=messages, tools=tools, tool_choice="auto",
+                                  temperature=0.3, timeout=timeout)
+        if usage is not None:
+            usage.add(phase, resp)
+        message = resp.choices[0].message
+        messages.append(message.model_dump(exclude_none=True))
+        calls = message.tool_calls or []
+        if not calls:
+            return message.content or ""
+        extras = []
+        for call in calls:
+            try:
+                args = json.loads(call.function.arguments or "{}")
+                if not isinstance(args, dict):
+                    raise ValueError
+            except ValueError:
+                result, extra = {"error": "arguments must be a JSON object"}, []
+            else:
+                result, extra = handler(call.function.name, args)
+            messages.append({"role": "tool", "tool_call_id": call.id, "name": call.function.name,
+                             "content": json.dumps(result, ensure_ascii=False)[:60000]})
+            extras += extra or []
+            if isinstance(result, dict) and result.get("finished"):
+                return str(result.get("summary") or "")
+        messages += extras
+    raise ToolLoopStopped("step budget used up")

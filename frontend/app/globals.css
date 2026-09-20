@@ -1267,3 +1267,64 @@ button.chip:hover:not(:disabled) { border-color: rgba(84, 169, 255, 0.45); color
   .stage.redesigned .next-topic { margin-top:8px; padding:8px 14px; }
   .stage.redesigned .next-topic span { display:none; }
 }
+
+/* ==========================================================================
+   Interactive lessons (/teach integration). New class names only: with the feature flag off none of
+   these elements exist, so the rest of the app renders exactly as before.
+   ========================================================================== */
+.teach-dock { margin: 22px 0 6px; padding: 18px 20px; border: 1px solid var(--learning-line); border-radius: 14px; background: var(--learning-bg); font-family: var(--font-ui); font-size: 16px; color: var(--text-2); }
+.teach-dock-head { display: flex; gap: 10px; align-items: baseline; margin-bottom: 10px; }
+.teach-badge { font-size: 12px; letter-spacing: 1.2px; text-transform: uppercase; color: var(--learning-soft); }
+.teach-topic { color: var(--text-dim); font-size: 14px; }
+.teach-objective { margin: 0 0 12px; line-height: 1.5; color: var(--text-1); }
+.teach-pills { border: 0; padding: 0; margin: 0 0 12px; display: flex; flex-wrap: wrap; gap: 8px; }
+.teach-pills legend { padding: 0; margin-bottom: 6px; font-size: 14px; color: var(--text-3); }
+.teach-pill { min-height: 44px; padding: 0 16px; border-radius: var(--r-pill); border: 1px solid var(--line-strong); background: transparent; color: var(--text-1); font-size: 15px; }
+.teach-pill[aria-pressed="true"] { border-color: var(--learning-line); background: var(--learning-bg-strong); color: var(--learning-soft); }
+.teach-free { display: block; margin-bottom: 12px; }.teach-free span { display: block; font-size: 14px; color: var(--text-3); margin-bottom: 6px; }
+.teach-free textarea, .teach-goal, .teach-note { width: 100%; background: var(--code-bg); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; font-size: 16px; line-height: 1.5; resize: vertical; }
+.teach-note { min-height: 44px; resize: none; }
+.teach-actions { display: flex; flex-wrap: wrap; gap: 14px; align-items: center; }
+.teach-dock .btn { min-height: 44px; }
+.teach-start { display: grid; gap: 12px; justify-items: start; }
+.teach-make { display: grid; gap: 10px; width: 100%; justify-items: start; }.teach-make .teach-pills { margin: 0; }
+.teach-hint { font-size: 14px; color: var(--text-dim); margin: 0 0 10px; font-family: var(--font-ui); }
+.teach-preview ul { margin: 10px 0 14px; padding-left: 20px; color: var(--text-1); line-height: 1.5; }
+.teach-progress ol { list-style: none; padding: 0; margin: 0 0 10px; display: grid; gap: 6px; }
+.teach-progress li { color: var(--text-ghost); padding-left: 22px; position: relative; }
+.teach-progress li::before { content: ""; position: absolute; left: 4px; top: 8px; width: 8px; height: 8px; border-radius: 50%; border: 1px solid var(--line-strong); }
+.teach-progress li.done { color: var(--text-3); }.teach-progress li.done::before { background: var(--learned); border-color: var(--learned); }
+.teach-progress li.now { color: var(--text); }.teach-progress li.now::before { background: var(--learning); border-color: var(--learning); animation: ghostPulse 1.6s infinite; }
+.teach-ready p { margin: 0 0 12px; line-height: 1.5; color: var(--text-1); }
+.teach-failed { color: var(--mentor); margin: 8px 0 0; font-family: var(--font-ui); font-size: 15px; }
+.teach-proposal { border-left: 2px solid var(--mentor); padding-left: 14px; margin-bottom: 14px; }.teach-proposal p { margin: 0 0 6px; }
+.teach-more { margin-top: 14px; }.teach-more summary { cursor: pointer; color: var(--text-3); font-size: 14px; min-height: 32px; }
+.teach-row { display: grid; gap: 2px; width: 100%; text-align: left; background: none; border: 0; border-top: 1px solid var(--line-soft); padding: 10px 0; min-height: 44px; color: var(--text-1); }
+.teach-row span { color: var(--text-dim); font-size: 14px; }.teach-rec .teach-actions { margin-top: 4px; }
+
+/* running lesson: frame + mentor. Desktop: side by side. Phone: one at a time, both stay mounted. */
+.teach-stage { display: flex; flex-direction: column; min-height: 0; min-width: 0; }
+.teach-stage-bar { display: flex; gap: 14px; align-items: center; padding: 8px 16px; border-bottom: 1px solid var(--line-soft); font-family: var(--font-ui); font-size: 14px; color: var(--text-3); flex-shrink: 0; }
+.teach-stage-bar b { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--text-1); font-weight: 500; }
+.teach-stage-bar .textlink { min-height: 32px; }
+.teach-offline { color: var(--mentor); font-size: 13px; }
+.teach-frame { flex: 1; width: 100%; min-height: 0; border: 0; background: var(--bg-deep); display: block; }
+.teach-stage > .teach-hint, .teach-stage > .teach-failed, .teach-stage > .teach-ready { padding: 20px; }
+.teach-tabs { display: none; gap: 4px; }
+.teach-tabs button { min-height: 36px; padding: 0 14px; border-radius: var(--r-pill); border: 1px solid var(--line); background: transparent; color: var(--text-3); font-size: 14px; }
+.teach-tabs button[aria-selected="true"] { border-color: var(--learning-line); color: var(--learning-soft); background: var(--learning-bg); }
+.has-lesson .lesson-main { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(320px, 1fr); grid-template-rows: auto minmax(0, 1fr); }
+.has-lesson .lesson-toolbar { grid-column: 1 / -1; }
+.has-lesson .teach-stage { grid-column: 1; grid-row: 2; border-right: 1px solid var(--line-soft); }
+.has-lesson .lesson-main > .chat { grid-column: 2; grid-row: 2; min-width: 0; }
+.has-lesson .lesson-context { display: none; }.has-lesson.context-open .lesson-context { display: block; }
+.teach-reference { position: absolute; z-index: 20; top: 44px; bottom: 0; left: 0; width: min(560px, 100%); display: flex; flex-direction: column; background: #0E1620; border-right: 1px solid var(--line); box-shadow: var(--shadow-float); }
+.teach-reference-body { overflow-y: auto; padding: 18px 22px 40px; font-family: var(--font-mentor); font-size: 19px; line-height: 1.6; color: var(--text-1); }
+@media (max-width: 1099.98px) {
+  .has-lesson .lesson-main { grid-template-columns: minmax(0, 1fr); }
+  .has-lesson .teach-stage, .has-lesson .lesson-main > .chat { grid-column: 1; grid-row: 2; border-right: 0; }
+  .has-lesson .teach-tabs { display: flex; }
+  /* visibility, not display: the frame keeps its state and its size while the learner is in the chat */
+  .has-lesson.pane-mentor .teach-stage { visibility: hidden; pointer-events: none; }
+  .has-lesson.pane-lesson .lesson-main > .chat { visibility: hidden; pointer-events: none; }
+}

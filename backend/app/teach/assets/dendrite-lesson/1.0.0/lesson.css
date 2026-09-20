@@ -54,6 +54,11 @@ th, td { border: 1px solid var(--line); padding: 6px 10px; text-align: right; fo
 th { color: var(--text-3); font-weight: 500; }
 .dl-matrix { display: inline-grid; gap: 4px 12px; padding: 6px 12px; border-left: 2px solid var(--text-3); border-right: 2px solid var(--text-3); border-radius: 6px; font-family: var(--font-mono); color: var(--text); }
 
+.dl-cell { min-width: 44px; padding: 6px 10px; text-align: center; border-radius: 6px; background: var(--code-bg); border: 1px solid var(--line-soft); color: var(--text); font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+.dl-cell.hl { border-color: var(--learning-line); background: var(--learning-bg); color: var(--learning-soft); }
+.dl-cell.hl-b { border-color: rgba(229,166,74,.45); background: rgba(229,166,74,.08); color: var(--mentor); }
+.dl-input { min-width: 64px; min-height: 44px; padding: 0 8px; text-align: center; border-radius: 8px; background: var(--code-bg); border: 1px solid var(--line-strong); color: var(--text); font: 16px var(--font-mono); }
+
 /* controls: 44px touch targets, visible focus */
 .dl-btn { min-height: 44px; min-width: 44px; padding: 0 18px; border-radius: var(--r-pill); border: 1px solid var(--line-strong); background: transparent; color: var(--text-1); font: 500 15px var(--font-ui); cursor: pointer; }
 .dl-btn-primary { background: var(--learning-bg); border-color: var(--learning-line); color: var(--learning-soft); }

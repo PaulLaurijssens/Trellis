@@ -15,6 +15,7 @@ import { buildIndex, findNode, subtree } from "../lib/tree";
 import { LangContext, DICTS, LANGS } from "../lib/i18n";
 import { readTrail, visitTrail } from "../lib/learningTrail.mjs";
 import { usePlan, nextInPlan } from "../lib/curriculum";
+import { teach } from "../lib/teach";
 
 const GraphView = dynamic(() => import("../components/GraphView"), { ssr: false });
 
@@ -62,6 +63,8 @@ export default function Page() {
   const [lang, setLangState] = useState("nl");
   const [selected, setSelected] = useState(null);  // concept-detail uit /concept/{name}
   const [chat, setChat] = useState(null);          // {session_id, messages, state}
+  const [teachEnabled, setTeachEnabled] = useState(false);   // feature flag, asked at runtime (no rebuild to flip)
+  useEffect(() => { teach.flags().then((f) => setTeachEnabled(!!f.enabled)); }, []);
   const [trail, setTrail] = useState([]);
   const [level, setLevel] = useState(3);
   const [expanded, setExpanded] = useState(false);
@@ -388,7 +391,9 @@ export default function Page() {
   };
 
   // ---- chat ----
-  const sendChat = async (message, lvl = level) => {
+  // lessonCtx = {run, activity_id, params} when the question comes from inside an interactive lesson:
+  // same mentor pipeline, plus what the learner is looking at.
+  const sendChat = async (message, lvl = level, lessonCtx = null) => {
     if (!selected) return;
     const name = selected.name;
     const navigation = navigationRef.current;
@@ -399,7 +404,8 @@ export default function Page() {
     }));
     flag("chat", true);
     try {
-      await api.chat({ concept: name, message, level: lvl });
+      if (lessonCtx?.run) await teach.ask(lessonCtx.run.id, { message, level: lvl, concept: name, activity_id: lessonCtx.activity_id || null, params: lessonCtx.params || {} });
+      else await api.chat({ concept: name, message, level: lvl });
       await loadChat(name, navigation);
     } catch (e) {
       fail(e);
@@ -643,7 +649,10 @@ export default function Page() {
           onReturn={(index) => openConcept(trail[index], { path: trail.slice(0, index + 1), learn: true })}
           onSuggestion={handleSuggestion}
           onLevel={changeLevel}
-          onSend={(m) => sendChat(m)}
+          onSend={(m, lessonCtx) => sendChat(m, level, lessonCtx)}
+          teachEnabled={teachEnabled}
+          plan={learningPlan}
+          onExploreTopic={(topic) => handleGenerate(topic, level)}
           onNewChat={newChat}
           onEndChat={endChat}
           onRemoveMemory={removeMemory}

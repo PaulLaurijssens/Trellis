@@ -44,6 +44,7 @@ def topics_for_concept(person_id: str, concept_id: str, group_ids: list[str] | N
         found = [{**_topic(r), "covers": False} for r in rows]
     for topic in found:
         topic["objective"] = active_objective(person_id, topic["id"])
+        topic["proposed"] = proposed_objective(person_id, topic["id"])
     return found
 
 
@@ -149,7 +150,8 @@ def draft(person_id: str, topic_id: str, answers: dict) -> dict:
     language = graph.ui_language(person_id)
     concepts = graph.run("MATCH (c:Concept) WHERE c.id IN $ids RETURN c.name AS name, c.definition AS definition LIMIT 40",
                          ids=topic["concept_ids"])
-    payload = {"topic": topic["title"], "concepts": concepts, "answers": answers,
+    # Time today belongs to the run, not to the topic: it never reaches the objective text.
+    payload = {"topic": topic["title"], "concepts": concepts, "answers": {k: v for k, v in answers.items() if k != "time_budget_min"},
                "language": graph.LANGUAGE_NAMES_EN[language]}
     try:
         raw = llm.complete_json(DRAFT_SYSTEM, json.dumps(payload, ensure_ascii=False), llm.EXTRACT_MODEL, timeout=45)

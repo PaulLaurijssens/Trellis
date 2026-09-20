@@ -1,11 +1,13 @@
 from typing import Literal
 import asyncio
 import logging
+import os
 
 from fastapi import Body, FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from . import graph, extract, mentor, chat, memory, jobs, transcript, journey, learn as learning
+from .teach import api as teach_api
 
 log = logging.getLogger("uvicorn.error")
 PENDING_TTL_DAYS = 7
@@ -13,7 +15,13 @@ STALE_MINUTES = 30          # sessie stil -> consolideren
 CONSOLIDATE_EVERY = 600     # seconden tussen twee dream-rondes
 
 app = FastAPI(title="Mentor")
-app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
+# Production is same-origin (nginx serves the frontend and /api), so it needs no CORS at all. The
+# list is for local dev only. It was "*": with that, a sandboxed lesson frame (opaque origin) could
+# have READ any /api response if its CSP ever failed. Now the browser refuses that by itself.
+CORS_ORIGINS = [o.strip() for o in os.getenv("CORS_ORIGINS", "http://localhost:3000,http://localhost:3001").split(",") if o.strip()]
+app.add_middleware(CORSMiddleware, allow_origins=CORS_ORIGINS, allow_methods=["*"], allow_headers=["*"])
+app.include_router(teach_api.public)
+app.include_router(teach_api.router)
 
 
 async def _consolidation_loop():
@@ -33,6 +41,7 @@ async def _consolidation_loop():
 async def startup():
     graph.init_schema()
     graph.migrate_memory()
+    teach_api.startup()
     # The retained initial dataset includes pending drafts; cleanup is explicit.
     asyncio.create_task(_consolidation_loop())
 

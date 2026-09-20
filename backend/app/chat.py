@@ -68,7 +68,7 @@ def language_rule(reply_lang: str, ui_lang: str) -> str:
 
 
 def build_system_prompt(concept_id: str, person_id: str, level: int,
-                        last_user_message: str | None = None) -> str:
+                        last_user_message: str | None = None, extra_context: str = "") -> str:
     ctx = graph.concept_prompt_context(concept_id)
     ui_lang = graph.ui_language(person_id)
     reply_lang = detect_language(last_user_message or "") or ui_lang
@@ -90,6 +90,10 @@ def build_system_prompt(concept_id: str, person_id: str, level: int,
                      json.dumps(journey.source_material(mentions),ensure_ascii=False))
 
     parts.append(personal_context(person_id, concept_id))
+    if extra_context:
+        # A question asked from inside an interactive lesson: the running activity and the teaching
+        # skill's own text (teach/lesson_chat.py). Context only; the stored learner message stays literal.
+        parts.append(extra_context)
 
     parts.append(illustrations.INSTRUCTIONS)
     parts.append(illustrations.language_line(reply_lang))
@@ -135,7 +139,7 @@ def open_session(concept_name: str, person_id: str, level: int | None,
 
 
 def send(concept_name: str, message: str, person_id: str = "paul",
-         level: int | None = None) -> dict:
+         level: int | None = None, extra_context: str = "") -> dict:
     opened = open_session(concept_name, person_id, level)
     concept, sid, lvl = opened["concept"], opened["session_id"], opened["level"]
     if level is not None:
@@ -145,7 +149,7 @@ def send(concept_name: str, message: str, person_id: str = "paul",
     journey.attach_session(person_id, sid)
     graph.add_message(sid, "user", message)
     history = graph.session_messages(sid)
-    system = build_system_prompt(concept["id"], person_id, lvl, message)
+    system = build_system_prompt(concept["id"], person_id, lvl, message, extra_context)
     raw = _reply(system, history)
     answer, illustration = raw, None
     try:

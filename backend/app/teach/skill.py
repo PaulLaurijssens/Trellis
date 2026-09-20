@@ -38,3 +38,13 @@ def system_prompt() -> str:
 
 def provenance() -> dict:
     return {"skill_upstream_commit": UPSTREAM_COMMIT, "skill_adaptation_revision": adaptation_revision()}
+
+
+def sections(*headings: str) -> str:
+    """Named sections of the adapted SKILL.md, verbatim. The running lesson (mentor questions inside a
+    lesson) loads the skill's own text for how to teach, not a paraphrase of it."""
+    import re
+    text = (SKILL_DIR / "SKILL.md").read_text()
+    parts = re.split(r"(?m)^(?=#{2,3} )", text)
+    wanted = [p.strip() for p in parts if any(p.startswith(("## " + h, "### " + h)) for h in headings)]
+    return "\n\n".join(wanted)

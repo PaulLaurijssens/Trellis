@@ -30,7 +30,9 @@ if __name__ == "__main__":
     print("asset write attempt:", call("POST", f"/jobs/{JOB}/write", {"path": "assets/x.js", "content": "x"}))
     manifest = json.loads((FIXTURE / "manifest.json").read_text())
     report = call("POST", f"/jobs/{JOB}/validate", {"manifest": manifest})
-    shot = report.pop("screenshot_jpeg_b64", None)
+    shots = report.pop("screenshots_jpeg_b64", None) or []
+    shot = shots[-2] if len(shots) > 1 else (shots[0] if shots else None)      # an activity step
+    report["screenshots"] = len(shots)
     print(json.dumps(report, indent=1)[:3000])
     if shot and "--shot" in sys.argv:
         out = Path(sys.argv[sys.argv.index("--shot") + 1])

@@ -68,7 +68,7 @@
   Activity.prototype.state = function () { try { return plain(this.handlers.getState ? this.handlers.getState() : {}); } catch (e) { return {}; } };
   Activity.prototype.changed = function () {
     var self = this; clearTimeout(timers[this.id]);
-    timers[this.id] = setTimeout(function () { send('activity.state_changed', self.id, { params: self.state() }); }, 1000);
+    timers[this.id] = setTimeout(function () { send('activity.state_changed', self.id, { params: self.state(), step: current }); }, 500);
   };
   Activity.prototype.submit = function (response) {
     var self = this, opId = 'op' + Date.now().toString(36) + (++opCounter);

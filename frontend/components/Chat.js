@@ -17,7 +17,7 @@ function inline(text) {
   });
 }
 
-function render(content) {
+export function render(content) {
   return String(content).split(/```/).map((part, i) =>
     i % 2
       ? <pre key={i}><code>{part.replace(/^[a-z]*\n/, "").trim()}</code></pre>
@@ -31,7 +31,7 @@ export default function Chat({
   concept, status, chat, busy, ending, onSend, onNew, onEnd, onExplain,
   suggestionBusy, onSuggestion,
   introduction, emptyState, examples=[], onSaveExample, exampleBusy,
-  nextTopic, sessionMenu = true,
+  nextTopic, sessionMenu = true, draftKey = null,
 }) {
   const { t } = useT();
   const [text, setText] = useState("");
@@ -58,6 +58,10 @@ export default function Chat({
     if (el) log.scrollTo({ top: log.scrollTop + el.getBoundingClientRect().top - log.getBoundingClientRect().top - 48, behavior: "auto" });
   }, [messages.length, busy]);
   useEffect(() => { nearBottom.current = true; setText(""); }, [concept]);
+  // Unsent question draft survives an interruption (phone call, app switch). Only with draftKey,
+  // i.e. when interactive lessons are on; without it this component behaves exactly as before.
+  useEffect(() => { if (!draftKey) return; try { setText(localStorage.getItem(draftKey) || ""); } catch {} }, [draftKey]);
+  useEffect(() => { if (!draftKey) return; try { text ? localStorage.setItem(draftKey, text) : localStorage.removeItem(draftKey); } catch {} }, [draftKey, text]);
 
   useEffect(() => {
     const ta = taRef.current;

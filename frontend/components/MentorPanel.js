@@ -1,12 +1,15 @@
 "use client";
 import LocalizedText from "./LocalizedText";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { GoalCard, HelpfulExamples } from "./LearningDirection";
 import LevelPills from "./LevelPills";
 import MemoryBlock from "./MemoryBlock";
 import MiniTree from "./MiniTree";
 import Progress from "./Progress";
-import Chat from "./Chat";
+import Chat, { render as renderMarkdown } from "./Chat";
+import LessonDock from "./LessonDock";
+import LessonStage from "./LessonStage";
+import { teach as teachApi } from "../lib/teach";
 import LearningTrail from "./LearningTrail";
 import { fmtTs, momentLink } from "../lib/time";
 import { useT } from "../lib/i18n";
@@ -89,10 +92,25 @@ export default function MentorPanel({
   goal, review, examples=[], journeyBusy, onGoalUpdate, onSaveExample, onEditExample, onDeleteExample,
   onLevel, onSend, onNewChat, onEndChat, onRemoveMemory, onObservation, onPosition,
   onExplain, onMarkLearned, onSelect, onClose, nextTopic,
+  teachEnabled = false, plan = null, onExploreTopic,
 }) {
-  const { t } = useT();
+  const { t, lang } = useT();
   const [contextOpen, setContextOpen] = useState(false);
+  // Interactive lessons (feature flag). With teachEnabled=false nothing below renders and the
+  // panel is exactly the panel it was.
+  const [lesson, setLesson] = useState(null);            // {lessonId, versionId, minutes}
+  const [pane, setPane] = useState("lesson");            // phone: one of lesson | mentor at a time
+  const [reference, setReference] = useState(null);
+  const lessonCtx = useRef(null);                        // {run, activity_id, params}: goes with a question
+  useEffect(() => { setLesson(null); setReference(null); setPane("lesson"); lessonCtx.current = null; }, [concept?.name]);
   if (!concept) return null;
+  const conceptId = teachEnabled ? graph?.nodes?.find((n) => n.name === concept.name)?.id : null;
+  const planGroup = conceptId && plan?.groups ? plan.groups.find((g) => g.ids.includes(conceptId)) : null;
+  const group = planGroup ? { title: planGroup.title, ids: planGroup.ids, planKey: plan.version || null } : null;
+  const openReference = (id) => teachApi.reference(id).then(setReference).catch(() => {});
+  const openLessonById = (id) => teachApi.context(conceptId, group?.ids).then((c) => { const l = c.lessons.find((x) => x.lesson_id === id); if (l) setLesson({ lessonId: l.lesson_id, versionId: l.version_id }); }).catch(() => {});
+  const askFromLesson = (ctx) => { lessonCtx.current = ctx; setPane("mentor"); setTimeout(() => document.querySelector(".lesson-main .chat-input textarea")?.focus(), 50); };
+  const send = (m) => onSend(m, lesson && lessonCtx.current ? lessonCtx.current : null);
   const mentions = (concept.mentions || []).filter((m) => m && m.source);
   const firstQuestion = chat?.messages?.find((m) => m.role === "user")?.content;
   const question = firstQuestion && firstQuestion.length <= 140 ? firstQuestion : concept.name;
@@ -104,12 +122,24 @@ export default function MentorPanel({
     <h1>{question}</h1>
     <details className="memory-recap"><summary><span><LocalizedText>{recap}</LocalizedText></span><b>{t("learn.viewMemory")}</b></summary><MemoryBlock state={state} onRemove={onRemoveMemory} onObservation={onObservation} onPosition={onPosition} /></details>
     {!chat?.messages?.length && <p className="lesson-definition"><LocalizedText>{concept.definition}</LocalizedText></p>}
+    {teachEnabled && conceptId && !lesson && <LessonDock conceptId={conceptId} conceptName={concept.name} group={group} lang={lang}
+      onOpen={(l) => { setLesson(l); setPane("lesson"); }} onReference={openReference} onExploreTopic={onExploreTopic} />}
   </header>;
-  return <section className={"learn-workspace" + (contextOpen ? " context-open" : "")} aria-label={t("panel.mentor", { name: concept.name })}>
+  return <section className={"learn-workspace" + (contextOpen ? " context-open" : "") + (lesson ? " has-lesson pane-" + pane : "")} aria-label={t("panel.mentor", { name: concept.name })}>
     <div className="lesson-main">
-      <div className="lesson-toolbar"><button className="textlink" onClick={onClose}>← {t("nav.explore")}</button><button className="textlink" onClick={() => setContextOpen(!contextOpen)} aria-pressed={contextOpen}>{t("learn.context")}</button></div>
+      <div className="lesson-toolbar"><button className="textlink" onClick={onClose}>← {t("nav.explore")}</button>
+        {lesson && <div className="teach-tabs" role="tablist"><button role="tab" aria-selected={pane === "lesson"} onClick={() => setPane("lesson")}>{t("teach.tabLesson")}</button><button role="tab" aria-selected={pane === "mentor"} onClick={() => setPane("mentor")}>{t("teach.tabMentor")}</button></div>}
+        <button className="textlink" onClick={() => setContextOpen(!contextOpen)} aria-pressed={contextOpen}>{t("learn.context")}</button></div>
+      {lesson && <LessonStage lessonId={lesson.lessonId} versionId={lesson.versionId} minutes={lesson.minutes}
+        onAsk={askFromLesson} onActivity={(ctx) => { lessonCtx.current = ctx; }} onReference={openReference} onOpenLesson={openLessonById}
+        onClose={() => { setLesson(null); lessonCtx.current = null; }} />}
+      {reference && <div className="teach-reference" role="dialog" aria-label={reference.title}><div className="teach-stage-bar"><b>{t("teach.kind." + reference.kind)} · {reference.title}</b>
+        <button className="textlink" onClick={() => { send(t("teach.askReference", { title: reference.title })); setReference(null); setPane("mentor"); }}>{t("teach.askAbout")}</button>
+        <button className="textlink" onClick={() => setReference(null)}>{t("teach.close")}</button></div>
+        <div className="teach-reference-body">{renderMarkdown(reference.markdown)}{reference.sources?.length > 0 && <p className="teach-hint">{t("panel.sources")}: {reference.sources.map((s) => s.title).join(" · ")}</p>}</div></div>}
       <Chat concept={concept.name} status={concept.status} chat={chat} busy={!!(busy.chat || busy.explain)} ending={!!busy.ending}
-        onSend={onSend} onNew={onNewChat} onEnd={onEndChat} onExplain={() => onExplain(concept.name, level)}
+        draftKey={teachEnabled ? "dendrite.draft." + concept.name : null}
+        onSend={send} onNew={onNewChat} onEnd={onEndChat} onExplain={() => onExplain(concept.name, level)}
         suggestionBusy={busy.suggestion} onSuggestion={onSuggestion} introduction={introduction}
         examples={examples} onSaveExample={onSaveExample} exampleBusy={journeyBusy}
         nextTopic={nextTopic} sessionMenu={false} />

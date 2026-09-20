@@ -39,6 +39,36 @@ PROBE = """() => {
 }"""
 
 
+TARGETS = """() => [...document.querySelectorAll('button, a[href], input, select, textarea, [role=button], [role=slider], [data-dl-action]')]
+  .filter((el) => { const r = el.getBoundingClientRect(); const s = getComputedStyle(el); return r.width > 0 && r.height > 0 && s.visibility !== 'hidden' && !el.closest('[hidden]'); })
+  .map((el) => { const r = el.getBoundingClientRect(); return { tag: el.tagName.toLowerCase(), label: (el.getAttribute('aria-label') || el.textContent || el.name || '').trim().slice(0, 40), w: Math.round(r.width), h: Math.round(r.height), type: el.type || '' }; })"""
+
+# Readability of the step that is visible now: text colour against the first opaque background behind it.
+CONTRAST = """() => {
+  const parse = (c) => { const m = c.match(/rgba?\\(([^)]+)\\)/); if (!m) return null; const p = m[1].split(',').map(Number); return { r: p[0], g: p[1], b: p[2], a: p.length > 3 ? p[3] : 1 }; };
+  const lum = (c) => { const f = (v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); }; return 0.2126 * f(c.r) + 0.7152 * f(c.g) + 0.0722 * f(c.b); };
+  const over = (top, under) => ({ r: top.r * top.a + under.r * (1 - top.a), g: top.g * top.a + under.g * (1 - top.a), b: top.b * top.a + under.b * (1 - top.a), a: 1 });
+  const background = (el) => { const layers = []; for (let n = el; n; n = n.parentElement) { const c = parse(getComputedStyle(n).backgroundColor); if (c && c.a > 0) { layers.push(c); if (c.a >= 1) break; } }
+    let base = { r: 7, g: 11, b: 17, a: 1 }; for (let i = layers.length - 1; i >= 0; i--) base = over(layers[i], base); return base; };
+  const bad = []; const seen = new Set();
+  const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+  for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+    const text = node.nodeValue.trim(); const el = node.parentElement;
+    if (text.length < 2 || !el || seen.has(el) || el.closest('[hidden], script, style, svg')) continue;
+    const r = el.getBoundingClientRect(); const cs = getComputedStyle(el);
+    if (!r.width || !r.height || cs.visibility === 'hidden' || Number(cs.opacity) < 0.3) continue;
+    seen.add(el);
+    const fg = parse(cs.color); if (!fg) continue;
+    const bg = background(el); const color = over(fg, bg);
+    const a = lum(color), b = lum(bg); const ratio = (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
+    if (ratio < 3) bad.push({ text: text.slice(0, 40), ratio: Math.round(ratio * 10) / 10, light_background: lum(bg) > 0.5 });
+  }
+  const steps = document.querySelectorAll('main.dl-lesson > section').length;
+  const lightBoxes = [...document.querySelectorAll('main.dl-lesson *')].filter((el) => { if (el.closest('[hidden], svg')) return false; const c = parse(getComputedStyle(el).backgroundColor); const r = el.getBoundingClientRect(); return c && c.a > 0.5 && lum(c) > 0.6 && r.width > 12 && r.height > 12; }).length;
+  return { bad: bad.slice(0, 6), steps, lightBoxes };
+}"""
+
+
 def run(html: str, hashes: list[str], manifest: dict, screenshot: bool = True) -> dict:
     errors, warnings, blocked, console = [], [], [], []
     started = time.monotonic()
@@ -79,9 +109,19 @@ def run(html: str, hashes: list[str], manifest: dict, screenshot: bool = True) -
                 probe = frame.evaluate(PROBE) if frame else None
                 host = page.evaluate("() => ({ events: window.__events, loads: window.__loads, rejected: window.__rejected })")
                 report[name] = {"probe": probe, "host": host, "ready_ms": ready_ms}
-                if name == "phone" and screenshot and frame:
-                    shot = page.screenshot(type="jpeg", quality=60, full_page=False)
-                    report["screenshot_jpeg_b64"] = base64.b64encode(shot).decode()
+                if name == "phone" and frame and probe:
+                    # Walk through every step like a learner: each one is measured and photographed.
+                    shots, steps = [], []
+                    count = min(frame.evaluate("() => document.querySelectorAll('main.dl-lesson > section').length") or 1, 8)
+                    for index in range(count):
+                        frame.evaluate("(i) => window.DendriteLesson && window.DendriteLesson.goTo(i)", index)
+                        page.wait_for_timeout(250)
+                        steps.append({"step": index + 1, **frame.evaluate(CONTRAST), "targets": frame.evaluate(TARGETS),
+                                      "overflow": frame.evaluate("() => document.documentElement.scrollWidth - window.innerWidth")})
+                        if screenshot:
+                            shots.append(base64.b64encode(page.screenshot(type="jpeg", quality=55, full_page=False)).decode())
+                    frame.evaluate("() => window.DendriteLesson && window.DendriteLesson.goTo(0)")
+                    report["steps"], report["screenshots_jpeg_b64"] = steps, shots
                 context.close()
         finally:
             browser.close()
@@ -123,13 +163,22 @@ def run(html: str, hashes: list[str], manifest: dict, screenshot: bool = True) -
             errors.append(f'<html lang="{phone["lang"]}"> does not match the manifest language {manifest.get("language")!r}')
         if phone["textLength"] < 200:
             errors.append("the lesson has almost no text")
-        for t in phone["targets"]:
-            if t["type"] in ("range", "checkbox", "radio"):
-                continue
-            if min(t["w"], t["h"]) < 32:
-                errors.append(f"touch target too small ({t['w']}x{t['h']} px): {t['tag']} {t['label']!r}")
-            elif min(t["w"], t["h"]) < 44:
-                warnings.append(f"touch target under 44 px ({t['w']}x{t['h']}): {t['tag']} {t['label']!r}")
+        for step in report.get("steps") or []:
+            for t in step["targets"]:
+                if t["type"] in ("range", "checkbox", "radio"):
+                    continue
+                if min(t["w"], t["h"]) < 32:
+                    errors.append(f"step {step['step']}: touch target too small ({t['w']}x{t['h']} px): {t['tag']} {t['label']!r}; use .dl-btn / .dl-input (44 px)")
+                elif min(t["w"], t["h"]) < 44:
+                    warnings.append(f"step {step['step']}: touch target under 44 px ({t['w']}x{t['h']}): {t['tag']} {t['label']!r}")
+    for step in report.get("steps") or []:
+        for item in step["bad"]:
+            where = "on a light background; lessons are dark: use var(--card), var(--figure) or var(--code-bg)" if item["light_background"] else "use var(--text-1) or var(--text-2) for text"
+            errors.append(f"step {step['step']}: unreadable text {item['text']!r} (contrast {item['ratio']}:1, need 3:1) - {where}")
+        if step["lightBoxes"] and not any(i["light_background"] for i in step["bad"]):
+            warnings.append(f"step {step['step']}: {step['lightBoxes']} light-coloured box(es) in a dark lesson; use the theme tokens")
+        if step["overflow"] > 1:
+            errors.append(f"step {step['step']}: scrolls horizontally by {step['overflow']} px on a phone")
     if (report.get("phone") or {}).get("ready_ms", 0) > 3000:
         warnings.append("the lesson needs more than 3 s to become ready")
     if blocked:
@@ -137,7 +186,7 @@ def run(html: str, hashes: list[str], manifest: dict, screenshot: bool = True) -
     for line in list(dict.fromkeys(console))[:8]:
         errors.append("browser error: " + line)
     return {"ok": not errors, "errors": errors[:25], "warnings": warnings[:15],
-            "screenshot_jpeg_b64": report.get("screenshot_jpeg_b64"),
+            "screenshots_jpeg_b64": report.get("screenshots_jpeg_b64") or [],
             "ready_ms": (report.get("phone") or {}).get("ready_ms"),
             "seconds": round(time.monotonic() - started, 1),
             "events": ((report.get("phone") or {}).get("host") or {}).get("events")}

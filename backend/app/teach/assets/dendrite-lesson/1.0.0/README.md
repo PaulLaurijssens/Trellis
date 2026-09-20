@@ -72,9 +72,14 @@ Links: `data-dl-source="<source id>"` (+ optional `data-dl-start` seconds), `dat
 
 ## CSS you can rely on
 
+**Lessons are dark, like Dendrite.** Never set a white or light background and never hard-code text
+colours: the validator measures the contrast of every step and rejects unreadable text. Use the
+tokens (`var(--card)`, `var(--figure)`, `var(--code-bg)`, `var(--text)`), and these classes:
+
 `.dl-card`, `.dl-figure` (+ `figcaption`), `.dl-illustrative` (put it on a figure whose numbers are
 made up: it adds the "illustrative values" badge), `.dl-grid2` (two columns on wide screens),
-`.dl-matrix` (set `element.style.gridTemplateColumns` from JS),
+`.dl-matrix` (set `element.style.gridTemplateColumns` from JS) with `.dl-cell` children (`.hl` blue,
+`.hl-b` amber highlight), `.dl-input` (44 px number/text input, e.g. an editable matrix cell),
 `.dl-btn .dl-btn-primary .dl-btn-ghost`, `.dl-options .dl-option`, `.dl-question`, `.dl-feedback`,
 `.dl-mono`, `table`. Tokens: `--learning` (blue), `--mentor` (amber), `--learned` (green),
 `--danger`, `--text*`, `--line*`, `--font-mentor` (serif prose), `--font-ui`, `--font-mono`.
