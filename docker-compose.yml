@@ -31,7 +31,8 @@ services:
       NEO4J_URI: bolt://neo4j:7687
       AUTHOR_URL: http://author:8700
       TEACH_ARTIFACT_DIR: /artifacts
-      TEACH_MODE: "on"
+      TEACH_MODE: "${TEACH_MODE:-on}"
+      CORS_ORIGINS: "http://localhost:3000,http://localhost:3001,http://localhost:3002"
     volumes:
       - ./backend:/app
       - ./db:/import
