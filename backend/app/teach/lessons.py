@@ -47,7 +47,7 @@ def create_job(person_id, request: dict, idempotency_key: str) -> tuple[dict, bo
 
 def set_stage(job_id, stage, **fields):
     assert stage in model.JOB_STAGES
-    allowed = {k: v for k, v in fields.items() if k in ("error", "detail", "lesson_id", "lesson_version_id", "usage_json", "trace_json")}
+    allowed = {k: v for k, v in fields.items() if k in ("error", "detail", "lesson_id", "lesson_version_id", "usage_json", "trace_json", "repairs")}
     graph.run("MATCH (j:LessonJob {id:$jid}) WHERE NOT j.stage IN $terminal SET j.stage=$stage, j.updated_at=$now, j += $fields",
               jid=job_id, stage=stage, now=graph._now(), fields=allowed, terminal=list(model.JOB_TERMINAL))
 

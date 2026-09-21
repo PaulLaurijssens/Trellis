@@ -468,5 +468,7 @@ const en = {
   "teach.askAbout": "Ask about this",
   "teach.askReference": "I have a question about the reference \"{title}\".",
   "teach.close": "Close",
+  "teach.repairing": "The phone test found a problem. Your teacher is fixing it (round {n}).",
+  "teach.failedTest": "The lesson did not pass its own test, so it was not shown to you. Your mentor is still here below.",
 };
 export default en;

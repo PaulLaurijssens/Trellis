@@ -127,11 +127,12 @@ export default function LessonDock({ conceptId, conceptName, group, lang, onOpen
 
     {running && <div className="teach-progress" role="status" aria-live="polite">
       <ol>{STAGES.map((s) => <li key={s} className={s === job.stage ? "now" : STAGES.indexOf(s) < STAGES.indexOf(job.stage) ? "done" : ""}>{t("teach.stage." + s)}</li>)}</ol>
+      {job.repairs > 0 && <p className="teach-hint teach-repair">{t("teach.repairing", { n: job.repairs })}</p>}
       <p className="teach-hint">{t("teach.progressHint")}</p>
       <button className="textlink" onClick={() => teach.cancelJob(job.id).then(setJob).catch(() => {})}>{t("teach.cancel")}</button>
     </div>}
     {job?.stage === "ready" && <div className="teach-ready"><p>{job.detail}</p><button className="btn primary" onClick={() => open(job.lesson_id, job.lesson_version_id)}>{t("teach.open")} →</button></div>}
-    {job && ["failed", "cancelled"].includes(job.stage) && <p className="teach-failed" role="alert">{t(job.stage === "cancelled" ? "teach.cancelled" : "teach.failed")} <button className="textlink" onClick={() => setJob(null)}>{t("teach.retry")}</button></p>}
+    {job && ["failed", "cancelled"].includes(job.stage) && <p className="teach-failed" role="alert">{t(job.stage === "cancelled" ? "teach.cancelled" : job.error === "not_published" ? "teach.failedTest" : "teach.failed")} <button className="textlink" onClick={() => setJob(null)}>{t("teach.retry")}</button></p>}
     {error && <p className="teach-failed" role="alert">{error}</p>}
 
     {(ctx.lessons?.length > 0 || ctx.references?.length > 0 || ctx.recommendations?.length > 0) && <details className="teach-more"><summary>{t("teach.more", { lessons: ctx.lessons.length, references: ctx.references.length })}</summary>

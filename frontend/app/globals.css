@@ -1328,3 +1328,4 @@ button.chip:hover:not(:disabled) { border-color: rgba(84, 169, 255, 0.45); color
   .has-lesson.pane-mentor .teach-stage { visibility: hidden; pointer-events: none; }
   .has-lesson.pane-lesson .lesson-main > .chat { visibility: hidden; pointer-events: none; }
 }
+.teach-repair { color: var(--mentor); }

@@ -130,7 +130,7 @@ class JobCreate(BaseModel):
 
 
 def _public_job(job):
-    out = {k: job.get(k) for k in ("id", "stage", "error", "detail", "lesson_id", "lesson_version_id", "created_at", "updated_at")}
+    out = {k: job.get(k) for k in ("id", "stage", "error", "detail", "repairs", "lesson_id", "lesson_version_id", "created_at", "updated_at")}
     out["concept_id"] = job["request"].get("concept_id")
     return out
 

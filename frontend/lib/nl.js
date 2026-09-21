@@ -481,5 +481,7 @@ const nl = {
   "teach.askAbout": "Stel hier een vraag over",
   "teach.askReference": "Ik heb een vraag over de naslag \"{title}\".",
   "teach.close": "Sluiten",
+  "teach.repairing": "De telefoontest vond een probleem. Je docent lost het op (ronde {n}).",
+  "teach.failedTest": "De les kwam niet door zijn eigen test en is je daarom niet getoond. Je mentor is er hieronder nog gewoon.",
 };
 export default nl;

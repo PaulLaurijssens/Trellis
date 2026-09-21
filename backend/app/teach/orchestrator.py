@@ -136,10 +136,14 @@ class Job:
         shots = report.pop("screenshots_jpeg_b64", None) or []
         self.report, self.dirty = report, False
         self.validated_sha = report.get("bundle", {}).get("sha256") if report.get("ok") else None
+        left = MAX_VALIDATIONS - self.validations
         if not report.get("ok"):
-            lessons.set_stage(self.job_id, "generating")
-        result = {"ok": report.get("ok"), "errors": report.get("errors"), "warnings": report.get("warnings"),
-                  "validations_left": MAX_VALIDATIONS - self.validations}
+            lessons.set_stage(self.job_id, "generating", repairs=self.validations)     # the learner sees "improving", not a silent step back
+        result = {"ok": report.get("ok"), "errors": report.get("errors"), "warnings": report.get("warnings"), "validations_left": left}
+        if not report.get("ok"):
+            result["next"] = ("Fix the cause, not the symptom; when an error names no line, simplify the activity and build it from the README example. "
+                              + ("This was the last validation: there is nothing left to publish, call finish and say what failed." if left == 0 else
+                                 f"You have {left} validation(s) left." + (" Make this one count: prefer the simplest version that teaches the outcome." if left == 1 else "")))
         extra = []
         if shots:
             extra = [{"role": "user", "content": [
@@ -178,6 +182,8 @@ class Job:
                 "manifest_assets_entry": f"{stored['name']}@{stored['version']}"}
 
     def propose_reference(self, args):
+        if not self.published:
+            return {"error": "Publish the lesson first: a reference is the compressed essence of a published lesson."}
         ref = lessons.save_reference(self.person_id, self.topic["id"], args.get("kind"), args.get("title"), args.get("markdown"),
                                      [c for c in args.get("concept_ids") or [] if c in self.concept_ids],
                                      [s for s in args.get("source_ids") or [] if s in self.source_ids], "teach_agent",

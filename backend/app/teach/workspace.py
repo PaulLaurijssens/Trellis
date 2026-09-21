@@ -145,12 +145,18 @@ def build(person_id: str, topic_id: str, objective: dict | None) -> dict:
             glossary.append(full["markdown"])
     files["GLOSSARY.md"] = "\n".join(glossary) + ("" if len(glossary) > 1 else "(no terms yet)\n")
     files = {path: (text if text.startswith("<!--") else head + text) for path, text in files.items()}
+    # Only the newest version of each component: older versions stay on the volume for the lessons
+    # that were built with them, but a new lesson never starts from an old SDK.
+    newest = {}
     for asset in artifacts.list_assets():
+        key = tuple(int(n) for n in asset["version"].split("."))
+        if asset["name"] not in newest or key > newest[asset["name"]][0]:
+            newest[asset["name"]] = (key, asset)
+    for _, asset in newest.values():
         for name in asset["files"]:
             files[f"assets/{asset['name']}/{asset['version']}/{name}"] = None      # read lazily from the volume
-    if any(a["name"] == "dendrite-lesson" for a in artifacts.list_assets()):
-        latest = [a for a in artifacts.list_assets() if a["name"] == "dendrite-lesson"][-1]
-        files["assets/README.md"] = artifacts.read_asset("dendrite-lesson", latest["version"], "README.md")
+    if "dendrite-lesson" in newest:
+        files["assets/README.md"] = artifacts.read_asset("dendrite-lesson", newest["dendrite-lesson"][1]["version"], "README.md")
     return files
 
 

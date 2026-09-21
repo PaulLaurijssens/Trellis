@@ -184,7 +184,11 @@ def run(html: str, hashes: list[str], manifest: dict, screenshot: bool = True) -
     if blocked:
         errors.append("the lesson tried to load from the network (blocked): " + ", ".join(sorted(set(blocked))[:5]))
     for line in list(dict.fromkeys(console))[:8]:
-        errors.append("browser error: " + line)
+        hint = ""
+        if "NaN" in line or "Expected number" in line or "Expected length" in line:
+            hint = (" -> a coordinate is not a number. Draw with DendriteLesson.plane helpers (they name the bad argument), pass points as "
+                    "[[x, y], ...] arrays of numbers, check every division (sigma = 0?) and every value read from state or an input (Number(...)).")
+        errors.append("browser error: " + line + hint)
     return {"ok": not errors, "errors": errors[:25], "warnings": warnings[:15],
             "screenshots_jpeg_b64": report.get("screenshots_jpeg_b64") or [],
             "ready_ms": (report.get("phone") or {}).get("ready_ms"),
