@@ -62,8 +62,8 @@ Work in this order:
 2. Read RESOURCES.md and use sources_search for what the lesson claims. Report gaps; do not fill them from memory without marking the claim as general explanation.
 3. Read assets/README.md. Build from those components. Write index.html, lesson.js and manifest.json with lesson_write_file.
    The lesson: knowledge first and short, then practice with a feedback loop. Include at least one prediction or retrieval activity BEFORE the explanation of its answer, and one activity the learner manipulates. One outcome, 3-6 steps.
-4. lesson_validate. Look at the screenshot. Fix every error. You may validate {validations} times in total.
-5. lesson_publish.
+4. lesson_validate. Look at the screenshots. Fix every error. You may validate {validations} times in total.
+5. As soon as a validation passes: lesson_publish. Do not keep polishing a lesson that passed; warnings are advice.
 6. propose_reference for the compressed essence of this lesson. Add other proposals only when the workspace gives a real reason.
 7. finish, with one or two sentences for the learner about what this lesson is and why it is next."""
 
@@ -74,6 +74,7 @@ class Job:
         self.trace, self.usage = [], llm.Usage()
         self.files, self.dirty, self.validated_sha, self.report = {}, True, None, None
         self.validations, self.published, self.proposals = 0, None, []
+        self.ok_bundle = None          # the last bundle that PASSED validation: never thrown away (see _publish_ok_bundle)
         self.topic = self.objective = self.source_ids = self.concept_ids = None
 
     # -- tool implementations: each returns a JSON-able dict ------------------
@@ -97,6 +98,8 @@ class Job:
         return {"results": found, "note": "Stored excerpts only. No result means the stored sources do not cover it: report a gap."}
 
     def lesson_write_file(self, args):
+        if self.validations >= MAX_VALIDATIONS and not self.published:
+            return {"error": "No validations left, so an edit cannot be tested. " + ("Call lesson_publish: it ships the version that passed." if self.ok_bundle else "Call finish and say what failed.")}
         result = worker.write_file(self.job_id, args.get("path"), args.get("content"))
         self.dirty = True
         return result
@@ -135,15 +138,20 @@ class Job:
         report = worker.validate(self.job_id, full)
         shots = report.pop("screenshots_jpeg_b64", None) or []
         self.report, self.dirty = report, False
-        self.validated_sha = report.get("bundle", {}).get("sha256") if report.get("ok") else None
         left = MAX_VALIDATIONS - self.validations
-        if not report.get("ok"):
-            lessons.set_stage(self.job_id, "generating", repairs=self.validations)     # the learner sees "improving", not a silent step back
         result = {"ok": report.get("ok"), "errors": report.get("errors"), "warnings": report.get("warnings"), "validations_left": left}
-        if not report.get("ok"):
+        if report.get("ok"):
+            # Keep exactly what passed. Later edits cannot lose it: publish always ships a bundle that passed.
+            bundled = worker.bundle(self.job_id)
+            if not bundled["errors"] and bundled["sha256"] == report.get("bundle", {}).get("sha256"):
+                self.ok_bundle = {"html": bundled["html"], "manifest": full, "report": report}
+            result["next"] = ("Validation passed. Call lesson_publish NOW. Warnings are advice, not blockers: do not edit the lesson again "
+                              "unless a screenshot shows a real defect" + (" - and you have no validations left, so an edit could not be tested." if left == 0 else "."))
+        else:
+            lessons.set_stage(self.job_id, "generating", repairs=self.validations)     # the learner sees "improving", not a silent step back
             result["next"] = ("Fix the cause, not the symptom; when an error names no line, simplify the activity and build it from the README example. "
-                              + ("This was the last validation: there is nothing left to publish, call finish and say what failed." if left == 0 else
-                                 f"You have {left} validation(s) left." + (" Make this one count: prefer the simplest version that teaches the outcome." if left == 1 else "")))
+                              + ("This was the last validation. " + ("lesson_publish will ship the version that passed earlier." if self.ok_bundle else "There is nothing to publish: call finish and say what failed.")
+                                 if left == 0 else f"You have {left} validation(s) left." + (" Make this one count: prefer the simplest version that teaches the outcome." if left == 1 else "")))
         extra = []
         if shots:
             extra = [{"role": "user", "content": [
@@ -154,17 +162,22 @@ class Job:
     def lesson_publish(self, args):
         if self.published:
             return {"error": "Already published.", **self.published}
-        if self.dirty or not self.validated_sha:
-            return {"error": "Validate first: lesson_publish needs an ok validation of the current files."}
-        full = self._manifest()
-        bundled = worker.bundle(self.job_id)
-        if bundled["errors"] or bundled["sha256"] != self.validated_sha:
-            return {"error": "The files changed after validation. Validate again."}
+        if not self.ok_bundle:
+            return {"error": "Validate first: lesson_publish needs a validation that passed."}
+        return self._publish_ok_bundle(edited_since=self.dirty)
+
+    def _publish_ok_bundle(self, edited_since=False):
+        """Ships the last bundle that passed validation. Edits made after that validation were never
+        tested, so they are not shipped; a lesson that passed is never lost to late polishing."""
+        full, html = self.ok_bundle["manifest"], self.ok_bundle["html"]
         snapshot = graph.run("MATCH (s:Source) WHERE s.id IN $ids RETURN s.id AS id, s.title AS title, s.url AS url",
                              ids=[s["source_id"] for s in full["sources"]])
-        self.published = lessons.publish_version(self.person_id, self.topic["id"], self.objective, bundled["html"], full, self.report,
+        self.published = lessons.publish_version(self.person_id, self.topic["id"], self.objective, html, full, self.ok_bundle["report"],
                                                  skill.provenance(), AUTHOR_MODEL, self.job_id, source_snapshot=snapshot)
-        return {"published": True, "lesson_id": self.published["lesson_id"], "version_id": self.published["version_id"]}
+        out = {"published": True, "lesson_id": self.published["lesson_id"], "version_id": self.published["version_id"]}
+        if edited_since:
+            out["note"] = "Published the version that passed validation. Your later edits were not tested and were not shipped."
+        return out
 
     def asset_propose(self, args):
         paths = [p for p in args.get("paths") or [] if isinstance(p, str)][:8]
@@ -302,10 +315,19 @@ class Job:
             summary = llm.tool_loop(skill.system_prompt(), task, TOOLS, self.handle, AUTHOR_MODEL, max_steps=MAX_STEPS,
                                     deadline=time.monotonic() + MAX_SECONDS, usage=self.usage, phase="author",
                                     should_stop=lambda: lessons.cancel_requested(self.job_id))
+            if not self.published and self.ok_bundle:
+                self._publish_ok_bundle(edited_since=self.dirty)
+                self.trace.append({"tool": "auto_publish", "args": {}, "ok": True, "error": None, "ms": 0})
             if not self.published:
                 raise RuntimeError("not_published")
             self._finish("ready", detail=summary, lesson_id=self.published["lesson_id"], lesson_version_id=self.published["version_id"])
         except llm.ToolLoopStopped as stop:
+            if not self.published and self.ok_bundle and str(stop) != "cancelled":
+                try:
+                    self._publish_ok_bundle(edited_since=self.dirty)
+                    self.trace.append({"tool": "auto_publish", "args": {}, "ok": True, "error": None, "ms": 0})
+                except Exception:
+                    log.exception("auto publish failed for %s", self.job_id)
             if self.published:                     # the lesson is out; only the optional proposals were cut short
                 self._finish("ready", detail="", lesson_id=self.published["lesson_id"], lesson_version_id=self.published["version_id"])
             elif str(stop) == "cancelled":
