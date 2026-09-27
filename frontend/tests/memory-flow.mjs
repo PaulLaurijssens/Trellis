@@ -5,7 +5,7 @@ const browser=await chromium.launch({headless:true,...(process.env.MENTOR_BROWSE
 try {
  const page=await browser.newPage({viewport:{width:1500,height:1050}}),errors=[];
  page.on("pageerror",e=>errors.push(e.message));
- await page.addInitScript(()=>{localStorage.setItem("dendrite.lang","en");sessionStorage.setItem("dendrite.learningTrail.paul",JSON.stringify(["Vectors"]));});
+ await page.addInitScript(()=>{localStorage.setItem("trellis.lang","en");sessionStorage.setItem("trellis.learningTrail.paul",JSON.stringify(["Vectors"]));});
  let pending=true,failOnce=true;
  const state={summary:"We compared directions.",intent:"learning",self_assessment:{value:"partial",date:"2026-09-12",origin:"learner"},covered:["Vector directions"],struggles:["Confuses magnitude and direction"],misconceptions:[],evidence:[{id:"proof",kind:"apply",outcome:"demonstrated",assessment:"Applied the dot product to this example",quote:"The dot product is four.",seq:1,session_id:"fixture",date:"2026-09-12"}],observations:[{id:"difficulty",kind:"struggles",text:"Confuses magnitude and direction",state:"active",origin:"legacy",evidence_ids:[]}]};
  const node={id:"v",name:"Vectors",status:"learning"};

@@ -72,8 +72,8 @@ def read_asset(name: str, version: str, file: str) -> str:
 def store_asset(name: str, files: dict) -> dict:
     """A component proposed by the teaching agent, after the workbench linted it. Versions are
     immutable: the next free patch version is used, an existing directory is never touched."""
-    if not ASSET_NAME.match(name or "") or name.startswith("dendrite-"):
-        raise ValueError("component name: lowercase letters, digits and dashes; 'dendrite-' is reserved")
+    if not ASSET_NAME.match(name or "") or name.startswith("trellis-"):
+        raise ValueError("component name: lowercase letters, digits and dashes; 'trellis-' is reserved")
     if not files or len(files) > 8 or any(not ASSET_FILE.match(f) for f in files) or sum(len(v.encode()) for v in files.values()) > 512 * 1024:
         raise ValueError("a component has 1-8 flat files (no folders), 512 KB in total")
     if not any(f.lower() == "readme.md" for f in files):

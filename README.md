@@ -1,8 +1,8 @@
-# Dendrite: persoonlijke kennisgraph met AI-mentor
+# Trellis: persoonlijke kennisgraph met AI-mentor
 
 De actuele vervolgrichting, acceptatiecriteria en implementatiestatus staan in
 [Implementation-plan-v3.md](Implementation-plan-v3.md). Trellis is een mogelijke
-nieuwe naam; de installatie heet voorlopig Dendrite. De eerste vervolgstap maakt
+nieuwe naam; de installatie heet voorlopig Trellis. De eerste vervolgstap maakt
 uitleg persoonlijker en voegt conceptvoorstellen en terugnavigatie aan gesprekken toe.
 
 ## Profiel en taal
@@ -272,7 +272,7 @@ RETURN gds.util.asNode(nodeId).name AS name, score ORDER BY score DESC LIMIT 20;
 - `backend/app/graph.py`: alle Cypher
 - `frontend/`: Next.js (App Router), graph via react-force-graph-2d; de
   UI-tokens (kleuren, fonts, glow) staan in `app/globals.css`, het ontwerp
-  in `design/dendrite.html`
+  in `design/trellis.html`
 
 ## Volgende stappen
 1. Kennisgatdetectie: leerpad voorstellen op basis van `UNDERSTANDS` en de
@@ -304,7 +304,7 @@ never sent to the mentor automatically. Cancel discards the recording. Recording
 stop at two minutes; browser tracks are released on stop, cancel or navigation.
 Audio is converted to mono WAV and sent via the backend to the existing Gemini
 extraction model (`VOICE_MODEL` can override it). No OpenAI key is needed. Audio is
-processed in memory and not saved by Dendrite. Transcription uses the configured
+processed in memory and not saved by Trellis. Transcription uses the configured
 provider's token pricing, not the OpenAI per-minute example discussed earlier.
 Microphone access requires localhost or HTTPS. Chrome was verified with a simulated
 microphone; other browsers depend on MediaRecorder and Web Audio support.
@@ -315,7 +315,7 @@ spoken question was transcribed through the actual Gemini connection correctly.
 
 ### YouTube retrieval failures (14 September 2026)
 YouTube can reject automated caption requests (`RequestBlocked` / `IpBlocked`),
-including from a previously working connection. Dendrite now shows a concise,
+including from a previously working connection. Trellis now shows a concise,
 localized recovery message and retains the failed URL. In Add → YouTube,
 **Paste transcript instead** switches to manual transcript import while retaining
 YouTube as source type and the original URL. Copy Show transcript from YouTube if
@@ -323,7 +323,7 @@ available; timestamped transcripts keep their time links. This does not remove
 YouTube's upstream block or synthesize missing source text.
 
 ### Direct YouTube fallback
-Caption retrieval remains first. If it fails, Dendrite sends the canonical public
+Caption retrieval remains first. If it fails, Trellis sends the canonical public
 YouTube URL directly to Google's Interactions API using agentic video processing.
 It extracts up to 30 concepts and relationships without generating a full transcript.
 `VIDEO_MODEL` defaults to `EXTRACT_MODEL` (Gemini 3.7 Flash); the model must support

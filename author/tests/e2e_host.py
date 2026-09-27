@@ -23,7 +23,7 @@ def check(name, ok, detail=""):
 
 def open_lesson(page):
     page.goto(APP, wait_until="networkidle")
-    page.evaluate("(name) => localStorage.setItem('dendrite.e2e', name)", CONCEPT)
+    page.evaluate("(name) => localStorage.setItem('trellis.e2e', name)", CONCEPT)
     # The learning home offers the last conversation; otherwise search by name.
     page.wait_for_timeout(1500)
     if not page.locator(".learn-workspace").count():     # after a reload the app reopens the topic itself

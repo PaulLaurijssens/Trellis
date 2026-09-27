@@ -1,5 +1,5 @@
 {"title":"What a matrix does to a square","outcome":"Predict where a 2x2 matrix sends the unit square.","language":"en","duration_min":5,"illustrative_values":true,
- "assets":["dendrite-lesson@1.1.0"],"sources":[],
+ "assets":["trellis-lesson@1.1.0"],"sources":[],
  "activities":[
   {"id":"predict-1","type":"predict","title":"Predict","state_fields":["choice","committed"],"events":["activity.state_changed","activity.answer_submitted"],"check":{"kind":"choice","expected":"b"}},
   {"id":"explore-1","type":"manipulate","title":"Explore","state_fields":["a","b","c","d"],"events":["activity.state_changed"],"check":{"kind":"none"}}]}

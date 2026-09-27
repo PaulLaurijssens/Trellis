@@ -6,7 +6,7 @@ try {
  const page=await browser.newPage({viewport:{width:1536,height:1050}}), errors=[];
  page.on('pageerror',e=>errors.push(e.message));
  page.setDefaultTimeout(12000);
- await page.addInitScript(()=>{localStorage.setItem('dendrite.lang','en');sessionStorage.setItem('dendrite.learningTrail.paul','["Robotics"]');});
+ await page.addInitScript(()=>{localStorage.setItem('trellis.lang','en');sessionStorage.setItem('trellis.learningTrail.paul','["Robotics"]');});
  const nodes=[{id:'r',name:'Robotics',status:'queued'},{id:'v',name:'Vectors',status:'learning'},{id:'a',name:'Attention',status:'queued'}];
  const messages={Robotics:[],Vectors:[],Attention:[]};
  let saved=[],goal=null, goals=[],createFail=true,lastQuestion='',proposals=[];

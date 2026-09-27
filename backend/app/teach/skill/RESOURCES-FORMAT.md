@@ -1,7 +1,7 @@
-<!-- Dendrite adaptation of mattpocock/skills teach @ 3216582 (MIT). Changes: see CHANGELOG.md -->
+<!-- Trellis adaptation of mattpocock/skills teach @ 3216582 (MIT). Changes: see CHANGELOG.md -->
 # RESOURCES.md Format
 
-`RESOURCES.md` is the set of trusted sources the learner has stored for this topic, exported from Dendrite's source store with the stored summary and excerpts of each. Knowledge for lessons should be drawn from here, not from parametric guesses. Dendrite omits the Wisdom (Communities) group in this release, by the owner's decision; the structure below shows it only because it is upstream's format.
+`RESOURCES.md` is the set of trusted sources the learner has stored for this topic, exported from Trellis's source store with the stored summary and excerpts of each. Knowledge for lessons should be drawn from here, not from parametric guesses. Trellis omits the Wisdom (Communities) group in this release, by the owner's decision; the structure below shows it only because it is upstream's format.
 
 ## Structure
 

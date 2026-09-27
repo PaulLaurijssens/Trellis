@@ -9,9 +9,9 @@ try {
   const errors = [];
   page.on("pageerror", (e) => errors.push(e.message));
   await page.addInitScript(() => {
-    localStorage.setItem("dendrite.lang", "en");
-    if (!sessionStorage.getItem("dendrite.learningTrail.paul")) {
-      sessionStorage.setItem("dendrite.learningTrail.paul", '["Attention"]');
+    localStorage.setItem("trellis.lang", "en");
+    if (!sessionStorage.getItem("trellis.learningTrail.paul")) {
+      sessionStorage.setItem("trellis.learningTrail.paul", '["Attention"]');
     }
   });
   const names = ["Vectors", "Dot products", "Matrices", "Probability", "Softmax", "Attention", "Embeddings", "Transformers", "Multi-head attention", "Positional encoding", "Gradients", "Backpropagation", "Loss functions", "Optimization"];
@@ -132,7 +132,7 @@ try {
   await page.getByRole("button",{name:"Laat dit visueel zien",exact:true}).waitFor();
   // Empty graph remains navigable before the learner imports real content.
   nodes.splice(0); edges.splice(0);
-  await page.evaluate(()=>sessionStorage.removeItem("dendrite.learningTrail.paul"));
+  await page.evaluate(()=>sessionStorage.removeItem("trellis.learningTrail.paul"));
   await page.reload();
   await page.getByRole("navigation",{name:"Workspace"}).getByRole("button",{name:"Explore",exact:true}).click();
   await page.locator(".atlas-empty").waitFor();

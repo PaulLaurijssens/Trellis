@@ -13,7 +13,7 @@ from playwright.sync_api import sync_playwright
 
 from bundle import csp
 
-ORIGIN = "http://dendrite.invalid"
+ORIGIN = "http://trellis.invalid"
 HARNESS = (Path(__file__).parent / "harness.html").read_text()
 READY_TIMEOUT_MS = 5000
 
@@ -102,7 +102,7 @@ def run(html: str, hashes: list[str], manifest: dict, screenshot: bool = True) -
                 try:
                     page.wait_for_function("window.__ready === true", timeout=READY_TIMEOUT_MS)
                 except Exception:
-                    errors.append("lesson.ready was not received within 5 s: load the SDK and call DendriteLesson.start()")
+                    errors.append("lesson.ready was not received within 5 s: load the SDK and call TrellisLesson.start()")
                 ready_ms = int((time.monotonic() - t0) * 1000)
                 page.wait_for_timeout(300)
                 frame = next((f for f in page.frames if f.url == ORIGIN + "/lesson"), None)
@@ -114,13 +114,13 @@ def run(html: str, hashes: list[str], manifest: dict, screenshot: bool = True) -
                     shots, steps = [], []
                     count = min(frame.evaluate("() => document.querySelectorAll('main.dl-lesson > section').length") or 1, 8)
                     for index in range(count):
-                        frame.evaluate("(i) => window.DendriteLesson && window.DendriteLesson.goTo(i)", index)
+                        frame.evaluate("(i) => window.TrellisLesson && window.TrellisLesson.goTo(i)", index)
                         page.wait_for_timeout(250)
                         steps.append({"step": index + 1, **frame.evaluate(CONTRAST), "targets": frame.evaluate(TARGETS),
                                       "overflow": frame.evaluate("() => document.documentElement.scrollWidth - window.innerWidth")})
                         if screenshot:
                             shots.append(base64.b64encode(page.screenshot(type="jpeg", quality=55, full_page=False)).decode())
-                    frame.evaluate("() => window.DendriteLesson && window.DendriteLesson.goTo(0)")
+                    frame.evaluate("() => window.TrellisLesson && window.TrellisLesson.goTo(0)")
                     report["steps"], report["screenshots_jpeg_b64"] = steps, shots
                 context.close()
         finally:
@@ -186,7 +186,7 @@ def run(html: str, hashes: list[str], manifest: dict, screenshot: bool = True) -
     for line in list(dict.fromkeys(console))[:8]:
         hint = ""
         if "NaN" in line or "Expected number" in line or "Expected length" in line:
-            hint = (" -> a coordinate is not a number. Draw with DendriteLesson.plane helpers (they name the bad argument), pass points as "
+            hint = (" -> a coordinate is not a number. Draw with TrellisLesson.plane helpers (they name the bad argument), pass points as "
                     "[[x, y], ...] arrays of numbers, check every division (sigma = 0?) and every value read from state or an input (Number(...)).")
         errors.append("browser error: " + line + hint)
     return {"ok": not errors, "errors": errors[:25], "warnings": warnings[:15],

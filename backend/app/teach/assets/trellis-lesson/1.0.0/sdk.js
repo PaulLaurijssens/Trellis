@@ -1,14 +1,14 @@
-/* Dendrite lesson SDK 1.1.0 — the only way a lesson talks to Dendrite.
+/* Trellis lesson SDK 1.0.0 — the only way a lesson talks to Trellis.
  *
  * A lesson runs in a sandboxed frame without network, storage or navigation. This SDK:
  *   - builds the lesson shell (one step at a time, progress, back/next, ask-the-mentor reminder),
  *   - does the handshake with the host and then talks over a private MessagePort,
  *   - saves/restores activity state, submits answers and shows the SERVER's feedback,
  *   - offers helpers: quiz, predict, slider, plane (2D SVG), el.
- * Nothing the lesson reports is trusted by Dendrite: answers are re-checked on the server. */
+ * Nothing the lesson reports is trusted by Trellis: answers are re-checked on the server. */
 (function () {
   'use strict';
-  var VERSION = '1.1.0';
+  var VERSION = '1.0.0';
   var lang = (document.documentElement.lang || 'en').slice(0, 2) === 'nl' ? 'nl' : 'en';
   var T = {
     en: { next: 'Next', back: 'Back', done: 'Finish', check: 'Check', hint: 'Hint', reset: 'Reset', ask: 'Ask your mentor',
@@ -62,7 +62,7 @@
   function Activity(id, handlers) {
     this.id = id; this.handlers = handlers || {}; this.hints = 0;
     this.section = document.querySelector('[data-dl-activity="' + id + '"]');
-    if (!this.section) throw new Error('DendriteLesson.activity: no <section data-dl-activity="' + id + '">');
+    if (!this.section) throw new Error('TrellisLesson.activity: no <section data-dl-activity="' + id + '">');
     this.feedbackEl = this.section.querySelector('.dl-feedback') || this.section.appendChild(el('p', { class: 'dl-feedback', 'aria-live': 'polite' }));
   }
   Activity.prototype.state = function () { try { return plain(this.handlers.getState ? this.handlers.getState() : {}); } catch (e) { return {}; } };
@@ -199,8 +199,6 @@
   }
 
   function slider(container, cfg) {          // range + number box: never drag-only. cfg: {label,min,max,step,value,unit,onInput}
-    if (!container || typeof container.appendChild !== 'function') fail('slider(container, cfg)', 'an element as first argument', container);
-    cfg = cfg || {}; num(cfg.min, 'slider cfg.min'); num(cfg.max, 'slider cfg.max'); num(cfg.value, 'slider cfg.value');
     var id = 'dl-s' + Math.random().toString(36).slice(2, 8);
     var range = el('input', { type: 'range', id: id, min: cfg.min, max: cfg.max, step: cfg.step || 1, value: cfg.value, 'aria-label': cfg.label });
     var number = el('input', { type: 'number', class: 'dl-number', min: cfg.min, max: cfg.max, step: cfg.step || 1, value: cfg.value, 'aria-label': cfg.label + ' (' + T.value + ')' });
@@ -211,56 +209,24 @@
     return { get value() { return Number(range.value); }, set: function (v) { set(v); } };
   }
 
-  /* ---- plane: 2D plot in SVG, math coordinates. Every input is checked: a wrong shape throws a
-     message that says what was expected, instead of drawing NaN. ---- */
-  function fail(where, expected, got) { var shown; try { shown = JSON.stringify(got); } catch (e) { shown = String(got); } throw new Error('DendriteLesson.' + where + ': expected ' + expected + ', got ' + String(shown).slice(0, 120)); }
-  function num(v, where) { if (typeof v !== 'number' || !isFinite(v)) fail(where, 'a finite number', v); return v; }
-  function pair(v, where) { if (!Array.isArray(v) || v.length !== 2) fail(where, '[min, max] or [x, y] as two numbers', v); return [num(v[0], where), num(v[1], where)]; }
-  function niceStep(span) { var raw = span / 8, pow = Math.pow(10, Math.floor(Math.log(raw) / Math.LN10)), f = raw / pow; return (f < 1.5 ? 1 : f < 3.5 ? 2 : f < 7.5 ? 5 : 10) * pow; }
-
-  function plane(container, cfg) {           // cfg: {range: 4} (square, -4..4) OR {x: [min,max], y: [min,max]}; + label, height, ticks
-    cfg = cfg || {};
-    if (!container || typeof container.appendChild !== 'function') fail('plane(container, cfg)', 'an element as first argument (document.getElementById(...), after DOMContentLoaded)', container);
-    var xr, yr;
-    if (cfg.x !== undefined || cfg.y !== undefined) { xr = pair(cfg.x !== undefined ? cfg.x : cfg.y, 'plane cfg.x'); yr = pair(cfg.y !== undefined ? cfg.y : cfg.x, 'plane cfg.y'); }
-    else if (Array.isArray(cfg.range)) { xr = pair(cfg.range, 'plane cfg.range'); yr = xr.slice(); }
-    else { var R = num(cfg.range === undefined ? 4 : cfg.range, 'plane cfg.range'); xr = [-R, R]; yr = [-R, R]; }
-    if (!(xr[1] > xr[0]) || !(yr[1] > yr[0])) fail('plane', 'max greater than min for x and y', { x: xr, y: yr });
-    var square = (xr[1] - xr[0]) === (yr[1] - yr[0]), W = 320, H = cfg.height ? num(cfg.height, 'plane cfg.height') : (square ? 320 : 220), pad = 6;
-    var X = function (x) { return pad + (num(x, 'plane x coordinate') - xr[0]) / (xr[1] - xr[0]) * (W - 2 * pad); };
-    var Y = function (y) { return H - pad - (num(y, 'plane y coordinate') - yr[0]) / (yr[1] - yr[0]) * (H - 2 * pad); };
-    var root = svg('svg', { viewBox: '0 0 ' + W + ' ' + H, class: 'dl-plane', role: 'img', 'aria-label': cfg.label || 'coordinate plane' });
+  function plane(container, cfg) {           // 2D grid in SVG. cfg: {range: 4, label}. Returns drawing helpers in math coordinates.
+    cfg = cfg || {}; var R = cfg.range || 4, size = 320, unit = size / (2 * R);
+    var root = svg('svg', { viewBox: '0 0 ' + size + ' ' + size, class: 'dl-plane', role: 'img', 'aria-label': cfg.label || 'coordinate plane' });
     var grid = svg('g', { class: 'dl-plane-grid' }), layer = svg('g', {});
-    var sx = niceStep(xr[1] - xr[0]), sy = niceStep(yr[1] - yr[0]), v, t;
-    for (v = Math.ceil(xr[0] / sx) * sx; v <= xr[1] + 1e-9; v += sx) {
-      grid.appendChild(svg('line', { x1: X(v), y1: pad, x2: X(v), y2: H - pad, class: Math.abs(v) < 1e-9 ? 'axis' : '' }));
-      if (cfg.ticks !== false) { t = svg('text', { x: X(v), y: H - pad - 3, class: 'dl-tick', 'text-anchor': 'middle' }); t.textContent = String(Math.round(v * 1000) / 1000); grid.appendChild(t); }
-    }
-    for (v = Math.ceil(yr[0] / sy) * sy; v <= yr[1] + 1e-9; v += sy) {
-      grid.appendChild(svg('line', { x1: pad, y1: Y(v), x2: W - pad, y2: Y(v), class: Math.abs(v) < 1e-9 ? 'axis' : '' }));
-      if (cfg.ticks !== false && Math.abs(v) > 1e-9) { t = svg('text', { x: pad + 3, y: Y(v) - 3, class: 'dl-tick' }); t.textContent = String(Math.round(v * 1000) / 1000); grid.appendChild(t); }
+    for (var i = -R; i <= R; i++) {
+      grid.appendChild(svg('line', { x1: (i + R) * unit, y1: 0, x2: (i + R) * unit, y2: size, class: i === 0 ? 'axis' : '' }));
+      grid.appendChild(svg('line', { x1: 0, y1: (R - i) * unit, x2: size, y2: (R - i) * unit, class: i === 0 ? 'axis' : '' }));
     }
     root.appendChild(grid); root.appendChild(layer); container.appendChild(root);
-    function pts(points, where) { if (!Array.isArray(points) || !points.length) fail(where, 'a list of points [[x, y], [x, y], ...]', points);
-      return points.map(function (pt, i) { var q = pair(pt, where + ' point ' + i); return X(q[0]) + ',' + Y(q[1]); }).join(' '); }
-    var api = { svg: root, layer: layer, x: X, y: Y, xRange: xr, yRange: yr,
+    var X = function (x) { return (x + R) * unit; }, Y = function (y) { return (R - y) * unit; };
+    return { svg: root, layer: layer, x: X, y: Y,
       clear: function () { while (layer.firstChild) layer.removeChild(layer.firstChild); },
       vector: function (x, y, cls) { var l = svg('line', { x1: X(0), y1: Y(0), x2: X(x), y2: Y(y), class: 'dl-vector ' + (cls || '') }); var d = svg('circle', { cx: X(x), cy: Y(y), r: 4, class: 'dl-vector-tip ' + (cls || '') }); layer.appendChild(l); layer.appendChild(d); return l; },
-      segment: function (a, b, cls) { a = pair(a, 'plane.segment a'); b = pair(b, 'plane.segment b'); var l = svg('line', { x1: X(a[0]), y1: Y(a[1]), x2: X(b[0]), y2: Y(b[1]), class: 'dl-segment ' + (cls || '') }); layer.appendChild(l); return l; },
-      point: function (x, y, cls) { var d = svg('circle', { cx: X(x), cy: Y(y), r: 5, class: 'dl-point ' + (cls || '') }); layer.appendChild(d); return d; },
-      polygon: function (points, cls) { var p = svg('polygon', { points: pts(points, 'plane.polygon'), class: 'dl-shape ' + (cls || '') }); layer.appendChild(p); return p; },
-      // curve(fn) samples y = fn(x) over the x range; curve([[x,y],...]) draws the given points. Values outside the y range are clipped.
-      curve: function (source, cls) {
-        var points = source;
-        if (typeof source === 'function') { points = []; for (var i = 0; i <= 160; i++) { var x = xr[0] + (xr[1] - xr[0]) * i / 160, y = source(x);
-          if (typeof y !== 'number' || !isFinite(y)) fail('plane.curve(fn)', 'fn(x) to return a finite number for x = ' + x, y);
-          points.push([x, Math.max(yr[0], Math.min(yr[1], y))]); } }
-        var c = svg('polyline', { points: pts(points, 'plane.curve'), class: 'dl-curve ' + (cls || '') }); layer.appendChild(c); return c; },
-      label: function (x, y, text, cls) { var t2 = svg('text', { x: X(x) + 6, y: Y(y) - 6, class: 'dl-plane-label ' + (cls || '') }); t2.textContent = String(text); layer.appendChild(t2); return t2; } };
-    return api;
+      polygon: function (points, cls) { var p = svg('polygon', { points: points.map(function (pt) { return X(pt[0]) + ',' + Y(pt[1]); }).join(' '), class: 'dl-shape ' + (cls || '') }); layer.appendChild(p); return p; },
+      label: function (x, y, text, cls) { var t = svg('text', { x: X(x) + 6, y: Y(y) - 6, class: 'dl-plane-label ' + (cls || '') }); t.textContent = text; layer.appendChild(t); return t; } };
   }
 
-  window.DendriteLesson = { version: VERSION, lang: lang, start: start, activity: activity, quiz: quiz, predict: predict, slider: slider,
+  window.TrellisLesson = { version: VERSION, lang: lang, start: start, activity: activity, quiz: quiz, predict: predict, slider: slider,
     plane: plane, el: el, svg: svg, goTo: function (i) { show(i); }, t: T };
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', function () { setTimeout(start, 0); }); else setTimeout(start, 0);
 })();

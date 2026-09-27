@@ -5,7 +5,7 @@ const browser=await chromium.launch({headless:true,args:['--use-fake-ui-for-medi
 try {
  const page=await browser.newPage({viewport:{width:1600,height:1050}}),errors=[];
  page.on('pageerror',e=>errors.push(e.message));page.setDefaultTimeout(12000);
- await page.addInitScript(()=>localStorage.setItem('dendrite.lang','en'));
+ await page.addInitScript(()=>localStorage.setItem('trellis.lang','en'));
  const nodes=[{id:'v',name:'Vectors',status:'learning'},{id:'a',name:'Attention',status:'queued'},{id:'r',name:'Robotics',status:'queued'}];
  await page.route('http://localhost:8000/**',async route=>{
   const path=decodeURIComponent(new URL(route.request().url()).pathname);

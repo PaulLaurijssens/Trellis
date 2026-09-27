@@ -11,7 +11,7 @@ aspec_src = (ROOT / "artifacts.py").read_text()
 
 
 def manifest(**over):
-    base = {"title": "T", "outcome": "O", "language": "en", "assets": ["dendrite-lesson@1.0.0"], "sources": [],
+    base = {"title": "T", "outcome": "O", "language": "en", "assets": ["trellis-lesson@1.0.0"], "sources": [],
             "activities": [{"id": "a1", "type": "predict", "title": "Predict", "state_fields": ["choice", "committed"],
                             "events": ["activity.answer_submitted"], "check": {"kind": "choice", "expected": "b"}},
                            {"id": "a2", "type": "manipulate", "title": "Explore", "state_fields": ["a", "b"], "check": {"kind": "none"}}]}
@@ -95,7 +95,7 @@ class BundleTests(unittest.TestCase):
         self.assertEqual(b.lint("<section><p>x</p></section>", "var player = {location: 3}; player.location = 4; if (a == b) {}", ""), [])
 
     def test_paths_cannot_leave_the_job_or_touch_assets(self):
-        job = Path("/tmp/dendrite-test-job")
+        job = Path("/tmp/trellis-test-job")
         for bad in ("../x.js", "/etc/passwd", "a/../../x", "assets/x.js", ""):
             with self.assertRaises(b.BundleError):
                 b.safe_job_path(job, bad)

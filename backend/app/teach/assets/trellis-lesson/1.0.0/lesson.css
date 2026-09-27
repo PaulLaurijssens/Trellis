@@ -1,5 +1,5 @@
-/* Dendrite lesson stylesheet 1.0.0 — every lesson links this, so lessons look like one course and
-   like Dendrite. Tokens mirror frontend/app/globals.css. Dark only, like the app. */
+/* Trellis lesson stylesheet 1.0.0 — every lesson links this, so lessons look like one course and
+   like Trellis. Tokens mirror frontend/app/globals.css. Dark only, like the app. */
 :root {
   --bg: #0a0f16; --bg-deep: #070b11; --card: rgba(255,255,255,0.025); --card-hover: rgba(255,255,255,0.04);
   --figure: #101B28; --code-bg: rgba(0,0,0,0.4);

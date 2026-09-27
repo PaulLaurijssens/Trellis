@@ -1,11 +1,11 @@
-"""Client for dendrite-author (the lesson workbench). Internal HTTP, never through the egress proxy:
+"""Client for trellis-author (the lesson workbench). Internal HTTP, never through the egress proxy:
 the API's environment has HTTP(S)_PROXY set, so the proxy is switched off explicitly here."""
 import json
 import os
 import urllib.error
 import urllib.request
 
-BASE = os.getenv("AUTHOR_URL", "http://dendrite-author:8700").rstrip("/")
+BASE = os.getenv("AUTHOR_URL", "http://trellis-author:8700").rstrip("/")
 _opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
 
 

@@ -1,4 +1,4 @@
-# dendrite-author: lesson workbench (bundle + headless-browser validation). See author/server.py.
+# trellis-author: lesson workbench (bundle + headless-browser validation). See author/server.py.
 # Official Playwright image, exact version AND digest (verified against mcr.microsoft.com, 2026-09-20).
 # The image ships the browsers, not the Python package: the package is pinned to the SAME version,
 # so it drives exactly the Chromium build that is already inside the image (no browser download).

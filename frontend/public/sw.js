@@ -1,4 +1,4 @@
-/* Dendrite service worker.
+/* Trellis service worker.
  *
  * Bewust conservatief. Een agressieve cache in een app die met een API praat levert
  * stale data en spookbugs op, dus:
@@ -11,7 +11,7 @@
  *
  * CACHE bevat de versie. Bij een nieuwe deploy bump je die en ruimt activate de oude op.
  */
-const CACHE = "dendrite-v5";
+const CACHE = "trellis-v6";
 const PRECACHE = ["/", "/manifest.webmanifest", "/icons/icon-192.png", "/icons/icon-512.png"];
 
 self.addEventListener("install", (event) => {

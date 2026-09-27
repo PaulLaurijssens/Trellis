@@ -1,4 +1,4 @@
-# Productie-image voor de Dendrite-API. Verschilt bewust van de dev-Dockerfile:
+# Productie-image voor de Trellis-API. Verschilt bewust van de dev-Dockerfile:
 #  - gepinde basis + gepinde requirements (reproduceerbaar)
 #  - code IN het image, geen bind-mount: wat draait is wat gebouwd is
 #  - geen --reload: die watcht de hele boom en kost geheugen
@@ -22,7 +22,7 @@ RUN pip install --no-cache-dir -r requirements.lock.txt
 # build-context, en zonder dit kan de non-root user zijn eigen broncode niet lezen.
 COPY --chown=10002:10002 app ./app
 
-RUN groupadd -g 10002 dendrite && useradd -u 10002 -g 10002 -m -s /usr/sbin/nologin dendrite
+RUN groupadd -g 10002 trellis && useradd -u 10002 -g 10002 -m -s /usr/sbin/nologin trellis
 USER 10002:10002
 
 EXPOSE 8000

@@ -8,7 +8,7 @@ const browser=await chromium.launch({headless:true,...(process.env.MENTOR_BROWSE
 try{
  const page=await browser.newPage({viewport:{width:1600,height:1000}}),errors=[];
  page.on("pageerror",e=>{errors.push(e.message);console.error(e.message);});
- await page.addInitScript(()=>{localStorage.setItem("dendrite.lang","en");});
+ await page.addInitScript(()=>{localStorage.setItem("trellis.lang","en");});
  let motion=true;const started=[];
  await page.route("http://localhost:8000/**",async route=>{
   const req=route.request(),path=decodeURIComponent(new URL(req.url()).pathname),body=req.postData()?JSON.parse(req.postData()):{};

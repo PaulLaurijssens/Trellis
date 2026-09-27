@@ -4,7 +4,7 @@ const browser=await chromium.launch({headless:true,executablePath:process.env.ME
 try{
  const page=await browser.newPage({viewport:{width:1450,height:1000}}),errors=[];
  page.on('pageerror',e=>errors.push(e.message));
- await page.addInitScript(()=>localStorage.setItem('dendrite.lang','nl'));
+ await page.addInitScript(()=>localStorage.setItem('trellis.lang','nl'));
  let language='en',motion=true,failOnce=true, translationFails=true;
  const profile={works_well:['Code examples with a very long observation that should wrap within the panel rather than overlapping neighboring content.'],works_poorly:['Abstract analogies'],preferences:['Concise explanations'],teaching_preferences:[],notes:''};
  await page.route('http://localhost:8000/**',async route=>{
@@ -56,7 +56,7 @@ try{
  await dialog.getByRole('tab',{name:'Settings',exact:true}).click();
  await page.setViewportSize({width:1450,height:1000});
  await page.screenshot({path:'/private/tmp/profile-settings.png',fullPage:true,animations:'disabled'});
- assert.equal(await page.evaluate(()=>localStorage.getItem('dendrite.lang')),'en');
+ assert.equal(await page.evaluate(()=>localStorage.getItem('trellis.lang')),'en');
  assert.deepEqual(errors,[]);
  console.log('PASS: focused settings, tabs, preference error/retry, custom pills, distinct observations, English memory display, original toggle, translation failure/retry, server language over stale local cache, and mobile containment.');
 }finally{await browser.close();}

@@ -21,12 +21,12 @@ const GraphView = dynamic(() => import("../components/GraphView"), { ssr: false 
 
 const FALLBACK_LEVELS = { 1: "kind", 2: "scholier", 3: "professional", 4: "developer", 5: "expert" };
 const PERSON = "paul";
-const LANG_KEY = "dendrite.lang";
+const LANG_KEY = "trellis.lang";
 const APPEAR_MS = 2000;
-const TRAIL_KEY = "dendrite.learningTrail." + PERSON;
+const TRAIL_KEY = "trellis.learningTrail." + PERSON;
 
 const Brand = () => (
-  <div className="brand" aria-label="Dendrite">
+  <div className="brand" aria-label="Trellis">
     <svg width="22" height="22" viewBox="0 0 22 22" aria-hidden="true">
       <line x1="11" y1="19" x2="11" y2="10" stroke="#54A9FF" strokeWidth="1.4" />
       <line x1="11" y1="10" x2="5" y2="5" stroke="#54A9FF" strokeWidth="1.4" />
@@ -35,7 +35,7 @@ const Brand = () => (
       <circle cx="5" cy="5" r="1.6" fill="none" stroke="#54A9FF" strokeWidth="1.3" />
       <circle cx="17" cy="6" r="1.6" fill="none" stroke="#5FCE9E" strokeWidth="1.3" />
     </svg>
-    <span>Dendrite</span>
+    <span>Trellis</span>
   </div>
 );
 
@@ -107,8 +107,8 @@ export default function Page() {
     const media = window.matchMedia("(prefers-reduced-motion: reduce)");
     const update = () => setReducedMotion(media.matches);
     update(); media.addEventListener("change", update);
-    try { const value = localStorage.getItem("dendrite.ambientMotion"); if (value !== null) setAmbientMotion(value !== "false"); } catch {}
-    api.memory(PERSON).then((m) => { if (typeof m.ambient_motion === "boolean") { setAmbientMotion(m.ambient_motion); try { localStorage.setItem("dendrite.ambientMotion", String(m.ambient_motion)); } catch {} } }).catch(() => {});
+    try { const value = localStorage.getItem("trellis.ambientMotion"); if (value !== null) setAmbientMotion(value !== "false"); } catch {}
+    api.memory(PERSON).then((m) => { if (typeof m.ambient_motion === "boolean") { setAmbientMotion(m.ambient_motion); try { localStorage.setItem("trellis.ambientMotion", String(m.ambient_motion)); } catch {} } }).catch(() => {});
     return () => media.removeEventListener("change", update);
   }, []);
 
@@ -161,7 +161,7 @@ export default function Page() {
     if (motionSaving) return;
     const previous = ambientMotion;
     setMotionSaving(true); setAmbientMotion(enabled);
-    try { await api.patchProfile(PERSON, { ambient_motion: enabled }); try { localStorage.setItem("dendrite.ambientMotion", String(enabled)); } catch {} }
+    try { await api.patchProfile(PERSON, { ambient_motion: enabled }); try { localStorage.setItem("trellis.ambientMotion", String(enabled)); } catch {} }
     catch (e) { setAmbientMotion(previous); fail(e); }
     finally { setMotionSaving(false); }
   };

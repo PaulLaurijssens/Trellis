@@ -29,11 +29,11 @@ FORBIDDEN_JS = [
     (r"\bfetch\s*\(", "fetch() is not allowed: lessons have no network"),
     (r"\bXMLHttpRequest\b|\bWebSocket\b|\bEventSource\b|\bsendBeacon\b", "network APIs are not allowed"),
     (r"\bimportScripts\b|\bimport\s*\(", "dynamic imports are not allowed"),
-    (r"\bwindow\.open\b|\bopen\s*\(\s*[\"']https?:", "window.open is not allowed: use DendriteLesson.openSource"),
+    (r"\bwindow\.open\b|\bopen\s*\(\s*[\"']https?:", "window.open is not allowed: use TrellisLesson.openSource"),
     (r"(?<![\w.$])(?:(?:window|document|top|parent|self)\s*\.\s*)?location\s*(?:\.\s*(?:href|assign|replace|reload)\b|=[^=])",
-     "navigation is not allowed: use DendriteLesson.openSource / openLesson"),
-    (r"\bdocument\.cookie\b|\blocalStorage\b|\bsessionStorage\b|\bindexedDB\b", "browser storage is not available: use DendriteLesson state"),
-    (r"\bparent\.postMessage\b|\btop\.postMessage\b", "talk to Dendrite through the DendriteLesson SDK only"),
+     "navigation is not allowed: use TrellisLesson.openSource / openLesson"),
+    (r"\bdocument\.cookie\b|\blocalStorage\b|\bsessionStorage\b|\bindexedDB\b", "browser storage is not available: use TrellisLesson state"),
+    (r"\bparent\.postMessage\b|\btop\.postMessage\b", "talk to Trellis through the TrellisLesson SDK only"),
 ]
 FORBIDDEN_HTML = [
     (r"<\s*(iframe|object|embed|form|base|frame|frameset|portal)\b", "element <{0}> is not allowed"),

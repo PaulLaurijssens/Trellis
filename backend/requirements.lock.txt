@@ -1,4 +1,4 @@
-# Gepinde versies voor de PRODUCTIE-image (Dendrite op de Manolo-VPS).
+# Gepinde versies voor de PRODUCTIE-image (Trellis op de Manolo-VPS).
 # requirements.txt blijft ongepind voor lokale dev; dit bestand is wat de server bouwt,
 # zodat een rebuild over drie maanden dezelfde stack oplevert (principe 6: pinned dependencies).
 # Opgelost op 2026-09-18. Bij een bump: draai eerst backend/tests.

@@ -1,4 +1,4 @@
-# Productie-image voor de Dendrite-frontend. Verschilt bewust van de dev-Dockerfile:
+# Productie-image voor de Trellis-frontend. Verschilt bewust van de dev-Dockerfile:
 #  - npm ci uit package-lock.json (reproduceerbaar) i.p.v. npm install
 #  - next build + next start i.p.v. next dev
 #  - code IN het image, geen bind-mount
@@ -34,7 +34,7 @@ COPY --from=build --chown=10003:10003 /app/public ./public
 COPY --from=build --chown=10003:10003 /app/package.json ./package.json
 COPY --from=build --chown=10003:10003 /app/next.config.js ./next.config.js
 
-RUN groupadd -g 10003 dendrite && useradd -u 10003 -g 10003 -m -s /usr/sbin/nologin dendrite
+RUN groupadd -g 10003 trellis && useradd -u 10003 -g 10003 -m -s /usr/sbin/nologin trellis
 USER 10003:10003
 
 EXPOSE 3000

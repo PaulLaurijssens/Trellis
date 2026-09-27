@@ -2,13 +2,13 @@ import "./globals.css";
 import PwaRegister from "./pwa-register";
 
 export const metadata = {
-  title: "Dendrite",
+  title: "Trellis",
   description: "Persoonlijke kennisgraph met AI-mentor",
-  applicationName: "Dendrite",
+  applicationName: "Trellis",
   manifest: "/manifest.webmanifest",
   appleWebApp: {
     capable: true,
-    title: "Dendrite",
+    title: "Trellis",
     statusBarStyle: "black-translucent",
   },
   icons: {

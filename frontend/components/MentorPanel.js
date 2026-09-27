@@ -138,7 +138,7 @@ export default function MentorPanel({
         <button className="textlink" onClick={() => setReference(null)}>{t("teach.close")}</button></div>
         <div className="teach-reference-body">{renderMarkdown(reference.markdown)}{reference.sources?.length > 0 && <p className="teach-hint">{t("panel.sources")}: {reference.sources.map((s) => s.title).join(" · ")}</p>}</div></div>}
       <Chat concept={concept.name} status={concept.status} chat={chat} busy={!!(busy.chat || busy.explain)} ending={!!busy.ending}
-        draftKey={teachEnabled ? "dendrite.draft." + concept.name : null}
+        draftKey={teachEnabled ? "trellis.draft." + concept.name : null}
         onSend={send} onNew={onNewChat} onEnd={onEndChat} onExplain={() => onExplain(concept.name, level)}
         suggestionBusy={busy.suggestion} onSuggestion={onSuggestion} introduction={introduction}
         examples={examples} onSaveExample={onSaveExample} exampleBusy={journeyBusy}

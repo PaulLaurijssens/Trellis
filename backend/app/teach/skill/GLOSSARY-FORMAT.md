@@ -1,7 +1,7 @@
-<!-- Dendrite adaptation of mattpocock/skills teach @ 3216582 (MIT). Changes: see CHANGELOG.md -->
+<!-- Trellis adaptation of mattpocock/skills teach @ 3216582 (MIT). Changes: see CHANGELOG.md -->
 # GLOSSARY.md Format
 
-`GLOSSARY.md` is the learner's personal language for this topic, exported from Dendrite. It sits beside Dendrite's complete concept graph and never replaces a concept's canonical definition. You add or revise a term with `propose_glossary_term`. All explainers, exercises, and learning records should adhere to its terminology. Building it is itself part of learning: compressing a concept into a tight definition is evidence the user understands it.
+`GLOSSARY.md` is the learner's personal language for this topic, exported from Trellis. It sits beside Trellis's complete concept graph and never replaces a concept's canonical definition. You add or revise a term with `propose_glossary_term`. All explainers, exercises, and learning records should adhere to its terminology. Building it is itself part of learning: compressing a concept into a tight definition is evidence the user understands it.
 
 ## Structure
 
@@ -27,7 +27,7 @@ _Avoid_: Effort score, intensity rating
 
 ## Rules
 
-- **Add a term only when the user understands it.** Dendrite requires evidence (an `attempt_id` or a `message_ref`) for every new term. The glossary is a record of compressed knowledge, not a dictionary the user reads to learn. If the user has just been introduced to a concept, wait until they can use it correctly before promoting it here.
+- **Add a term only when the user understands it.** Trellis requires evidence (an `attempt_id` or a `message_ref`) for every new term. The glossary is a record of compressed knowledge, not a dictionary the user reads to learn. If the user has just been introduced to a concept, wait until they can use it correctly before promoting it here.
 - **Be opinionated.** When several words exist for the same concept, pick the best one and list the rest as aliases to avoid. This is how language compresses.
 - **Keep definitions tight.** One or two sentences. Define what the term IS, not what it does or how to do it.
 - **Use the glossary's own terms inside definitions.** Once a term is in the glossary, prefer it everywhere, including inside other definitions. This is what makes complex terms easier to grasp later.

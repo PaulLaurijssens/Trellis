@@ -1,4 +1,4 @@
-"""dendrite-author: the lesson workbench. Holds job files, bundles, and test-runs lessons in a browser.
+"""trellis-author: the lesson workbench. Holds job files, bundles, and test-runs lessons in a browser.
 
 It has NO model key, NO database access and NO network route (its Docker network is internal and has
 only the API as the other member). The API calls it; it never calls anything. JSON over HTTP, stdlib only."""
@@ -97,7 +97,7 @@ OPS = {"lint": op_lint, "write": op_write, "read": op_read, "list": op_list, "bu
 
 
 class Handler(BaseHTTPRequestHandler):
-    server_version = "dendrite-author"
+    server_version = "trellis-author"
 
     def _send(self, status, payload):
         data = json.dumps(payload, ensure_ascii=False).encode()

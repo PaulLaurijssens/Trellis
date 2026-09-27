@@ -1,5 +1,5 @@
 document.addEventListener('DOMContentLoaded', function () {
-  var DL = window.DendriteLesson;
+  var DL = window.TrellisLesson;
   DL.predict('predict-1', { question: 'The matrix has columns (2,0) and (0,1). What happens to the unit square?',
     options: [{ id: 'a', label: 'It becomes twice as tall' }, { id: 'b', label: 'It becomes twice as wide' }, { id: 'c', label: 'It turns a quarter turn' }] });
   var m = { a: 2, b: 0, c: 0, d: 1 }, sliders = {};

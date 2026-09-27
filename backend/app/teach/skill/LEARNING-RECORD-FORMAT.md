@@ -1,7 +1,7 @@
-<!-- Dendrite adaptation of mattpocock/skills teach @ 3216582 (MIT). Changes: see CHANGELOG.md -->
+<!-- Trellis adaptation of mattpocock/skills teach @ 3216582 (MIT). Changes: see CHANGELOG.md -->
 # Learning Record Format
 
-Learning records are in `learning-records/` with sequential numbering: `0001-slug.md`, `0002-slug.md`, etc. Dendrite exports them from its evidence ledger, oldest first. You add one with `propose_learning_record`; Dendrite assigns the number.
+Learning records are in `learning-records/` with sequential numbering: `0001-slug.md`, `0002-slug.md`, etc. Trellis exports them from its evidence ledger, oldest first. You add one with `propose_learning_record`; Trellis assigns the number.
 
 They are the teaching equivalent of ADRs: they capture non-obvious lessons, key insights, and stated prior knowledge that will steer future sessions. They are used to calculate the zone of proximal development.
 
@@ -20,12 +20,12 @@ That is the whole format. A learning record can be a single paragraph. The value
 Only include these when they add genuine value. Most records won't need them.
 
 - **Status** frontmatter (`active | superseded by LR-NNNN`): useful when an earlier understanding turns out to be wrong and is replaced.
-- **Evidence**: how the user demonstrated the understanding. In Dendrite this is mandatory for a record of demonstrated understanding or of a corrected misconception: pass the `attempt_ids` of assessed exercise attempts, or the `message_refs` (session, message number, exact quote) of the learner's own words. Never write a quote the learner did not say. A disclosed prior-knowledge claim or a mission shift needs no evidence and is stored as a claim, not as proof.
+- **Evidence**: how the user demonstrated the understanding. In Trellis this is mandatory for a record of demonstrated understanding or of a corrected misconception: pass the `attempt_ids` of assessed exercise attempts, or the `message_refs` (session, message number, exact quote) of the learner's own words. Never write a quote the learner did not say. A disclosed prior-knowledge claim or a mission shift needs no evidence and is stored as a claim, not as proof.
 - **Implications**: what this unlocks or rules out for future sessions. Worth recording when non-obvious.
 
 ## Numbering
 
-Dendrite numbers the records. Refer to an existing record by the ID in its frontmatter.
+Trellis numbers the records. Refer to an existing record by the ID in its frontmatter.
 
 ## When to write a learning record
 

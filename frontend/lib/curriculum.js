@@ -7,7 +7,7 @@
 import { useEffect, useMemo, useState } from "react";
 
 const BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-const STORE = "dendrite.curriculum.v1";
+const STORE = "trellis.curriculum.v1";
 const idOf = (x) => (typeof x === "object" ? x.id : x);
 
 const memory = {};        // lang -> { snapshot, plan }
