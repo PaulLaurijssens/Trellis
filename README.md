@@ -113,7 +113,7 @@ Once you open Trellis over HTTPS on a phone, use "Add to Home Screen": it instal
 ## Backups
 
 Trellis makes a backup every night at 03:10 UTC and keeps the last 14 in the `backups/` folder next
-to the code. A backup is two files with one timestamp: your whole graph (`trellis-<stamp>.cypher.gz`)
+to the code. A backup is two files with one timestamp: your whole graph (`trellis-<stamp>.jsonl.gz`)
 and your lesson files (`artifacts-<stamp>.tar.gz`). You can also press **Make a backup now** in
 *My profile → Settings*, and **Verify** checks that a backup is readable and complete.
 
@@ -125,6 +125,11 @@ notes and your model key is **not** in them).
 ```bash
 ./scripts/restore.sh 20260927T031000Z      # the timestamp of the files in backups/
 ```
+
+It stops the app, loads the graph and the lesson files, and starts the app again (a few seconds for
+hundreds of concepts, a minute or two for tens of thousands). Log in with the password you had at
+the time of the backup. Moving to a new computer: install Trellis there, copy the two files into its
+`backups/` folder, run the same command.
 
 ## Reset a password
 

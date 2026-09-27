@@ -1,15 +1,19 @@
 """Backups from inside the app: no cron on the host, no Docker socket, no downtime.
 
 A backup is two files with one timestamp in BACKUP_DIR:
-  trellis-<stamp>.cypher.gz   the whole graph as Cypher (APOC streaming export: nodes, relationships,
-                              constraints, indexes, embeddings), made while the app runs;
+  trellis-<stamp>.jsonl.gz    the whole graph as JSON lines (APOC streaming export: one line per node
+                              or relationship, embeddings included), made while the app runs;
   artifacts-<stamp>.tar.gz    the lesson files and shared components (content-addressed, so a graph
                               that references a lesson always finds it in the archive of the same stamp).
-Restore = an empty database + `scripts/restore.sh <stamp>` (documented in the README). The nightly
-run happens in the API process (see main.startup); the owner can also press the button in Settings."""
+Why JSON and not Cypher: a Cypher dump puts every embedding (3072 numbers) as a literal in its own
+statement, and the database caches each distinct statement; loading a few hundred of those exhausted
+a 1 GB heap. restore.py loads the JSON with parameters instead: one cached statement, small batches.
+Restore = `scripts/restore.sh <stamp>` (README). The nightly run happens in the API process
+(main.startup); the owner can also press the button in Settings."""
 import asyncio
 import gzip
 import io
+import json
 import logging
 import os
 import tarfile
@@ -36,12 +40,12 @@ def _stamp() -> str:
 
 
 def export_graph() -> tuple[str, dict]:
-    rows = graph.run('''CALL apoc.export.cypher.all(null, {stream:true, format:"plain",
-        useOptimizations:{type:"UNWIND_BATCH", unwindBatchSize:100}})
-        YIELD nodes, relationships, properties, cypherStatements RETURN nodes, relationships, properties, cypherStatements''')
+    rows = graph.run('''CALL apoc.export.json.all(null, {stream:true, batchSize:500})
+        YIELD nodes, relationships, properties, data RETURN nodes, relationships, properties, data''')
     if not rows:
         raise RuntimeError("APOC export returned nothing")
-    return rows[0]["cypherStatements"], {k: rows[0][k] for k in ("nodes", "relationships", "properties")}
+    text = "".join(r["data"] for r in rows if r["data"])      # streamed in batches; counts are running totals
+    return text, {k: max(int(r[k] or 0) for r in rows) for k in ("nodes", "relationships", "properties")}
 
 
 def create() -> dict:
@@ -51,12 +55,13 @@ def create() -> dict:
     stamp = _stamp()
     started = time.monotonic()
     cypher, counts = export_graph()
-    graph_path = BACKUP_DIR / f"trellis-{stamp}.cypher.gz"
+    graph_path = BACKUP_DIR / f"trellis-{stamp}.jsonl.gz"
     tmp = graph_path.with_suffix(".tmp")
     with gzip.open(tmp, "wt", encoding="utf-8") as f:
         f.write(cypher)
     tmp.rename(graph_path)
     result = {"stamp": stamp, "graph_bytes": graph_path.stat().st_size, **counts, "artifacts_bytes": 0}
+    (BACKUP_DIR / f"trellis-{stamp}.json").write_text(json.dumps({"stamp": stamp, "format": "apoc-json-lines-1", **counts}))
     if ARTIFACT_DIR.is_dir():
         art_path = BACKUP_DIR / f"artifacts-{stamp}.tar.gz"
         tmp = art_path.with_suffix(".tmp")
@@ -72,8 +77,8 @@ def create() -> dict:
 
 
 def rotate():
-    for prefix in ("trellis-", "artifacts-"):
-        files = sorted(BACKUP_DIR.glob(prefix + "*"), key=lambda p: p.name, reverse=True)
+    for pattern in ("trellis-*.jsonl.gz", "trellis-*.json", "artifacts-*.tar.gz"):
+        files = sorted(BACKUP_DIR.glob(pattern), key=lambda p: p.name, reverse=True)
         for old in files[KEEP:]:
             old.unlink(missing_ok=True)
 
@@ -84,41 +89,52 @@ def listing() -> list[dict]:
         return []
     for path in BACKUP_DIR.iterdir():
         name = path.name
-        if name.startswith("trellis-") and name.endswith(".cypher.gz"):
-            out.setdefault(name[8:-10], {})["graph_bytes"] = path.stat().st_size
+        if name.startswith("trellis-") and name.endswith(".jsonl.gz"):
+            out.setdefault(name[8:-9], {})["graph_bytes"] = path.stat().st_size
         elif name.startswith("artifacts-") and name.endswith(".tar.gz"):
             out.setdefault(name[10:-7], {})["artifacts_bytes"] = path.stat().st_size
     return [{"stamp": stamp, **info} for stamp, info in sorted(out.items(), reverse=True)]
 
 
+def read_lines(stamp: str):
+    """Yields the parsed JSON lines of a backup."""
+    with gzip.open(BACKUP_DIR / f"trellis-{stamp}.jsonl.gz", "rt", encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if line:
+                yield json.loads(line)
+
+
 def verify(stamp: str) -> dict:
-    """Reads the archive back: the graph file parses as gzip text with statements, and every
-    lesson version it mentions exists in the artifact archive with the right hash."""
+    """Reads the archive back: the graph file parses, and every published lesson version in it exists in
+    the artifact archive of the same stamp with the right hash."""
     import hashlib
-    import re
-    graph_path = BACKUP_DIR / f"trellis-{stamp}.cypher.gz"
+    graph_path = BACKUP_DIR / f"trellis-{stamp}.jsonl.gz"
     art_path = BACKUP_DIR / f"artifacts-{stamp}.tar.gz"
     if not graph_path.is_file():
         raise FileNotFoundError(stamp)
-    with gzip.open(graph_path, "rt", encoding="utf-8") as f:
-        text = f.read()
-    statements = text.count(";\n")
-    hashes = set(re.findall(r'`content_hash`:"([0-9a-f]{64})"', text)) | set(re.findall(r'content_hash:"([0-9a-f]{64})"', text))
+    nodes = rels = 0; hashes = set()
+    for item in read_lines(stamp):
+        if item.get("type") == "node":
+            nodes += 1
+            if "LessonVersion" in item.get("labels", []) and item["properties"].get("status") == "published":
+                hashes.add(item["properties"].get("content_hash"))
+        elif item.get("type") == "relationship":
+            rels += 1
     missing, bad = [], []
     if hashes:
         if not art_path.is_file():
             raise FileNotFoundError(f"artifacts-{stamp}.tar.gz")
         with tarfile.open(art_path, "r:gz") as tar:
-            members = {m.name: m for m in tar.getmembers() if m.isfile() and m.name.endswith("/index.html")}
+            members = [m for m in tar.getmembers() if m.isfile() and m.name.endswith("/index.html")]
             for h in hashes:
-                found = next((m for name, m in members.items() if f"/{h}/index.html" in name), None)
+                found = next((m for m in members if f"/{h}/index.html" in m.name), None)
                 if not found:
                     missing.append(h); continue
-                data = tar.extractfile(found).read()
-                if hashlib.sha256(data).hexdigest() != h:
+                if hashlib.sha256(tar.extractfile(found).read()).hexdigest() != h:
                     bad.append(h)
-    return {"stamp": stamp, "statements": statements, "lesson_versions": len(hashes), "missing": missing, "hash_mismatch": bad,
-            "ok": statements > 0 and not missing and not bad}
+    return {"stamp": stamp, "nodes": nodes, "relationships": rels, "lesson_versions": len(hashes), "missing": missing,
+            "hash_mismatch": bad, "ok": nodes > 0 and not missing and not bad}
 
 
 async def nightly_loop():
