@@ -36,7 +36,7 @@ Resources, give Docker at least 6 GB of memory.
 Open a terminal (Mac: Terminal app; Windows: PowerShell) and run:
 
 ```bash
-git clone https://github.com/plaurijssens/trellis.git
+git clone https://github.com/PaulLaurijssens/trellis.git
 cd trellis
 ```
 
