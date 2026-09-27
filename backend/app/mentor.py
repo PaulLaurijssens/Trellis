@@ -2,18 +2,19 @@
 from . import llm, graph
 
 LEVELS = {
-    1: "een nieuwsgierige 10-jarige: korte zinnen, concrete voorbeelden uit het dagelijks leven, geen jargon",
-    2: "een middelbare scholier: eenvoudige analogieën, jargon alleen met uitleg",
-    3: "een geïnteresseerde professional zonder technische achtergrond",
-    4: "een developer of engineer met basiskennis van het domein",
-    5: "een ervaren engineer: precies, technisch, geen versimpeling, benoem nuances en randgevallen",
+    1: "a curious 10-year-old: short sentences, concrete everyday examples, no jargon",
+    2: "a secondary-school student: simple analogies, jargon only with an explanation",
+    3: "an interested professional without a technical background",
+    4: "a developer or engineer with basic knowledge of the field",
+    5: "an experienced engineer: precise, technical, no simplification, name nuances and edge cases",
 }
 
 
-def ask(question: str, concept: str | None, level: int) -> str:
+def ask(question: str, concept: str | None, level: int, language: str = "en") -> str:
+    from . import languages
     ctx = graph.concept_context(concept) if concept else None
-    system = f"""Je bent een persoonlijke technische mentor. Leg uit op het niveau van {LEVELS[level]}.
-Gebruik de kennisgraph-context als die er is; benoem prerequisites die de gebruiker mogelijk mist.
-Antwoord in het Nederlands, bondig."""
-    user = question if not ctx else f"CONTEXT UIT KENNISGRAPH:\n{ctx}\n\nVRAAG: {question}"
+    system = f"""You are a personal technical mentor. Explain at the level of {LEVELS[level]}.
+Use the knowledge-graph context when present; name prerequisites the user may be missing.
+Answer in {languages.name(language)}, concisely."""
+    user = question if not ctx else f"CONTEXT FROM THE KNOWLEDGE GRAPH:\n{ctx}\n\nQUESTION: {question}"
     return llm.complete(system, user, llm.MENTOR_MODEL)

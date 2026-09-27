@@ -505,5 +505,17 @@ const en = {
   "menu.logout": "Log out",
   "profile.account": "Account",
   "profile.accountHint": "Logged in as {name}. This browser stays logged in for 30 days.",
+  "explore.viewLabel": "Explore view",
+  "explore.graph": "Graph",
+  "explore.path": "Learning path",
+  "import.running": "Analysis is running. Long videos can take a few minutes; the topics will appear here when ready.",
+  "import.elapsed": "elapsed",
+  "import.youtubeFailed": "Automatic retrieval failed. If YouTube offers Show transcript, copy its text and paste it here.",
+  "import.pasteTranscript": "Paste a transcript instead",
+  "import.transcriptHint": "On YouTube, expand the video description and look for Show transcript. Copy the transcript, including timestamps if available, and paste it here.",
+  "import.analyzing": "Analyzing…",
+  "translation.retry": "Show translation",
+  "translation.show": "Show translation",
+  "translation.original": "Translated · Original",
 };
 export default en;

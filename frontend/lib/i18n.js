@@ -1,19 +1,18 @@
 "use client";
 import { createContext, useContext } from "react";
-import nl from "./nl";
-import en from "./en";
+import { LANGUAGES, DEFAULT_LANGUAGE } from "./languages";
 
-export const DICTS = { nl, en };
-export const LANGS = [["nl", "Nederlands"], ["en", "English"]];
-export const LangContext = createContext({ lang: "nl", setLang: () => {} });
+export const DICTS = Object.fromEntries(LANGUAGES.map((l) => [l.code, l.dict]));
+export const LANGS = LANGUAGES.map((l) => [l.code, l.native]);
+export const LangContext = createContext({ lang: DEFAULT_LANGUAGE, setLang: () => {} });
 
-// t("key", {n: 3}) -> tekst; ontbrekende sleutel valt terug op nl, dan op de sleutel.
+// t("key", {n: 3}) -> text; a missing key falls back to English, then to the key itself.
 export function useT() {
   const { lang, setLang } = useContext(LangContext);
   const t = (key, vars) => {
-    let s = (DICTS[lang] && DICTS[lang][key]) ?? nl[key] ?? key;
+    let s = (DICTS[lang] && DICTS[lang][key]) ?? DICTS[DEFAULT_LANGUAGE][key] ?? key;
     if (vars) for (const [k, v] of Object.entries(vars)) s = s.replaceAll("{" + k + "}", String(v));
     return s;
   };
-  return { t, lang, setLang, dict: DICTS[lang] || nl };
+  return { t, lang, setLang, dict: DICTS[lang] || DICTS[DEFAULT_LANGUAGE] };
 }

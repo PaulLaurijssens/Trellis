@@ -1,0 +1,105 @@
+# Trellis: one command to run it.   docker compose up -d   ->   http://localhost:8080
+#
+# Five containers: the app (frontend + API), the graph database, the lesson workbench (a headless
+# browser that tests generated lessons in a sandbox) and nginx, which gives everything one address.
+# Only nginx publishes a port, and only on this machine (127.0.0.1). To reach Trellis from other
+# devices, put HTTPS in front of it: docs/VPS.md. Never change 127.0.0.1 to 0.0.0.0 without TLS.
+#
+# Developers: compose.dev.yaml runs the same services from source with hot reload.
+
+x-common: &common
+  restart: unless-stopped
+  security_opt: ["no-new-privileges:true"]
+
+services:
+  neo4j:
+    <<: *common
+    image: neo4j:5.26.30-community
+    environment:
+      NEO4J_AUTH: "neo4j/${NEO4J_PASSWORD:?Set NEO4J_PASSWORD in .env (any long random string)}"
+      NEO4J_PLUGINS: '["apoc"]'
+      NEO4J_dbms_security_procedures_unrestricted: "apoc.*"
+      NEO4J_dbms_security_procedures_allowlist: "apoc.*"
+      NEO4J_server_memory_heap_initial__size: "${NEO4J_HEAP:-1G}"
+      NEO4J_server_memory_heap_max__size: "${NEO4J_HEAP:-1G}"
+      NEO4J_server_memory_pagecache_size: "${NEO4J_PAGECACHE:-512M}"
+    volumes:
+      - neo4j_data:/data
+      - ./db:/import:ro
+    mem_limit: "${NEO4J_MEM_LIMIT:-2560m}"
+    healthcheck:
+      test: ["CMD-SHELL", "cypher-shell -u neo4j -p \"$${NEO4J_PASSWORD}\" 'RETURN 1' >/dev/null 2>&1 || exit 1"]
+      interval: 10s
+      timeout: 10s
+      retries: 30
+      start_period: 40s
+
+  api:
+    <<: *common
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.prod
+    env_file: .env                     # NEO4J_PASSWORD (+ optional model settings; the setup screen can do the rest)
+    environment:
+      NEO4J_URI: bolt://neo4j:7687
+      AUTHOR_URL: http://author:8700
+      TEACH_ARTIFACT_DIR: /artifacts
+      BACKUP_DIR: /backups
+      LITELLM_LOCAL_MODEL_COST_MAP: "True"
+    volumes:
+      - ./db:/import:ro
+      - artifacts:/artifacts
+      - ./backups:/backups
+    networks: [default, author]
+    depends_on:
+      neo4j:
+        condition: service_healthy
+    mem_limit: "${API_MEM_LIMIT:-768m}"
+    cap_drop: [ALL]
+
+  author:
+    <<: *common
+    build:
+      context: ./author
+      dockerfile: Dockerfile.prod
+    user: "10003:10002"
+    read_only: true
+    tmpfs:
+      - /work:size=256m,uid=10003,gid=10002,mode=0700
+      - /tmp:size=256m,uid=10003,gid=10002,mode=0700
+    volumes:
+      - artifacts:/assets:ro           # only the shared components; lessons are written by the API
+    networks: [author]                 # no route to the database or the internet
+    cap_drop: [ALL]
+    pids_limit: 256
+    mem_limit: "${AUTHOR_MEM_LIMIT:-1536m}"
+    cpus: 1.5
+
+  frontend:
+    <<: *common
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.prod
+      args:
+        NEXT_PUBLIC_API_URL: /api
+    mem_limit: "${FRONTEND_MEM_LIMIT:-512m}"
+    cap_drop: [ALL]
+
+  web:
+    <<: *common
+    image: nginx:1.28.3-alpine3.23
+    volumes:
+      - ./deploy/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    ports:
+      - "${TRELLIS_BIND:-127.0.0.1}:${TRELLIS_PORT:-8080}:80"
+    depends_on: [api, frontend]
+    mem_limit: 64m
+
+networks:
+  default: {}
+  author:
+    internal: true
+
+volumes:
+  neo4j_data:
+  artifacts:

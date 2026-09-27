@@ -22,7 +22,13 @@ bars: "items":[{"label":"case", "value":0.5}], "unit":"unit".
 Use readable concise labels. Do not emit SVG, HTML, Mermaid, URLs or code.
 '''
 
-LANGUAGE_NAMES = {"nl": "Dutch", "en": "English"}
+def _language_name(code):
+    """English name of the language; lazy import so this module also loads standalone in tests."""
+    try:
+        from .languages import name
+    except ImportError:
+        from languages import name          # tests load this file by path
+    return name(code)
 
 
 def language_line(code):
@@ -30,7 +36,7 @@ def language_line(code):
     was niet genoeg: de rest van de systeemprompt is Nederlands, en het model schreef de
     illustratie dan soms in het Nederlands onder een Engels antwoord (gezien 2026-09-19)."""
     return (f"\nWrite the illustration title, caption and every label in "
-            f"{LANGUAGE_NAMES.get(code, 'English')}, the same language as the answer.")
+            f"{_language_name(code)}, the same language as the answer.")
 
 
 def _text(value, limit=180):

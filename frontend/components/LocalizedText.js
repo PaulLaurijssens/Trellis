@@ -29,7 +29,7 @@ function request(text, language) {
   cache.set(key, promise); clearTimeout(timer); timer = setTimeout(flush, 40); return promise;
 }
 export default function LocalizedText({ children, render = x => x, block = false }) {
-  const text = String(children || ""); const { lang } = useT();
+  const text = String(children || ""); const { t, lang } = useT();
   const [state, setState] = useState(null); const [retry, setRetry] = useState(0); const [original, setOriginal] = useState(false);
   useEffect(() => {
     let alive = true; setState(null); setOriginal(false);
@@ -39,5 +39,5 @@ export default function LocalizedText({ children, render = x => x, block = false
   if (!text) return null;
   const current = state?.text === text && state?.lang === lang ? state : null;
   const Tag = block ? "div" : "span";
-  return <><Tag>{render(original || !current?.value ? text : current.value)}</Tag>{current?.error ? <button className="textlink translation-note" onClick={() => setRetry(x => x + 1)}>{lang === "en" ? "Translation unavailable · Retry" : "Vertaling niet beschikbaar · Opnieuw"}</button> : current?.value !== text && current?.value ? <button className="textlink translation-note" onClick={() => setOriginal(x => !x)}>{original ? (lang === "en" ? "Show translation" : "Toon vertaling") : (lang === "en" ? "Translated · Original" : "Vertaald · Origineel")}</button> : null}</>;
+  return <><Tag>{render(original || !current?.value ? text : current.value)}</Tag>{current?.error ? <button className="textlink translation-note" onClick={() => setRetry(x => x + 1)}>{t("translation.retry")}</button> : current?.value !== text && current?.value ? <button className="textlink translation-note" onClick={() => setOriginal(x => !x)}>{original ? t("translation.show") : t("translation.original")}</button> : null}</>;
 }

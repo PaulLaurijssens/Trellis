@@ -559,8 +559,9 @@ def all_understands(person_id: str) -> list[dict]:
 # Laag 3: leerprofiel per persoon. JSON-string op de Person-node.
 # ============================================================
 
-LANGUAGES = {"nl": "Nederlands", "en": "Engels"}
-LANGUAGE_NAMES_EN = {"nl": "Dutch", "en": "English"}
+from . import languages as _languages
+LANGUAGES = {code: entry["native"] for code, entry in _languages.LANGUAGES.items()}     # code -> native name (UI)
+LANGUAGE_NAMES_EN = {code: entry["name"] for code, entry in _languages.LANGUAGES.items()}   # code -> English name (prompts)
 
 
 def ui_language(person_id: str) -> str:
@@ -572,7 +573,7 @@ def ui_language(person_id: str) -> str:
 
 def set_ui_language(person_id: str, lang: str) -> str:
     if lang not in LANGUAGES:
-        raise ValueError("onbekende taal")
+        raise ValueError("unknown language")
     run("MERGE (p:Person {id:$pid}) SET p.ui_language = $lang", pid=person_id, lang=lang)
     return lang
 

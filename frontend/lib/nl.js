@@ -518,5 +518,17 @@ const nl = {
   "menu.logout": "Uitloggen",
   "profile.account": "Account",
   "profile.accountHint": "Ingelogd als {name}. Deze browser blijft 30 dagen ingelogd.",
+  "explore.viewLabel": "Verkenweergave",
+  "explore.graph": "Kenniskaart",
+  "explore.path": "Leerpad",
+  "import.running": "De analyse loopt. Lange video's kunnen een paar minuten duren; de onderwerpen verschijnen hier zodra ze klaar zijn.",
+  "import.elapsed": "verstreken",
+  "import.youtubeFailed": "Automatisch ophalen mislukte. Biedt YouTube 'Transcript weergeven', kopieer die tekst dan en plak hem hier.",
+  "import.pasteTranscript": "Plak in plaats daarvan een transcript",
+  "import.transcriptHint": "Klap op YouTube de videobeschrijving uit en zoek 'Transcript weergeven'. Kopieer het transcript, met tijdcodes als die er zijn, en plak het hier.",
+  "import.analyzing": "Analyseren…",
+  "translation.retry": "Vertaling tonen",
+  "translation.show": "Toon vertaling",
+  "translation.original": "Vertaald · Origineel",
 };
 export default nl;

@@ -8,8 +8,8 @@ import asyncio
 from . import llm, graph, transcript, pipeline
 from .mentor import LEVELS
 
-RESOLVE_SYSTEM = """Bepaal of het nieuwe concept hetzelfde is als een van de kandidaten uit de bestaande kennisgraph.
-Antwoord uitsluitend met JSON: {"same_as": "<naam van kandidaat>" } of {"same_as": null}."""
+RESOLVE_SYSTEM = """Decide whether the new concept is the same as one of the candidates from the existing knowledge graph.
+Answer with JSON only: {"same_as": "<candidate name>"} or {"same_as": null}."""
 
 
 def normalize(text: str) -> dict:
@@ -25,23 +25,22 @@ def normalized_text(text: str) -> str:
     return "\n\n".join(s["text"] for s in transcript.parse(text)["segments"])
 
 
-GENERATE_SYSTEM = """Je schrijft een gedegen, feitelijke uitleg over een onderwerp,
-bedoeld als bronmateriaal voor een kennisgraph.
-Schrijf voor {audience}.
-Regels:
-- 600 tot 1000 woorden, lopende alinea's, geen kopjes, lijstjes of opsommingstekens.
-- Introduceer expliciet de onderliggende concepten en benoem hoe ze samenhangen:
-  wat is voorwaarde voor wat, wat is onderdeel van wat.
-- Gebruik de gangbare Engelse vakterm als je een concept introduceert.
-- Geen inleidende of afsluitende meta-zinnen; begin direct met de inhoud.
-- Schrijf in het Nederlands."""
+GENERATE_SYSTEM = """You write a thorough, factual explanation of a topic, meant as source material for a knowledge graph.
+Write for {audience}.
+Rules:
+- 600 to 1000 words, running paragraphs, no headings, lists or bullets.
+- Introduce the underlying concepts explicitly and say how they relate: what is a prerequisite for what, what is part of what.
+- Use the common English technical term when you introduce a concept.
+- No introductory or closing meta sentences; start with the content.
+- Write in {language}."""
 
 
-def generate(topic: str, depth: int) -> str:
-    """Laat het extract-model bronmateriaal over een topic schrijven.
-    depth 1-5 stuurt het technisch niveau via dezelfde schaal als de mentor."""
-    return llm.complete(GENERATE_SYSTEM.format(audience=LEVELS[depth]),
-                        f"Onderwerp: {topic}", llm.EXTRACT_MODEL)
+def generate(topic: str, depth: int, language: str = "en") -> str:
+    """Let the extract model write source material about a topic.
+    depth 1-5 sets the technical level on the same scale as the mentor."""
+    from . import languages
+    return llm.complete(GENERATE_SYSTEM.format(audience=LEVELS[depth], language=languages.name(language)),
+                        f"Topic: {topic}", llm.EXTRACT_MODEL)
 
 
 def resolve(name: str, definition: str, embedding: list[float]) -> str | None:
@@ -52,14 +51,14 @@ def resolve(name: str, definition: str, embedding: list[float]) -> str | None:
         return None
     if cands[0]["score"] > 0.95:
         return cands[0]["name"]
-    user = f"NIEUW: {name}: {definition}\nKANDIDATEN:\n" + "\n".join(
+    user = f"NEW: {name}: {definition}\nCANDIDATES:\n" + "\n".join(
         f"- {c['name']}: {c['definition']}" for c in cands)
     return llm.complete_json(RESOLVE_SYSTEM, user, llm.EXTRACT_MODEL).get("same_as")
 
 
 def suggest_segments(segments: list[dict], chapters: list[dict], timed: bool,
                      source_type: str, title: str, url: str | None = None,
-                     job_id: str | None = None, duration_sec: float | None = None) -> dict:
+                     job_id: str | None = None, duration_sec: float | None = None, language: str = "en") -> dict:
     """Kandidaat-concepten uit segmenten, zonder iets op te slaan. De bron
     wordt geparkeerd als PendingSource; pas /learn promoveert hem."""
     result = asyncio.run(pipeline.run(segments, chapters, timed, job_id, duration_sec))
@@ -80,7 +79,7 @@ def stage_result(result, source_type, title, url):
 
 
 def suggest(text: str, source_type: str, title: str, url: str | None = None,
-            job_id: str | None = None) -> dict:
+            job_id: str | None = None, language: str = "en") -> dict:
     """Haalt kandidaat-concepten uit rauwe tekst zonder iets op te slaan."""
     parsed = normalize(text)
     return suggest_segments(parsed["segments"], parsed["chapters"], parsed["timed"],

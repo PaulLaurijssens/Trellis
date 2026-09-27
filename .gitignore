@@ -1,4 +1,5 @@
-/backups/
+backups/*
+!backups/.gitkeep
 # Secrets: nooit in git. Zie .env.example voor de sleutels.
 .env
 # Build- en cache-mappen

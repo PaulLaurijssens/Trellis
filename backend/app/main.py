@@ -6,7 +6,7 @@ import os
 from fastapi import Body, Depends, FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from . import graph, extract, mentor, chat, memory, jobs, transcript, journey, learn as learning, auth, settings, llm
+from . import graph, extract, mentor, chat, memory, jobs, transcript, journey, learn as learning, auth, settings, llm, backup
 from .teach import api as teach_api
 
 # Identity comes from the session cookie (auth.py). `Me` replaces every person_id default; a route
@@ -55,6 +55,7 @@ async def startup():
             log.warning("vector index: %s", exc)
     graph.migrate_memory()
     teach_api.startup()
+    asyncio.create_task(backup.nightly_loop())
     # The retained initial dataset includes pending drafts; cleanup is explicit.
     asyncio.create_task(_consolidation_loop())
 
@@ -133,8 +134,8 @@ class Ask(BaseModel):
 # ---- Suggesties: extractie levert kandidaten, slaat niets op ----
 
 @app.post("/ingest/text")
-def ingest_text(body: IngestText):
-    return extract.suggest(body.text, body.source_type, body.title, body.url, body.job_id)
+def ingest_text(body: IngestText, me: str = Me):
+    return extract.suggest(body.text, body.source_type, body.title, body.url, body.job_id, language=graph.ui_language(me))
 
 
 @app.post("/ingest/raw")
@@ -144,14 +145,15 @@ def ingest_raw(
     source_type: str = Query("text"),
     url: str | None = Query(None),
     job_id: str | None = Query(None, description="Door de client gekozen id om voortgang te pollen"),
+    me: str = Me,
 ):
     """Rauwe tekst als request body: plakken zonder JSON-escaping.
     Timestamps worden bewaard als tijdcodes; hoofdstuktitels worden chunk-grenzen."""
-    return extract.suggest(text, source_type, title, url, job_id)
+    return extract.suggest(text, source_type, title, url, job_id, language=graph.ui_language(me))
 
 
 @app.post("/ingest/youtube")
-def ingest_youtube(body: IngestYoutube):
+def ingest_youtube(body: IngestYoutube, me: str = Me):
     from youtube_transcript_api import YouTubeTranscriptApi
     try:
         vid = transcript.youtube_id(body.url)
@@ -176,7 +178,7 @@ def ingest_youtube(body: IngestYoutube):
     meta = transcript.youtube_meta(vid)
     title = meta["title"] or f"YouTube {vid}"
     return extract.suggest_segments(segments, meta["chapters"], True, "youtube", title,
-                                    body.url, body.job_id, meta["duration_sec"])
+                                    body.url, body.job_id, meta["duration_sec"], language=body.ui_language)
 
 
 @app.get("/ingest/status/{job_id}")
@@ -189,12 +191,13 @@ def ingest_status(job_id: str):
 
 
 @app.post("/ingest/topic")
-def ingest_topic(body: IngestTopic):
-    """Genereert zelf bronmateriaal over een topic en haalt daar kandidaten uit."""
+def ingest_topic(body: IngestTopic, me: str = Me):
+    """Generates source material about a topic and extracts candidates from it."""
     if body.depth not in mentor.LEVELS:
         raise HTTPException(400, "depth 1..5")
-    text = extract.generate(body.topic, body.depth)
-    return {**extract.suggest(text, "generated", body.topic), "text": text}
+    language = graph.ui_language(me)
+    text = extract.generate(body.topic, body.depth, language)
+    return {**extract.suggest(text, "generated", body.topic, language=language), "text": text}
 
 
 # ---- Leren: hier wordt pas naar de graph geschreven ----
@@ -332,6 +335,41 @@ def health():
     return {"ok": True, "setup_needed": auth.setup_needed(), "configured": settings.configured(), "teach_mode": flags.mode()}
 
 
+# ---- Backups (owner only). Online: the app keeps running. ----
+def _owner(request: Request) -> str:
+    person = auth.person_public(auth.current_person(request))
+    if not person or not person["is_admin"]:
+        raise HTTPException(403, "Only the owner can do this")
+    return person["id"]
+
+
+@app.get("/admin/backups")
+def list_backups(owner: str = Depends(_owner)):
+    return {"available": backup.available(), "keep": backup.KEEP, "nightly_hour_utc": backup.NIGHTLY_HOUR_UTC, "backups": backup.listing()}
+
+
+@app.post("/admin/backups")
+async def create_backup(owner: str = Depends(_owner)):
+    if not backup.available():
+        raise HTTPException(503, "The backup folder is not writable. Mount ./backups into the API container.")
+    async with backup._lock:
+        try:
+            return await asyncio.to_thread(backup.create)
+        except Exception as exc:
+            log.warning("backup failed: %s", exc)
+            raise HTTPException(500, f"Backup failed: {exc}")
+
+
+@app.post("/admin/backups/{stamp}/verify")
+def verify_backup(stamp: str, owner: str = Depends(_owner)):
+    if not stamp.replace("T", "").replace("Z", "").isdigit():
+        raise HTTPException(400, "stamp")
+    try:
+        return backup.verify(stamp)
+    except FileNotFoundError as exc:
+        raise HTTPException(404, f"No backup {exc}")
+
+
 @app.get("/levels")
 def get_levels():
     """Niveau-omschrijvingen, zodat de frontend dezelfde labels toont."""
@@ -352,10 +390,10 @@ def get_concept(name: str):
 
 
 @app.post("/ask")
-def ask(body: Ask):
+def ask(body: Ask, me: str = Me):
     if body.level not in mentor.LEVELS:
         raise HTTPException(400, "level 1..5")
-    return {"answer": mentor.ask(body.question, body.concept, body.level)}
+    return {"answer": mentor.ask(body.question, body.concept, body.level, graph.ui_language(me))}
 
 
 class SuggestionAccept(BaseModel):

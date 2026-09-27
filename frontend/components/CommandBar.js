@@ -162,8 +162,8 @@ export default function CommandBar({
             {busy && <div className="import-progress" role="status" aria-live="polite">
               <svg className="extraction-orbit" viewBox="0 0 160 70" aria-hidden="true"><path d="M20 35L60 15L100 40L140 20M20 35L70 60L100 40L140 60"/><circle cx="20" cy="35" r="6"/><circle cx="60" cy="15" r="5"/><circle cx="70" cy="60" r="4"/><circle cx="100" cy="40" r="8"/><circle cx="140" cy="20" r="5"/><circle cx="140" cy="60" r="4"/></svg>
               <div><span className="spinner" /><strong>{busy.label}</strong></div>
-              <p>{lang === "en" ? "Analysis is running. Long videos can take a few minutes; the topics will appear here when ready." : "De analyse loopt. Lange video's kunnen enkele minuten duren; de onderwerpen verschijnen zodra ze klaar zijn."}</p>
-              <span className="import-elapsed" aria-live="off">{Math.floor(elapsed/60)}:{String(elapsed%60).padStart(2,"0")} {lang === "en" ? "elapsed" : "verstreken"}</span>
+              <p>{t("import.running")}</p>
+              <span className="import-elapsed" aria-live="off">{Math.floor(elapsed/60)}:{String(elapsed%60).padStart(2,"0")} {t("import.elapsed")}</span>
               <div className="import-activity" aria-hidden="true" />
             </div>}
             {type === "topic" && (
@@ -218,11 +218,11 @@ export default function CommandBar({
                   <label htmlFor="add-yt">{t("cmd.youtubeUrl")}</label>
                   <input id="add-yt" ref={firstField} value={url} placeholder="https://www.youtube.com/watch?v=…" onChange={(e) => setUrl(e.target.value)} />
                 </div>
-                {youtubeFailed && <p role="alert" className="hint">{lang === "en" ? "Automatic retrieval failed. If YouTube offers Show transcript, copy its text and paste it here instead." : "Automatisch ophalen mislukt. Als YouTube Transcript tonen aanbiedt, kopieer de tekst en plak die hier."}</p>}
-                <button type="button" className="textlink" disabled={!!busy} onClick={()=>{setType("transcript");setSourceType("youtube");setYoutubeFailed(false);}}>{lang === "en" ? "Paste transcript instead" : "Transcript plakken"}</button>
-                <p className="hint">{lang === "en" ? "On YouTube, expand the video description and look for Show transcript. Copy the transcript, including timestamps if available." : "Open de videobeschrijving op YouTube en zoek Transcript tonen. Kopieer de tekst, met tijdcodes indien beschikbaar."}</p>
+                {youtubeFailed && <p role="alert" className="hint">{t("import.youtubeFailed")}</p>}
+                <button type="button" className="textlink" disabled={!!busy} onClick={()=>{setType("transcript");setSourceType("youtube");setYoutubeFailed(false);}}>{t("import.pasteTranscript")}</button>
+                <p className="hint">{t("import.transcriptHint")}</p>
                 <div className="cmd-actions">
-                  <button className="btn primary" disabled={!canSubmit || !!busy} onClick={submitCard}>{busy ? <><span className="spinner" /> {lang === "en" ? "Analyzing…" : "Analyseren…"}</> : <>{t("cmd.analyze")} ↵</>}</button>
+                  <button className="btn primary" disabled={!canSubmit || !!busy} onClick={submitCard}>{busy ? <><span className="spinner" /> {t("import.analyzing")}</> : <>{t("cmd.analyze")} ↵</>}</button>
                 </div>
               </div>
             )}

@@ -1,13 +1,19 @@
 import importlib.util, sys, types, time, unittest
 from pathlib import Path
 
-# auth.py imports graph/settings (Neo4j); stub them so the pure parts run without a database.
-stub = types.ModuleType("app"); stub.__path__ = []
-graph = types.ModuleType("app.graph"); settings = types.ModuleType("app.settings"); providers = types.ModuleType("app.providers")
-settings.session_secret = lambda: b"unit-test-secret"; providers.PROVIDERS = {}; providers.EMBEDDING_PROVIDERS = []; providers.public = lambda: {}
-sys.modules.update({"app": stub, "app.graph": graph, "app.settings": settings, "app.providers": providers})
-spec = importlib.util.spec_from_file_location("app.auth", Path(__file__).resolve().parents[1] / "app/auth.py")
-auth = importlib.util.module_from_spec(spec); spec.loader.exec_module(auth)
+# Inside the container the real package imports (and settings.session_secret needs no database once
+# patched). On a host without neo4j/fastapi, stub the package under another name so nothing pollutes
+# sys.modules["app"] for the other test modules.
+try:
+    from app import auth, settings as _settings
+    _settings._cache = {"session_secret": "unit-test-secret"}
+except ImportError:
+    pkg = types.ModuleType("authtest"); pkg.__path__ = []
+    graph = types.ModuleType("authtest.graph"); settings = types.ModuleType("authtest.settings"); providers = types.ModuleType("authtest.providers")
+    settings.session_secret = lambda: b"unit-test-secret"; providers.PROVIDERS = {}; providers.EMBEDDING_PROVIDERS = []; providers.public = lambda: {}
+    sys.modules.update({"authtest": pkg, "authtest.graph": graph, "authtest.settings": settings, "authtest.providers": providers})
+    spec = importlib.util.spec_from_file_location("authtest.auth", Path(__file__).resolve().parents[1] / "app/auth.py")
+    auth = importlib.util.module_from_spec(spec); sys.modules["authtest.auth"] = auth; spec.loader.exec_module(auth)
 
 
 class AuthTests(unittest.TestCase):

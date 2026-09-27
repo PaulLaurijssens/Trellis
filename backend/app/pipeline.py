@@ -24,42 +24,52 @@ SIM_SAME = 0.90
 SIM_MAYBE = 0.80
 MAX_RELATION_CANDIDATES = 80
 
-EXTRACT_SYSTEM = """Je bent een expert die technische kennis structureert.
-Je krijgt een deel van een transcript, opgedeeld in genummerde blokken zoals [b12 @ 4:45] of [b12].
-Haal uit dit deel de belangrijkste technische concepten.
-Regels:
-- Alleen concepten die de lezer moet begrijpen; geen namen van personen, bedrijven of producten tenzij het een technisch concept is.
-- Canonieke Engelse naam (bijv. "transformer architecture", niet "transformers" of "the transformer").
-- definition: 1-2 zinnen, neutraal, bron-onafhankelijk.
-- context: hoe dit deel van de bron het concept gebruikt (1 zin).
-- quote: een letterlijk citaat van 1-2 zinnen uit dit deel waar het concept besproken wordt. Letterlijk, niet parafraseren.
-- block: het bloknummer (bijv. "b12") van het blok waar de quote staat.
-- importance 1-5: hoe centraal in dit deel.
-- Tekst tussen "[voorafgaande context, niet extraheren]" en "[einde voorafgaande context]" is alleen ter oriëntatie: haal daar geen concepten uit.
-- Geen relaties; alleen concepten.
-Antwoord uitsluitend met JSON:
-{"concepts":[{"name":"","aliases":[],"definition":"","domain":"","context":"","quote":"","block":"b0","importance":3}]}"""
+EXTRACT_SYSTEM = """You are an expert who structures technical knowledge.
+You get part of a transcript, split into numbered blocks such as [b12 @ 4:45] or [b12].
+Extract the most important technical concepts from this part.
+Rules:
+- Only concepts the reader has to understand; no names of people, companies or products unless it is a technical concept.
+- Canonical English name (e.g. "transformer architecture", not "transformers" or "the transformer").
+- definition: 1-2 sentences, neutral, independent of the source, written in {language}.
+- context: how this part of the source uses the concept (1 sentence, in {language}).
+- quote: a literal quotation of 1-2 sentences from this part where the concept is discussed. Literal, not paraphrased.
+- block: the block number (e.g. "b12") of the block that holds the quote.
+- importance 1-5: how central it is in this part.
+- Text between "[preceding context, do not extract]" and "[end of preceding context]" is for orientation only: extract no concepts from it.
+- No relations; only concepts.
+Answer with JSON only:
+{{"concepts":[{{"name":"","aliases":[],"definition":"","domain":"","context":"","quote":"","block":"b0","importance":3}}]}}"""
 
-SEGMENT_SYSTEM = """Je krijgt een transcript als genummerde blokken met tijdcodes.
-Wijs de blokken aan waar een NIEUW onderwerp begint, zodat het transcript in inhoudelijk samenhangende delen van ongeveer {target_min} tot {target_max} minuten uiteenvalt.
-Regels:
-- Kies grenzen op echte onderwerpwisselingen, niet op vaste afstanden.
-- Delen korter dan {min_min} minuten of langer dan {target_max} minuten alleen als de inhoud dat echt vraagt.
-- Blok 0 is altijd het begin van het eerste deel; noem dat niet.
-Antwoord uitsluitend met JSON: {{"boundaries":[<bloknummers waar een nieuw deel begint>]}}"""
+SEGMENT_SYSTEM = """You get a transcript as numbered blocks with timestamps.
+Point out the blocks where a NEW topic starts, so that the transcript falls into coherent parts of about {target_min} to {target_max} minutes.
+Rules:
+- Choose boundaries at real topic changes, not at fixed distances.
+- Parts shorter than {min_min} minutes or longer than {target_max} minutes only when the content really asks for it.
+- Block 0 is always the start of the first part; do not list it.
+Answer with JSON only: {{"boundaries":[<block numbers where a new part starts>]}}"""
 
-CONFIRM_SYSTEM = """Je krijgt paren van concepten uit één bron. Bepaal per paar of het hetzelfde concept is (zelfde begrip, hooguit anders benoemd) of twee verschillende concepten.
-Antwoord uitsluitend met JSON: {"same":[true,false,...]} met exact één boolean per paar, in dezelfde volgorde."""
+CONFIRM_SYSTEM = """You get pairs of concepts from one source. Decide per pair whether it is the same concept (same notion, at most named differently) or two different concepts.
+Answer with JSON only: {"same":[true,false,...]} with exactly one boolean per pair, in the same order."""
 
-RELATIONS_SYSTEM = """Je krijgt een lijst technische concepten (naam + definitie) uit één bron.
-Leg de relaties tussen deze concepten. Types:
-- PREREQUISITE_OF: A moet je begrijpen voordat B te begrijpen is.
-- PART_OF: A is een onderdeel van B.
-- RELATED_TO: sterk verwant, geen van beide bovenstaande.
-Regels: alleen namen uit de lijst, exact gespeld; alleen relaties die er echt toe doen; strength 0.5-1.0.
-Antwoord uitsluitend met JSON: {"relations":[{"from":"","to":"","type":"PREREQUISITE_OF","strength":0.8}]}"""
+RELATIONS_SYSTEM = """You get a list of technical concepts (name + definition) from one source.
+Lay out the relations between these concepts. Types:
+- PREREQUISITE_OF: A has to be understood before B can be understood.
+- PART_OF: A is a part of B.
+- RELATED_TO: strongly related, neither of the above.
+Rules: only names from the list, spelled exactly; only relations that really matter; strength 0.5-1.0.
+Answer with JSON only: {"relations":[{"from":"","to":"","type":"PREREQUISITE_OF","strength":0.8}]}"""
 
 VALID_RELS = {"PREREQUISITE_OF", "PART_OF", "RELATED_TO"}
+
+# The language for definitions and context, set per request by extract.suggest(); the pipeline
+# itself is deep async code, so a context variable beats threading one more argument everywhere.
+import contextvars
+LANGUAGE = contextvars.ContextVar("extract_language", default="en")
+
+
+def extract_system() -> str:
+    from . import languages
+    return EXTRACT_SYSTEM.format(language=languages.name(LANGUAGE.get()))
 
 
 def fmt_ts(sec: float | None) -> str:
@@ -236,7 +246,7 @@ def build_chunks(runs: list[list[dict]]) -> list[dict]:
 def chunk_prompt(chunk: dict) -> str:
     parts = []
     if chunk["pre"]:
-        parts.append("[voorafgaande context, niet extraheren]\n" + chunk["pre"] + "\n[einde voorafgaande context]\n")
+        parts.append("[preceding context, do not extract]\n" + chunk["pre"] + "\n[end of preceding context]\n")
     for b in chunk["blocks"]:
         ts = f" @ {fmt_ts(b['start_sec'])}" if b["start_sec"] is not None else ""
         parts.append(f"[b{b['idx']}{ts}] {b['text']}")
@@ -286,7 +296,7 @@ async def extract_chunk(chunk: dict, sem: asyncio.Semaphore, usage: llm.Usage,
     for attempt in range(2):
         try:
             async with sem:
-                data = await llm.acomplete_json(EXTRACT_SYSTEM, prompt, llm.EXTRACT_MODEL, usage, "extract")
+                data = await llm.acomplete_json(extract_system(), prompt, llm.EXTRACT_MODEL, usage, "extract")
             concepts = data.get("concepts", []) if isinstance(data, dict) else []
             out = []
             for c in concepts:
