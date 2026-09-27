@@ -1329,3 +1329,19 @@ button.chip:hover:not(:disabled) { border-color: rgba(84, 169, 255, 0.45); color
   .has-lesson.pane-lesson .lesson-main > .chat { visibility: hidden; pointer-events: none; }
 }
 .teach-repair { color: var(--mentor); }
+
+/* ---- first run + login (Gate.js) ---- */
+.gate-screen { position: fixed; inset: 0; display: grid; place-items: center; padding: 24px 16px; background: var(--bg-deep); overflow-y: auto; }
+.gate { width: min(440px, 100%); display: grid; gap: 16px; padding: 28px 26px; border: 1px solid var(--line); border-radius: 16px; background: var(--panel); font-family: var(--font-ui); }
+.gate h1 { font-family: var(--font-mentor); font-weight: 500; font-size: 30px; margin: 0; color: var(--text); }
+.gate-lead { margin: -6px 0 0; font-size: 15px; line-height: 1.5; color: var(--text-3); }
+.gate-field { display: grid; gap: 6px; font-size: 14px; color: var(--text-3); }
+.gate-field input, .gate-field select { min-height: 44px; padding: 0 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--code-bg); color: var(--text); font-size: 16px; }
+.gate-field small { font-size: 13px; color: var(--text-dim); line-height: 1.45; }
+.gate-hint { margin: 0; font-size: 13px; line-height: 1.5; color: var(--text-dim); }
+.gate-error { margin: 0; color: var(--danger); font-size: 14px; }
+.gate-row { display: flex; gap: 10px; justify-content: space-between; }
+.gate .btn { min-height: 44px; }
+.gate-steps { display: flex; gap: 6px; }
+.gate-steps i { width: 28px; height: 4px; border-radius: 2px; background: var(--line-strong); }
+.gate-steps i.on { background: var(--learning); }

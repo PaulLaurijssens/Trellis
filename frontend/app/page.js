@@ -16,14 +16,15 @@ import { LangContext, DICTS, LANGS } from "../lib/i18n";
 import { readTrail, visitTrail } from "../lib/learningTrail.mjs";
 import { usePlan, nextInPlan } from "../lib/curriculum";
 import { teach } from "../lib/teach";
+import Gate from "../components/Gate";
+import { session, subscribe, getPerson, getPersonInfo } from "../lib/session";
 
 const GraphView = dynamic(() => import("../components/GraphView"), { ssr: false });
 
 const FALLBACK_LEVELS = { 1: "kind", 2: "scholier", 3: "professional", 4: "developer", 5: "expert" };
-const PERSON = "paul";
 const LANG_KEY = "trellis.lang";
 const APPEAR_MS = 2000;
-const TRAIL_KEY = "trellis.learningTrail." + PERSON;
+const trailKey = () => "trellis.learningTrail." + (getPerson() || "anon");
 
 const Brand = () => (
   <div className="brand" aria-label="Trellis">
@@ -39,7 +40,27 @@ const Brand = () => (
   </div>
 );
 
+// The app renders only with a session. Before that: first-run setup or login (Gate). Splitting the
+// two keeps every data-loading effect of the app from firing (and failing with 401) before login.
 export default function Page() {
+  const [status, setStatus] = useState(null);
+  const [gateLang, setGateLang] = useState("en");
+  useEffect(() => {
+    try { const l = localStorage.getItem(LANG_KEY); if (l && DICTS[l]) setGateLang(l); } catch {}
+    session.status().then(setStatus).catch(() => setStatus({ unavailable: true }));
+    // A 401 later (expired cookie, restarted server) drops the person: back to the gate.
+    return subscribe((person) => { if (!person) session.status().then(setStatus).catch(() => {}); });
+  }, []);
+  if (!status) return null;
+  if (status.unavailable) return <div className="gate-screen"><div className="gate"><h1>Trellis</h1><p className="gate-lead">The API is not reachable. Is the server running? <button className="textlink" onClick={() => location.reload()}>Retry</button></p></div></div>;
+  if (!status.authenticated) {
+    const setLang = (l) => { setGateLang(l); try { localStorage.setItem(LANG_KEY, l); } catch {} };
+    return <LangContext.Provider value={{ lang: gateLang, setLang }}><Gate status={status} onDone={() => session.status().then(setStatus)} /></LangContext.Provider>;
+  }
+  return <App key={status.person.id} onLogout={() => session.logout().then(() => session.status().then(setStatus))} />;
+}
+
+function App({ onLogout }) {
   const [searchRequest,setSearchRequest] = useState(0);
   const [clusterRequest,setClusterRequest] = useState(null);
   const [clusters,setClusters] = useState([]);
@@ -60,7 +81,7 @@ export default function Page() {
   const [hoverName, setHoverName] = useState(null); // bestaande node oplichten vanuit het review-paneel
   const [fresh, setFresh] = useState(new Map());     // net toegevoegde nodes -> verschijn-glow
   const [query, setQuery] = useState("");          // zoekterm uit de command bar: filtert/highlight de graph
-  const [lang, setLangState] = useState("nl");
+  const [lang, setLangState] = useState(getPersonInfo()?.language || "en");
   const [selected, setSelected] = useState(null);  // concept-detail uit /concept/{name}
   const [chat, setChat] = useState(null);          // {session_id, messages, state}
   const [teachEnabled, setTeachEnabled] = useState(false);   // feature flag, asked at runtime (no rebuild to flip)
@@ -91,7 +112,7 @@ export default function Page() {
   // Taal: localStorage én Person.ui_language, zodat de backend hem kent.
   const setLang = useCallback(async (l) => {
     if (!DICTS[l]) return;
-    await api.patchProfile(PERSON, { ui_language: l });
+    await api.patchProfile({ ui_language: l });
     setLangState(l);
     try { localStorage.setItem(LANG_KEY, l); } catch {}
   }, []);
@@ -100,7 +121,7 @@ export default function Page() {
     let local = null;
     try { local = localStorage.getItem(LANG_KEY); } catch {}
     if (local && DICTS[local]) setLangState(local);
-    api.memory(PERSON).then((m) => { if (m.ui_language && DICTS[m.ui_language]) {setLangState(m.ui_language);try {localStorage.setItem(LANG_KEY,m.ui_language);}catch{}} }).catch(() => {});
+    api.memory().then((m) => { if (m.ui_language && DICTS[m.ui_language]) {setLangState(m.ui_language);try {localStorage.setItem(LANG_KEY,m.ui_language);}catch{}} }).catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -108,7 +129,7 @@ export default function Page() {
     const update = () => setReducedMotion(media.matches);
     update(); media.addEventListener("change", update);
     try { const value = localStorage.getItem("trellis.ambientMotion"); if (value !== null) setAmbientMotion(value !== "false"); } catch {}
-    api.memory(PERSON).then((m) => { if (typeof m.ambient_motion === "boolean") { setAmbientMotion(m.ambient_motion); try { localStorage.setItem("trellis.ambientMotion", String(m.ambient_motion)); } catch {} } }).catch(() => {});
+    api.memory().then((m) => { if (typeof m.ambient_motion === "boolean") { setAmbientMotion(m.ambient_motion); try { localStorage.setItem("trellis.ambientMotion", String(m.ambient_motion)); } catch {} } }).catch(() => {});
     return () => media.removeEventListener("change", update);
   }, []);
 
@@ -161,7 +182,7 @@ export default function Page() {
     if (motionSaving) return;
     const previous = ambientMotion;
     setMotionSaving(true); setAmbientMotion(enabled);
-    try { await api.patchProfile(PERSON, { ambient_motion: enabled }); try { localStorage.setItem("trellis.ambientMotion", String(enabled)); } catch {} }
+    try { await api.patchProfile({ ambient_motion: enabled }); try { localStorage.setItem("trellis.ambientMotion", String(enabled)); } catch {} }
     catch (e) { setAmbientMotion(previous); fail(e); }
     finally { setMotionSaving(false); }
   };
@@ -206,7 +227,7 @@ export default function Page() {
   const saveTrail = useCallback((path) => {
     trailRef.current = path;
     setTrail(path);
-    try { sessionStorage.setItem(TRAIL_KEY, JSON.stringify(path)); } catch {}
+    try { sessionStorage.setItem(trailKey(), JSON.stringify(path)); } catch {}
   }, []);
 
   const openConcept = useCallback(async (name, options = {}) => {
@@ -230,7 +251,7 @@ export default function Page() {
 
   useEffect(() => {
     let path = [];
-    try { path = readTrail(sessionStorage.getItem(TRAIL_KEY)); } catch {}
+    try { path = readTrail(sessionStorage.getItem(trailKey())); } catch {}
     if (path.length) openConcept(path[path.length - 1], { path, learn: true });
   }, [openConcept]);
 
@@ -279,7 +300,7 @@ export default function Page() {
     try {
       const r = await api.commitCandidates({
         source_id: analysis.source_id, selected: selectedCands, link_existing: linkItems,
-        relations: analysis.relations, person_id: PERSON,
+        relations: analysis.relations,
       });
       await refreshGraph();
       markFresh([...r.created, ...r.linked]);
@@ -457,7 +478,7 @@ export default function Page() {
     if (!selected) return;
     const navigation = navigationRef.current;
     try {
-      const state = await api.patchConceptMemory(PERSON, selected.name, { [field]: nextList });
+      const state = await api.patchConceptMemory(selected.name, { [field]: nextList });
       if (navigation === navigationRef.current) setChat((c) => ({ ...c, state }));
     } catch (e) {
       fail(e);
@@ -515,7 +536,7 @@ export default function Page() {
   const rebuild = async () => {
     flag("rebuild", true);
     try {
-      const r = await api.rebuildMemory(PERSON);
+      const r = await api.rebuildMemory();
       toast({ type: "ok", text: t("toast.rebuilt", { sessions: r.sessions, done: r.verwerkt }), ttl: 8000 });
       if (selected) await loadChat(selected.name);
     } catch (e) {
@@ -656,8 +677,8 @@ export default function Page() {
           onNewChat={newChat}
           onEndChat={endChat}
           onRemoveMemory={removeMemory}
-          onObservation={(id,state)=>updateLearningMemory(name=>api.correctObservation(PERSON,name,id,state))}
-          onPosition={body=>updateLearningMemory(name=>api.setLearningPosition(PERSON,name,body))}
+          onObservation={(id,state)=>updateLearningMemory(name=>api.correctObservation(name,id,state))}
+          onPosition={body=>updateLearningMemory(name=>api.setLearningPosition(name,body))}
           onExplain={(name, lvl) => runLearn({ concept: name, level: lvl }, "explain")}
           onMarkLearned={markLearned}
           onSelect={(name) => openConcept(name, { branch: true })}
@@ -675,10 +696,12 @@ export default function Page() {
             motionSaving={motionSaving}
             reducedMotion={reducedMotion}
             person={{
-              load: () => api.memory(PERSON),
-              patch: (body) => api.patchProfile(PERSON, body),
-              rebuild: () => api.rebuildMemory(PERSON),
+              load: () => api.memory(),
+              patch: (body) => api.patchProfile(body),
+              rebuild: () => api.rebuildMemory(),
             }}
+            account={getPersonInfo()}
+            onLogout={onLogout}
             onClose={() => setProfileOpen(false)}
             onRebuilt={() => selected && loadChat(selected.name)}
           />

@@ -10,18 +10,15 @@ CREATE CONSTRAINT person_id IF NOT EXISTS FOR (p:Person) REQUIRE p.id IS UNIQUE;
 CREATE FULLTEXT INDEX concept_text IF NOT EXISTS
 FOR (c:Concept) ON EACH [c.name, c.aliases, c.definition];
 
-// ---- Vector index (dimensie = embed-model; gemini-embedding-2 default = 3072) ----
-CREATE VECTOR INDEX concept_embedding IF NOT EXISTS
-FOR (c:Concept) ON (c.embedding)
-OPTIONS { indexConfig: { `vector.dimensions`: 3072, `vector.similarity_function`: 'cosine' } };
+// ---- Vector index: created from code (graph.ensure_vector_index) with the size of the chosen
+//      embedding model, at setup. Not here: the size is a per-install decision.
 
 // ---- Chat (laag 1: ruwe gesprekslog, bron van waarheid) ----
 CREATE INDEX chat_session_open IF NOT EXISTS
 FOR (s:ChatSession) ON (s.consolidated, s.last_activity);
 
-// ---- Personen ----
-MERGE (p:Person {id: 'paul'}) SET p.name = 'Paul', p.level = 5;
-MERGE (p:Person {id: 'zoon'}) SET p.name = 'Zoon', p.level = 1;
+// ---- Persons: created by the setup screen (/auth/setup), never seeded here ----
+CREATE CONSTRAINT settings_id IF NOT EXISTS FOR (s:Settings) REQUIRE s.id IS UNIQUE;
 
 // Datamodel
 // (:Concept {id, name, aliases[], definition, domain, embedding, created_at,

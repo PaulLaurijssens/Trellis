@@ -39,7 +39,7 @@ export function snapshotOf(graph, lang) {
 
 function fetchPlan(snapshot, lang) {
   if (!inflight[snapshot]) {
-    inflight[snapshot] = fetch(BASE + "/curriculum", { method: "POST", headers: { "Content-Type": "application/json" }, body: snapshot })
+    inflight[snapshot] = fetch(BASE + "/curriculum", { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: snapshot })
       .then((r) => { if (!r.ok) throw Error(); return r.json(); })
       .then((plan) => { write(lang, { snapshot, plan }); return plan; })
       .finally(() => { delete inflight[snapshot]; });

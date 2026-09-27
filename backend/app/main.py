@@ -3,11 +3,16 @@ import asyncio
 import logging
 import os
 
-from fastapi import Body, FastAPI, HTTPException, Query, Request
+from fastapi import Body, Depends, FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from . import graph, extract, mentor, chat, memory, jobs, transcript, journey, learn as learning
+from . import graph, extract, mentor, chat, memory, jobs, transcript, journey, learn as learning, auth, settings, llm
 from .teach import api as teach_api
+
+# Identity comes from the session cookie (auth.py). `Me` replaces every person_id default; a route
+# with {person_id} in its path uses `Own`, which refuses any other id.
+Me = Depends(auth.current_person)
+Own = Depends(auth.own_person)
 
 log = logging.getLogger("uvicorn.error")
 PENDING_TTL_DAYS = 7
@@ -20,6 +25,8 @@ app = FastAPI(title="Mentor")
 # have READ any /api response if its CSP ever failed. Now the browser refuses that by itself.
 CORS_ORIGINS = [o.strip() for o in os.getenv("CORS_ORIGINS", "http://localhost:3000,http://localhost:3001").split(",") if o.strip()]
 app.add_middleware(CORSMiddleware, allow_origins=CORS_ORIGINS, allow_methods=["*"], allow_headers=["*"])
+app.middleware("http")(auth.middleware)
+app.include_router(auth.router)
 app.include_router(teach_api.public)
 app.include_router(teach_api.router)
 
@@ -40,6 +47,12 @@ async def _consolidation_loop():
 @app.on_event("startup")
 async def startup():
     graph.init_schema()
+    settings.load()                       # models + keys from the setup screen (or .env), session secret
+    if settings.configured():
+        try:
+            graph.ensure_vector_index(llm.EMBED_DIM)
+        except ValueError as exc:
+            log.warning("vector index: %s", exc)
     graph.migrate_memory()
     teach_api.startup()
     # The retained initial dataset includes pending drafts; cleanup is explicit.
@@ -70,7 +83,7 @@ class Learn(BaseModel):
     concept: str
     context: str = ""
     level: int = 3
-    person_id: str = "paul"
+    person_id: str | None = None      # ignored: the session decides
     source_id: str | None = None
     # Uit de analyse: citaten met tijdcode voor deze kandidaat, en de relaties
     # tussen alle kandidaten van dezelfde bron (alleen toegepast tussen
@@ -84,13 +97,13 @@ class CommitCandidates(BaseModel):
     selected: list[dict] = []
     link_existing: list = []          # namen of {name, mentions, context}
     relations: list[dict] = []
-    person_id: str = "paul"
+    person_id: str | None = None
 
 
 class Chat(BaseModel):
     concept: str
     message: str
-    person_id: str = "paul"
+    person_id: str | None = None
     level: int | None = None
 
 
@@ -187,30 +200,30 @@ def ingest_topic(body: IngestTopic):
 # ---- Leren: hier wordt pas naar de graph geschreven ----
 
 @app.post("/learn")
-def learn(body: Learn):
+def learn(body: Learn, me: str = Me):
     if body.level not in mentor.LEVELS:
         raise HTTPException(400, "level 1..5")
     try:
         return learning.learn(body.concept, body.context, body.level,
-                              body.person_id, body.source_id,
+                              me, body.source_id,
                               body.mentions, body.candidate_relations)
     except KeyError:
         raise HTTPException(404, "Onbekende source_id; draai de ingest opnieuw")
 
 
 @app.post("/candidates/commit")
-def commit_candidates(body: CommitCandidates):
+def commit_candidates(body: CommitCandidates, me: str = Me):
     """Review-paneel: kandidaten opnemen als 'queued', bestaande koppelen,
     relaties leggen. Alleen entity resolution kan een LLM-call doen."""
     try:
         return learning.commit_candidates(body.source_id, body.selected, body.link_existing,
-                                          body.relations, body.person_id)
+                                          body.relations, me)
     except KeyError:
         raise HTTPException(404, "Onbekende source_id; draai de ingest opnieuw")
 
 
 @app.post("/concept/{name}/learned")
-def mark_learned(name: str, person_id: str = Query("paul")):
+def mark_learned(name: str, person_id: str = Me):
     result = graph.mark_learned(name, person_id)
     if not result:
         raise HTTPException(404, "Onbekend concept")
@@ -220,14 +233,14 @@ def mark_learned(name: str, person_id: str = Query("paul")):
 # ---- Mentor-chat ----
 
 @app.post("/chat")
-def post_chat(body: Chat):
+def post_chat(body: Chat, me: str = Me):
     if body.level is not None and body.level not in mentor.LEVELS:
         raise HTTPException(400, "level 1..5")
-    return chat.send(body.concept, body.message, body.person_id, body.level)
+    return chat.send(body.concept, body.message, me, body.level)
 
 
 @app.get("/chat/{concept}")
-def get_chat(concept: str, person_id: str = Query("paul")):
+def get_chat(concept: str, person_id: str = Me):
     h = chat.history(concept, person_id)
     if h is None:
         raise HTTPException(404, "Onbekend concept")
@@ -235,7 +248,7 @@ def get_chat(concept: str, person_id: str = Query("paul")):
 
 
 @app.post("/chat/{concept}/new")
-def new_chat(concept: str, person_id: str = Query("paul"), level: int | None = Query(None)):
+def new_chat(concept: str, person_id: str = Me, level: int | None = Query(None)):
     """Forceert een nieuwe sessie; de oude wordt meteen geconsolideerd."""
     c = graph.find_concept(concept)
     if c:
@@ -251,7 +264,7 @@ def new_chat(concept: str, person_id: str = Query("paul"), level: int | None = Q
 
 
 @app.post("/chat/{concept}/end")
-def end_chat(concept: str, person_id: str = Query("paul")):
+def end_chat(concept: str, person_id: str = Me):
     c = graph.find_concept(concept)
     if not c:
         raise HTTPException(404, "Onbekend concept")
@@ -269,7 +282,7 @@ def end_chat(concept: str, person_id: str = Query("paul")):
 # ---- Geheugen: inspecteren, corrigeren, herbouwen ----
 
 @app.get("/memory/{person_id}")
-def get_memory(person_id: str):
+def get_memory(person_id: str = Own):
     return {"person_id": person_id,
             **graph.display_preferences(person_id),
             "ui_language": graph.ui_language(person_id),
@@ -278,7 +291,7 @@ def get_memory(person_id: str):
 
 
 @app.patch("/memory/{person_id}/profile")
-def patch_profile(person_id: str, body: ProfilePatch):
+def patch_profile(body: ProfilePatch, person_id: str = Own):
     patch = body.model_dump(exclude_unset=True)
     motion = patch.pop("ambient_motion", None)
     if motion is not None:
@@ -297,7 +310,7 @@ def patch_profile(person_id: str, body: ProfilePatch):
 
 
 @app.patch("/memory/{person_id}/concept/{name}")
-def patch_concept_memory(person_id: str, name: str, body: StatePatch):
+def patch_concept_memory(name: str, body: StatePatch, person_id: str = Own):
     state = memory.patch_understands(person_id, name, body.model_dump(exclude_unset=True))
     if state is None:
         raise HTTPException(404, "Geen begripstoestand voor dit concept")
@@ -305,11 +318,18 @@ def patch_concept_memory(person_id: str, name: str, body: StatePatch):
 
 
 @app.post("/memory/rebuild/{person_id}")
-def rebuild_memory(person_id: str):
+def rebuild_memory(person_id: str = Own):
     try:
         return memory.rebuild(person_id)
     except memory.ConsolidationError as exc:
         raise HTTPException(409, str(exc))
+
+
+@app.get("/health")
+def health():
+    """Public, no personal data: for the deploy asserts, uptime checks and the setup screen."""
+    from .teach import flags
+    return {"ok": True, "setup_needed": auth.setup_needed(), "configured": settings.configured(), "teach_mode": flags.mode()}
 
 
 @app.get("/levels")
@@ -339,12 +359,12 @@ def ask(body: Ask):
 
 
 class SuggestionAccept(BaseModel):
-    person_id: str = "paul"
+    person_id: str | None = None
     action: Literal["explore", "save"]
 
 
 class SuggestionDismiss(BaseModel):
-    person_id: str = "paul"
+    person_id: str | None = None
 
 
 def _suggestion_action(suggestion_id, person_id, action):
@@ -357,20 +377,20 @@ def _suggestion_action(suggestion_id, person_id, action):
 
 
 @app.post("/suggestions/{suggestion_id}/accept")
-def accept_suggestion(suggestion_id: str, body: SuggestionAccept):
-    return _suggestion_action(suggestion_id, body.person_id, body.action)
+def accept_suggestion(suggestion_id: str, body: SuggestionAccept, me: str = Me):
+    return _suggestion_action(suggestion_id, me, body.action)
 
 
 @app.post("/suggestions/{suggestion_id}/dismiss")
-def dismiss_suggestion(suggestion_id: str, body: SuggestionDismiss):
-    return _suggestion_action(suggestion_id, body.person_id, "dismiss")
+def dismiss_suggestion(suggestion_id: str, body: SuggestionDismiss, me: str = Me):
+    return _suggestion_action(suggestion_id, me, "dismiss")
 
 
 class ObservationPatch(BaseModel):
     state: str
 
 @app.patch("/memory/{person_id}/concept/{name}/observations/{observation_id}")
-def correct_observation(person_id: str, name: str, observation_id: str, body: ObservationPatch):
+def correct_observation(name: str, observation_id: str, body: ObservationPatch, person_id: str = Own):
     try:
         result=memory.correct_observation(person_id,name,observation_id,body.state)
     except ValueError as exc:
@@ -384,7 +404,7 @@ class LearningPositionPatch(BaseModel):
     assessment: str | None = None
 
 @app.patch("/memory/{person_id}/concept/{name}/position")
-def set_learning_position(person_id: str, name: str, body: LearningPositionPatch):
+def set_learning_position(name: str, body: LearningPositionPatch, person_id: str = Own):
     try:
         result=memory.set_learning_position(person_id,name,body.intent,body.assessment)
     except ValueError as exc:
@@ -421,31 +441,31 @@ def journey_action(fn, *args, **kwargs):
         raise HTTPException(400, str(exc))
 
 @app.get("/journey/{person_id}")
-def get_journey(person_id: str):
+def get_journey(person_id: str = Own):
     return journey.overview(person_id)
 
 @app.post("/journey/{person_id}/goals")
-def create_learning_goal(person_id: str, body: GoalCreate):
+def create_learning_goal(body: GoalCreate, person_id: str = Own):
     return journey_action(journey.create_goal,person_id,body.title,body.concept_ids,body.source_id)
 
 @app.patch("/journey/{person_id}/goals/{goal_id}")
-def update_learning_goal(person_id: str, goal_id: str, body: GoalPatch):
+def update_learning_goal(goal_id: str, body: GoalPatch, person_id: str = Own):
     return journey_action(journey.patch_goal,person_id,goal_id,**body.model_dump(exclude_unset=True))
 
 @app.get("/journey/{person_id}/examples")
-def get_helpful_examples(person_id: str, concept_id: str | None = None):
+def get_helpful_examples(person_id: str = Own, concept_id: str | None = None):
     return [r['example'] for r in journey.examples(person_id,concept_id)]
 
 @app.post("/journey/{person_id}/examples")
-def save_helpful_example(person_id: str, body: ExampleCreate):
+def save_helpful_example(body: ExampleCreate, person_id: str = Own):
     return journey_action(journey.save_example,person_id,body.session_id,body.seq)
 
 @app.patch("/journey/{person_id}/examples/{example_id}")
-def edit_helpful_example(person_id: str, example_id: str, body: ExamplePatch):
+def edit_helpful_example(example_id: str, body: ExamplePatch, person_id: str = Own):
     return journey_action(journey.change_example,person_id,example_id,text=body.text)
 
 @app.delete("/journey/{person_id}/examples/{example_id}")
-def delete_helpful_example(person_id: str, example_id: str):
+def delete_helpful_example(example_id: str, person_id: str = Own):
     return journey_action(journey.change_example,person_id,example_id,delete=True)
 
 

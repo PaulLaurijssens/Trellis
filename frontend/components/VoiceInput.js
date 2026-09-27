@@ -33,7 +33,7 @@ export default function VoiceInput({disabled, onText, onBusy}) {
           s.abort=new AbortController();
           const timeout=setTimeout(()=>s.abort.abort(),60000);
           let response;
-          try {response=await fetch((process.env.NEXT_PUBLIC_API_URL||'http://localhost:8000')+'/voice/transcribe?language='+lang,{method:'POST',headers:{'Content-Type':'audio/wav'},body:wav,signal:s.abort.signal});}finally{clearTimeout(timeout);}
+          try {response=await fetch((process.env.NEXT_PUBLIC_API_URL||'http://localhost:8000')+'/voice/transcribe?language='+lang,{credentials:'include',method:'POST',headers:{'Content-Type':'audio/wav'},body:wav,signal:s.abort.signal});}finally{clearTimeout(timeout);}
           if(!response.ok)throw new Error('Transcription failed');
           const result=await response.json();if(current.current!==s)return;
           if(typeof result.text!=='string'||!result.text.trim())setError(en?'No speech detected. Please try again.':'Geen spraak herkend. Probeer opnieuw.');

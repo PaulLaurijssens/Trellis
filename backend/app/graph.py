@@ -81,6 +81,32 @@ def init_schema(path: str = "/import/schema.cypher"):
             run(stmt)
 
 
+def vector_index_dim() -> int | None:
+    rows = run("SHOW INDEXES YIELD name, type, options WHERE name = 'concept_embedding' RETURN options")
+    if not rows:
+        return None
+    try:
+        return int(rows[0]["options"]["indexConfig"]["vector.dimensions"])
+    except (KeyError, TypeError, ValueError):
+        return None
+
+
+def ensure_vector_index(dim: int):
+    """The embedding size is fixed at setup. A different size later would silently break similarity
+    search, so it is refused unless the graph holds no embeddings yet (then the index is rebuilt)."""
+    current = vector_index_dim()
+    if current == dim:
+        return
+    if current is not None:
+        embedded = run("MATCH (c:Concept) WHERE c.embedding IS NOT NULL RETURN count(c) AS n")[0]["n"]
+        if embedded:
+            raise ValueError(f"This database already holds {embedded} concepts embedded with size {current}. "
+                             f"Keep an embedding provider with size {current}, or start with an empty database.")
+        run("DROP INDEX concept_embedding IF EXISTS")
+    run(f"""CREATE VECTOR INDEX concept_embedding IF NOT EXISTS FOR (c:Concept) ON (c.embedding)
+            OPTIONS {{ indexConfig: {{ `vector.dimensions`: {int(dim)}, `vector.similarity_function`: 'cosine' }} }}""")
+
+
 def create_pending_source(type_: str, title: str, url: str | None = None) -> str:
     """Een suggestieronde parkeert zijn bron als :PendingSource. Pas als er
     echt van geleerd wordt promoveert die naar een volwaardige :Source."""
@@ -540,8 +566,8 @@ LANGUAGE_NAMES_EN = {"nl": "Dutch", "en": "English"}
 def ui_language(person_id: str) -> str:
     """Voorkeurstaal van de persoon (UI en geheugen). Standaard Nederlands."""
     rows = run("MERGE (p:Person {id:$pid}) RETURN p.ui_language AS lang", pid=person_id)
-    lang = (rows[0]["lang"] if rows else None) or "nl"
-    return lang if lang in LANGUAGES else "nl"
+    lang = (rows[0]["lang"] if rows else None) or "en"
+    return lang if lang in LANGUAGES else "en"
 
 
 def set_ui_language(person_id: str, lang: str) -> str:
@@ -724,12 +750,16 @@ def _memory_state(row):
     return {**row,**memory_model.project(doc),"level":row.get("level"),"last_session":row.get("last_session")}
 
 
-def migrate_memory(person_id="paul"):
-    def commit():
-        # Historical learned flags are self-assessments with an unknown date.
-        run("""MATCH (c:Concept {status:'learned'}) MERGE (p:Person {id:$pid})
-            MERGE (p)-[:UNDERSTANDS]->(c)""",pid=person_id)
-        states=all_understands(person_id)
-        for state in states:write_understands(person_id,state["concept_id"],state)
-        return len(states)
-    return memory_transaction(person_id,commit)
+def migrate_memory(person_id=None):
+    """Startup migration for every person (older single-user installs kept 'learned' on the concept)."""
+    people = [person_id] if person_id else [r["id"] for r in run("MATCH (p:Person) RETURN p.id AS id")]
+    total = 0
+    for pid in people:
+        def commit(pid=pid):
+            run("""MATCH (c:Concept {status:'learned'}) MATCH (p:Person {id:$pid})
+                MERGE (p)-[:UNDERSTANDS]->(c)""", pid=pid)
+            states = all_understands(pid)
+            for state in states: write_understands(pid, state["concept_id"], state)
+            return len(states)
+        total += memory_transaction(pid, commit)
+    return total

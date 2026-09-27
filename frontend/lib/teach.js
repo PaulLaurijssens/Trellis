@@ -3,22 +3,24 @@
 // The lesson runs in <iframe sandbox="allow-scripts"> with an opaque origin. Everything it sends is
 // untrusted: this file checks the sender, the schema, the size, the rate, the run and the activity
 // before anything reaches the server, and the server checks again. The frame can ask; it cannot write.
+import { getPerson, handleUnauthorized } from "./session";
+
 const BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-export const PERSON = "paul";
+const me = () => getPerson() || "-";
 
 async function req(path, opts = {}) {
-  const res = await fetch(BASE + "/teach/" + PERSON + path, opts);
+  const res = await fetch(BASE + "/teach/" + me() + path, { credentials: "include", ...opts });
   if (!res.ok) {
     let detail = "HTTP " + res.status;
     try { const j = await res.json(); if (j.detail) detail = typeof j.detail === "string" ? j.detail : JSON.stringify(j.detail); } catch {}
-    const err = new Error(detail); err.status = res.status; throw err;
+    const err = new Error(detail); err.status = res.status; handleUnauthorized(err); throw err;
   }
   return res.json();
 }
 const body = (data, method = "POST") => ({ method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) });
 
 export const teach = {
-  flags: () => fetch(BASE + "/teach/flags/" + PERSON).then((r) => (r.ok ? r.json() : { enabled: false })).catch(() => ({ enabled: false })),
+  flags: () => fetch(BASE + "/teach/flags/" + me(), { credentials: "include" }).then((r) => (r.ok ? r.json() : { enabled: false })).catch(() => ({ enabled: false })),
   context: (conceptId, groupIds) => req("/concepts/" + conceptId + "/context", body({ group_ids: groupIds || [] })),
   createTopic: (data) => req("/topics", body(data)),
   objective: (topicId) => req("/topics/" + topicId + "/objective"),
@@ -29,7 +31,7 @@ export const teach = {
   job: (id) => req("/lesson-jobs/" + id),
   cancelJob: (id) => req("/lesson-jobs/" + id + "/cancel", { method: "POST" }),
   version: (lessonId, versionId) => req("/lessons/" + lessonId + "/versions/" + versionId),
-  artifactUrl: (lessonId, versionId) => BASE + "/teach/" + PERSON + "/lessons/" + lessonId + "/versions/" + versionId + "/artifact",
+  artifactUrl: (lessonId, versionId) => BASE + "/teach/" + me() + "/lessons/" + lessonId + "/versions/" + versionId + "/artifact",
   createRun: (versionId, minutes) => req("/runs", body({ lesson_version_id: versionId, time_budget_min: minutes || null })),
   run: (id) => req("/runs/" + id),
   checkpoint: (id, data) => req("/runs/" + id, body(data, "PATCH")),

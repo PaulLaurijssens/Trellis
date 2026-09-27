@@ -11,6 +11,7 @@ import sys
 from playwright.sync_api import sync_playwright
 
 APP = os.getenv("APP", "http://host.docker.internal:3001")
+PASSWORD = os.getenv("TRELLIS_PASSWORD", "")          # the app has a login now; the test logs in first
 CONCEPT = os.getenv("CONCEPT", "Matrix (mathematics)")
 ASK = os.getenv("ASK") == "1"
 checks = []
@@ -23,6 +24,10 @@ def check(name, ok, detail=""):
 
 def open_lesson(page):
     page.goto(APP, wait_until="networkidle")
+    if page.locator(".gate").count():                      # after a reload the cookie should carry the session
+        page.locator(".gate input[type=password]").fill(PASSWORD)
+        page.locator(".gate button.primary").click()
+        page.wait_for_selector(".workspace-header", timeout=15000)
     page.evaluate("(name) => localStorage.setItem('trellis.e2e', name)", CONCEPT)
     # The learning home offers the last conversation; otherwise search by name.
     page.wait_for_timeout(1500)
@@ -51,6 +56,13 @@ with sync_playwright() as p:
     page.on("pageerror", lambda e: errors.append(str(e)))
     page.on("console", lambda m: errors.append(m.text) if m.type == "error" else None)
 
+    # Log in (setup must already be done). The session cookie then also reaches the lesson frame.
+    page.goto(APP, wait_until="networkidle")
+    if page.locator(".gate").count():
+        page.locator(".gate input[type=password]").fill(PASSWORD)
+        page.locator(".gate button.primary").click()
+        page.wait_for_selector(".workspace-header", timeout=15000)
+    check("logged in", page.locator(".workspace-header").count() == 1)
     # A fresh run, so the test is repeatable: any open run of this concept is abandoned first.
     page.goto(APP, wait_until="networkidle")
     closed = page.evaluate("""async (name) => {

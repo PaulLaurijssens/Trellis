@@ -15,7 +15,7 @@ function flush() {
         const e = remaining.shift(); batch.push(e); size += e.text.length;
       }
       if (!batch.length) { remaining.shift().reject(new Error("Text too long")); continue; }
-      fetch(base + "/translations", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ language, texts: batch.map(e => e.text) }) })
+      fetch(base + "/translations", { method: "POST", credentials: "include", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ language, texts: batch.map(e => e.text) }) })
         .then(async r => { if (!r.ok) throw new Error("Translation unavailable"); return r.json(); })
         .then(data => { if (!Array.isArray(data.texts) || data.texts.length !== batch.length) throw new Error("Invalid translation"); batch.forEach((e, i) => { cache.set(e.key, data.texts[i]); e.resolve(data.texts[i]); }); })
         .catch(error => batch.forEach(e => { cache.delete(e.key); e.reject(error); }));

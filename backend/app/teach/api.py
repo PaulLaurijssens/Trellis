@@ -7,17 +7,18 @@ import json
 import logging
 from typing import Literal
 
-from fastapi import APIRouter, Depends, HTTPException, Response
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from pydantic import BaseModel, Field
 
-from .. import chat, graph
+from .. import auth, chat, graph
 from . import artifacts, flags, lessons, model, objectives, orchestrator, skill
 
 log = logging.getLogger("uvicorn.error")
 public = APIRouter(prefix="/teach")
 
 
-def _enabled(person_id: str):
+def _enabled(person_id: str, request: Request):
+    auth.own_person(person_id, request)
     if not flags.enabled_for(person_id):
         raise HTTPException(404, "Not found")
     if not graph.run("MATCH (p:Person {id:$pid}) RETURN p.id AS id", pid=person_id):
@@ -39,7 +40,8 @@ def guarded(fn, *args, **kwargs):
 
 
 @public.get("/flags/{person_id}")
-def get_flags(person_id: str):
+def get_flags(person_id: str, request: Request):
+    auth.own_person(person_id, request)
     return {**flags.public(person_id), **skill.provenance()}
 
 
