@@ -17,6 +17,9 @@ services:
     image: neo4j:5.26.30-community
     environment:
       NEO4J_AUTH: "neo4j/${NEO4J_PASSWORD:?Set NEO4J_PASSWORD in .env (any long random string)}"
+      # For the health check only. Not NEO4J_PASSWORD: the image turns every NEO4J_* variable into a
+      # config setting and refuses to start on an unknown one.
+      TRELLIS_NEO4J_PASSWORD: "${NEO4J_PASSWORD}"
       NEO4J_PLUGINS: '["apoc"]'
       NEO4J_dbms_security_procedures_unrestricted: "apoc.*"
       NEO4J_dbms_security_procedures_allowlist: "apoc.*"
@@ -28,7 +31,7 @@ services:
       - ./db:/import:ro
     mem_limit: "${NEO4J_MEM_LIMIT:-2560m}"
     healthcheck:
-      test: ["CMD-SHELL", "cypher-shell -u neo4j -p \"$${NEO4J_PASSWORD}\" 'RETURN 1' >/dev/null 2>&1 || exit 1"]
+      test: ["CMD-SHELL", "cypher-shell -u neo4j -p \"$${TRELLIS_NEO4J_PASSWORD}\" 'RETURN 1' >/dev/null 2>&1 || exit 1"]
       interval: 10s
       timeout: 10s
       retries: 30

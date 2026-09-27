@@ -530,5 +530,14 @@ const nl = {
   "translation.retry": "Vertaling tonen",
   "translation.show": "Toon vertaling",
   "translation.original": "Vertaald · Origineel",
+  "backup.title": "Back-ups",
+  "backup.hint": "Elke nacht om {hour}:10 UTC wordt een back-up gemaakt; de laatste {keep} blijven staan in de map backups naast de app. Een back-up bevat je hele graaf en je lesbestanden.",
+  "backup.unavailable": "De map backups is niet gekoppeld, dus er worden geen back-ups gemaakt. Zie de README, 'Backups'.",
+  "backup.makeNow": "Nu een back-up maken",
+  "backup.made": "Back-up gemaakt: {nodes} knopen in {seconds} s.",
+  "backup.verify": "Controleren",
+  "backup.verified": "Leesbaar, {n} lesbestand(en) kloppen.",
+  "backup.broken": "Deze back-up is onvolledig.",
+  "backup.restoreHint": "Terugzetten vervangt alles. Op de machine waar Trellis draait:",
 };
 export default nl;

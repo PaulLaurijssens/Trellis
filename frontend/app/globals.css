@@ -1345,3 +1345,6 @@ button.chip:hover:not(:disabled) { border-color: rgba(84, 169, 255, 0.45); color
 .gate-steps { display: flex; gap: 6px; }
 .gate-steps i { width: 28px; height: 4px; border-radius: 2px; background: var(--line-strong); }
 .gate-steps i.on { background: var(--learning); }
+.backup-list { list-style: none; padding: 0; margin: 10px 0; display: grid; gap: 6px; font-size: 14px; }
+.backup-list li { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; color: var(--text-3); }
+.backup-list code { color: var(--text-1); }

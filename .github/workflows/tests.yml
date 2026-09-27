@@ -1,0 +1,25 @@
+name: tests
+on: [push, pull_request]
+jobs:
+  pure:
+    name: pure unit tests (no database)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - run: python -m unittest discover -s backend/tests -p "test_teach_*.py" -v
+      - run: python -m unittest backend.tests.test_memory_model backend.tests.test_illustrations backend.tests.test_suggestions -v
+        working-directory: .
+  compose:
+    name: compose builds and starts
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: cp .env.example .env && sed -i 's/^NEO4J_PASSWORD=.*/NEO4J_PASSWORD=ci-only-password-1234567890/' .env
+      - run: docker compose up -d --build
+      - run: |
+          for i in $(seq 1 60); do curl -sf http://127.0.0.1:8080/api/health && exit 0; sleep 5; done
+          docker compose logs api; exit 1
+      - run: curl -sf http://127.0.0.1:8080/api/health | grep -q '"setup_needed":true'
+      - run: curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:8080/api/graph | grep -q 401

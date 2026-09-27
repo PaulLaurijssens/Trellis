@@ -59,6 +59,9 @@ export const api = {
   correctObservation: (name, id, state) => req("/memory/" + me() + "/concept/" + encodeURIComponent(name) + "/observations/" + id, { ...json({ state }), method: "PATCH" }),
   setLearningPosition: (name, body) => req("/memory/" + me() + "/concept/" + encodeURIComponent(name) + "/position", { ...json(body), method: "PATCH" }),
   rebuildMemory: () => req("/memory/rebuild/" + me(), { method: "POST" }),
+  backups: () => req("/admin/backups"),
+  createBackup: () => req("/admin/backups", { method: "POST" }),
+  verifyBackup: (stamp) => req("/admin/backups/" + encodeURIComponent(stamp) + "/verify", { method: "POST" }),
 
   // Rauwe tekst als body: plakken zonder JSON-escaping.
   analyze: ({ text, title, source_type, url }, jobId) => {

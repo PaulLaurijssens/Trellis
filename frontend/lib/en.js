@@ -517,5 +517,14 @@ const en = {
   "translation.retry": "Show translation",
   "translation.show": "Show translation",
   "translation.original": "Translated · Original",
+  "backup.title": "Backups",
+  "backup.hint": "A backup is made every night at {hour}:10 UTC; the last {keep} are kept in the backups folder next to the app. A backup holds your whole graph and your lesson files.",
+  "backup.unavailable": "The backups folder is not mounted, so no backups are made. See the README, 'Backups'.",
+  "backup.makeNow": "Make a backup now",
+  "backup.made": "Backup made: {nodes} nodes in {seconds} s.",
+  "backup.verify": "Verify",
+  "backup.verified": "Readable, {n} lesson file(s) match.",
+  "backup.broken": "This backup is incomplete.",
+  "backup.restoreHint": "Restoring replaces everything. On the machine that runs Trellis:",
 };
 export default en;
