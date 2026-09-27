@@ -5,6 +5,9 @@ import { useEffect, useState } from "react";
 import { useT, LANGS } from "../lib/i18n";
 import { session } from "../lib/session";
 
+const CUSTOM = "custom";
+const keyEnvFor = (model) => { const prefix = (model || "").split("/")[0]; return model.includes("/") && /^[a-z0-9_]+$/i.test(prefix) ? `${prefix.toUpperCase()}_API_KEY` : ""; };
+
 function Field({ label, hint, children }) {
   return <label className="gate-field"><span>{label}</span>{children}{hint && <small>{hint}</small>}</label>;
 }
@@ -40,19 +43,30 @@ export function Setup({ status, onDone }) {
   const [key, setKey] = useState("");
   const [embedProvider, setEmbedProvider] = useState("");
   const [embedKey, setEmbedKey] = useState("");
+  const [custom, setCustom] = useState({ key_env: "", mentor_model: "", extract_model: "", embed_model: "", embed_dim: "" });
   const [password, setPassword] = useState("");
   const [repeat, setRepeat] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
-  const spec = providers[provider];
-  const needsEmbed = spec && !spec.embed;
+  const isCustom = provider === CUSTOM;
+  const spec = isCustom ? { key_env: custom.key_env } : providers[provider];
+  const needsEmbed = !isCustom && spec && !spec.embed;
+  const setField = (field) => (e) => setCustom((c) => {
+    const next = { ...c, [field]: e.target.value };
+    // Suggest the key variable from the model prefix (openrouter/... -> OPENROUTER_API_KEY) until the person types one.
+    if (field === "mentor_model" && (!c.key_env || c.key_env === keyEnvFor(c.mentor_model))) next.key_env = keyEnvFor(next.mentor_model);
+    return next;
+  });
+  const customReady = !isCustom || (custom.mentor_model.trim() && custom.extract_model.trim() && custom.embed_model.trim() && Number(custom.embed_dim) > 0);
   useEffect(() => { if (needsEmbed && !embedProvider) setEmbedProvider(status.embedding_providers?.[0] || ""); }, [needsEmbed]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const finish = async () => {
     setBusy(true); setError("");
     try {
       await session.setup({ name: name.trim(), language: lang, password, provider: provider || null, mentor_key: key || null,
-        embed_provider: needsEmbed ? embedProvider : null, embed_key: needsEmbed ? embedKey || null : null });
+        embed_provider: needsEmbed ? embedProvider : null, embed_key: needsEmbed ? embedKey || null : null,
+        ...(isCustom ? { mentor_model: custom.mentor_model.trim(), extract_model: custom.extract_model.trim(), embed_model: custom.embed_model.trim(),
+          embed_dim: Number(custom.embed_dim), key_env: custom.key_env.trim() || null } : {}) });
       onDone();
     } catch (err) { setError(err.message || "error"); }
     finally { setBusy(false); }
@@ -69,9 +83,19 @@ export function Setup({ status, onDone }) {
       {status.configured && <p className="gate-hint">{t("gate.modelFromEnv")}</p>}
       <Field label={t("gate.provider")}><select value={provider} onChange={(e) => { setProvider(e.target.value); setKey(""); }}>
         {status.configured && <option value="">{t("gate.keepEnv")}</option>}
-        {Object.entries(providers).map(([id, p]) => <option key={id} value={id}>{p.label}</option>)}</select></Field>
+        {Object.entries(providers).map(([id, p]) => <option key={id} value={id}>{p.label}</option>)}
+        <option value={CUSTOM}>{t("gate.custom")}</option></select></Field>
+      {!isCustom && <p className="gate-hint">{t("gate.presetHint")}</p>}
+      {isCustom && <>
+        <p className="gate-hint">{t("gate.customHint")} <a href="https://docs.litellm.ai/docs/providers" target="_blank" rel="noopener noreferrer">{t("gate.customList")} ↗</a></p>
+        <Field label={t("gate.mentorModel")}><input autoComplete="off" spellCheck={false} placeholder="openrouter/…" value={custom.mentor_model} onChange={setField("mentor_model")} /></Field>
+        <Field label={t("gate.extractModel")} hint={t("gate.extractHint")}><input autoComplete="off" spellCheck={false} value={custom.extract_model} onChange={setField("extract_model")} /></Field>
+        <Field label={t("gate.embedModel")}><input autoComplete="off" spellCheck={false} value={custom.embed_model} onChange={setField("embed_model")} /></Field>
+        <Field label={t("gate.embedDim")} hint={t("gate.embedDimHint")}><input inputMode="numeric" value={custom.embed_dim} onChange={(e) => setCustom((c) => ({ ...c, embed_dim: e.target.value.replace(/\D/g, "") }))} /></Field>
+        <Field label={t("gate.keyEnv")} hint={t("gate.keyEnvHint")}><input autoComplete="off" spellCheck={false} placeholder="OPENROUTER_API_KEY" value={custom.key_env} onChange={(e) => setCustom((c) => ({ ...c, key_env: e.target.value.toUpperCase() }))} /></Field>
+      </>}
       {spec && <>
-        <p className="gate-hint">{spec.key_hint} {spec.key_url && <a href={spec.key_url} target="_blank" rel="noopener noreferrer">{t("gate.getKey")} ↗</a>}</p>
+        {!isCustom && <p className="gate-hint">{spec.key_hint} {spec.key_url && <a href={spec.key_url} target="_blank" rel="noopener noreferrer">{t("gate.getKey")} ↗</a>}</p>}
         {spec.key_env && <Field label={t("gate.key")} hint={t("gate.keyHint")}><input type="password" autoComplete="off" value={key} onChange={(e) => setKey(e.target.value)} /></Field>}
         {needsEmbed && <>
           <Field label={t("gate.embedProvider")} hint={t("gate.embedHint")}><select value={embedProvider} onChange={(e) => setEmbedProvider(e.target.value)}>{(status.embedding_providers || []).map((id) => <option key={id} value={id}>{providers[id].label}</option>)}</select></Field>
@@ -80,7 +104,7 @@ export function Setup({ status, onDone }) {
         <p className="gate-hint">{t("gate.costNote")}</p>
       </>}
       <div className="gate-row"><button className="btn ghost" onClick={() => setStep(0)}>{t("gate.back")}</button>
-        <button className="btn primary" disabled={!!spec && !!spec.key_env && !key} onClick={() => setStep(2)}>{t("gate.next")}</button></div>
+        <button className="btn primary" disabled={!customReady || (!!spec && !!spec.key_env && !key)} onClick={() => setStep(2)}>{t("gate.next")}</button></div>
     </>,
     <>
       <h1>{t("gate.passwordTitle")}</h1><p className="gate-lead">{t("gate.passwordLead")}</p>

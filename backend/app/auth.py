@@ -142,6 +142,12 @@ class Setup(BaseModel):
     mentor_key: str | None = Field(None, max_length=400)
     embed_provider: str | None = None
     embed_key: str | None = Field(None, max_length=400)
+    # Only for provider "custom" (Other): LiteLLM model ids, embedding size, and the key's variable name.
+    mentor_model: str | None = Field(None, max_length=120)
+    extract_model: str | None = Field(None, max_length=120)
+    embed_model: str | None = Field(None, max_length=120)
+    embed_dim: int | None = None
+    key_env: str | None = Field(None, max_length=64)
 
 
 class Login(BaseModel):
@@ -156,6 +162,12 @@ class SettingsPatch(BaseModel):
     embed_key: str | None = Field(None, max_length=400)
     mentor_model: str | None = Field(None, max_length=120)
     extract_model: str | None = Field(None, max_length=120)
+    embed_model: str | None = Field(None, max_length=120)
+    embed_dim: int | None = None
+    key_env: str | None = Field(None, max_length=64)
+
+
+CUSTOM_FIELDS = ("mentor_model", "extract_model", "embed_model", "embed_dim", "key_env")
 
 
 def _rate_limited(request: Request) -> bool:
@@ -180,37 +192,55 @@ def status(request: Request):
             "embedding_providers": providers.EMBEDDING_PROVIDERS, "configured": settings.configured()}
 
 
-def _validate_provider_choice(provider, embed_provider, mentor_key, embed_key):
+def _validate_provider_choice(provider, embed_provider, mentor_key, embed_key, custom=None):
+    """(provider, embed_provider, embedding size), or (None, None, None) when the .env models stay.
+    "custom" embeds with its own model and one key, so it never takes a second embedding provider."""
     if provider is None:
-        return None, None
+        return None, None, None
+    if provider == providers.CUSTOM:
+        reason = providers.validate_custom(custom or {})
+        if reason:
+            raise HTTPException(400, reason)
+        key_env = (custom or {}).get("key_env")
+        if key_env and not (mentor_key or os.getenv(key_env)):
+            raise HTTPException(400, f"Type the API key for {key_env}")
+        return provider, provider, custom["embed_dim"]
     if provider not in providers.PROVIDERS:
         raise HTTPException(400, "Unknown provider")
     spec = providers.PROVIDERS[provider]
     if spec["key_env"] and not (mentor_key or os.getenv(spec["key_env"])):
         raise HTTPException(400, f"{spec['label']} needs an API key")
+    if embed_provider == providers.CUSTOM:      # left over from an earlier "Other" choice
+        embed_provider = None
     embed_provider = embed_provider or (provider if spec["embed"] else None)
     if not embed_provider or embed_provider not in providers.EMBEDDING_PROVIDERS:
         raise HTTPException(400, "Choose an embedding provider")
     espec = providers.PROVIDERS[embed_provider]
     if espec["key_env"] and embed_provider != provider and not (embed_key or os.getenv(espec["key_env"])):
         raise HTTPException(400, f"{espec['label']} needs an API key for embeddings")
-    return provider, embed_provider
+    return provider, embed_provider, espec["embed_dim"]
+
+
+def _index_dim(dim):
+    """.env wins for the embedding model (settings.apply), so it must win for the index size too."""
+    return int(os.getenv("EMBED_DIM") or dim)
 
 
 @router.post("/setup")
 def setup(body: Setup, request: Request, response: Response):
     if not setup_needed():
         raise HTTPException(409, "Setup is already done. Log in instead.")
-    provider, embed_provider = _validate_provider_choice(body.provider, body.embed_provider, body.mentor_key, body.embed_key)
+    custom = {k: getattr(body, k) for k in CUSTOM_FIELDS}
+    provider, embed_provider, dim = _validate_provider_choice(body.provider, body.embed_provider, body.mentor_key, body.embed_key, custom)
     if provider:
         # The vector size is decided here, once. Refuse a change when embeddings already exist.
-        dim = providers.PROVIDERS[embed_provider]["embed_dim"]
         try:
-            graph.ensure_vector_index(dim)
+            graph.ensure_vector_index(_index_dim(dim))
         except ValueError as exc:
             raise HTTPException(409, str(exc))
         settings.update({"provider": provider, "embed_provider": embed_provider, "mentor_key": body.mentor_key,
-                         "embed_key": body.embed_key if embed_provider != provider else body.mentor_key})
+                         "embed_key": body.embed_key if embed_provider != provider else body.mentor_key,
+                         **(custom if provider == providers.CUSTOM else {})})
     elif not settings.configured():
         raise HTTPException(400, "Choose a model provider")
     # An install from before the login has a profile without password: it becomes the owner.
@@ -262,15 +292,23 @@ def put_settings(body: SettingsPatch, request: Request):
     if not person or not person["is_admin"]:
         raise HTTPException(403, "Only the owner can change model settings")
     changes = body.model_dump(exclude_unset=True)
-    if "provider" in changes or "embed_provider" in changes:
-        current = settings.get()
-        provider, embed_provider = _validate_provider_choice(changes.get("provider") or current.get("provider"),
-                                                             changes.get("embed_provider") or current.get("embed_provider"),
-                                                             changes.get("mentor_key") or current.get("mentor_key"),
-                                                             changes.get("embed_key") or current.get("embed_key"))
+    current = settings.get()
+    if (changes.get("provider") or current.get("provider")) != providers.CUSTOM:
+        for field in ("embed_model", "embed_dim", "key_env"):     # only "custom" reads these
+            changes.pop(field, None)
+    if "provider" in changes or "embed_provider" in changes or (current.get("provider") == providers.CUSTOM and changes.keys() & set(CUSTOM_FIELDS)):
+        provider, embed_provider, dim = _validate_provider_choice(changes.get("provider") or current.get("provider"),
+                                                                  changes.get("embed_provider") or current.get("embed_provider"),
+                                                                  changes.get("mentor_key") or current.get("mentor_key"),
+                                                                  changes.get("embed_key") or current.get("embed_key"),
+                                                                  {k: changes.get(k, current.get(k)) for k in CUSTOM_FIELDS})
         try:
-            graph.ensure_vector_index(providers.PROVIDERS[embed_provider]["embed_dim"])
+            graph.ensure_vector_index(_index_dim(dim))
         except ValueError as exc:
             raise HTTPException(409, str(exc))
         changes.update(provider=provider, embed_provider=embed_provider)
+        if current.get("provider") == providers.CUSTOM and provider != providers.CUSTOM:
+            # The stored model ids belong to the old "Other" choice: fall back to the preset's models.
+            spec = providers.PROVIDERS[provider]
+            changes.setdefault("mentor_model", spec["mentor"]); changes.setdefault("extract_model", spec["extract"])
     return settings.update(changes)

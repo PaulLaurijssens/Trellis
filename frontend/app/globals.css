@@ -1342,6 +1342,10 @@ button.chip:hover:not(:disabled) { border-color: rgba(84, 169, 255, 0.45); color
 .gate-error { margin: 0; color: var(--danger); font-size: 14px; }
 .gate-row { display: flex; gap: 10px; justify-content: space-between; }
 .gate .btn { min-height: 44px; }
+/* Primary actions use the green of the logo's second circle. Site-wide switch from blue: a later pass. */
+.gate .btn.primary { background: var(--learned); border-color: var(--learned); color: #07170F; font-weight: 600; }
+.gate .btn.primary:hover:not(:disabled) { background: var(--learned-soft); border-color: var(--learned-soft); }
+.gate .btn.primary:disabled { opacity: 1; background: rgba(95, 206, 158, 0.16); border-color: var(--learned-line); color: var(--learned-soft); }
 .gate-steps { display: flex; gap: 6px; }
 .gate-steps i { width: 28px; height: 4px; border-radius: 2px; background: var(--line-strong); }
 .gate-steps i.on { background: var(--learning); }

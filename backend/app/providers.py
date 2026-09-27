@@ -2,6 +2,7 @@
 
 Everything goes through LiteLLM, so a provider is three model names plus one key. Embeddings are the
 exception: their vector size is fixed in the database at first run and cannot change later."""
+import re
 
 PROVIDERS = {
     "gemini": {
@@ -52,6 +53,41 @@ PROVIDERS = {
     },
 }
 EMBEDDING_PROVIDERS = [name for name, p in PROVIDERS.items() if p["embed"]]
+
+# "Other": the person types the LiteLLM model ids, the embedding size and the name of the key variable.
+CUSTOM = "custom"
+_MODEL_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.:/@+-]{1,119}$")
+# Only key-shaped names, and never one of our own variables: the value is exported into the process.
+_KEY_ENV = re.compile(r"^[A-Z][A-Z0-9_]{0,60}_(API_KEY|KEY|TOKEN)$")
+_RESERVED_ENV = ("NEO4J_", "TRELLIS_", "SESSION_")
+
+
+def custom_spec(data: dict) -> dict:
+    """A preset-shaped dict from the stored (or submitted) custom values."""
+    return {"label": "Other", "key_env": data.get("key_env") or None,
+            "mentor": data.get("mentor_model"), "extract": data.get("extract_model"),
+            "embed": data.get("embed_model"), "embed_dim": data.get("embed_dim"), "voice": False, "video": False}
+
+
+def spec(name, data: dict | None = None) -> dict | None:
+    """The preset, or the custom spec built from `data` for "custom"."""
+    if name == CUSTOM:
+        return custom_spec(data or {})
+    return PROVIDERS.get(name or "")
+
+
+def validate_custom(data: dict) -> str | None:
+    """None when the custom values are usable, else a short reason for the person."""
+    for field, label in (("mentor_model", "Mentor model"), ("extract_model", "Extract model"), ("embed_model", "Embedding model")):
+        if not _MODEL_ID.match(str(data.get(field) or "")):
+            return f"{label}: type a LiteLLM model id, for example openrouter/some-model"
+    dim = data.get("embed_dim")
+    if not isinstance(dim, int) or not 64 <= dim <= 8192:
+        return "Embedding size: a whole number between 64 and 8192"
+    key_env = data.get("key_env")
+    if key_env and (not _KEY_ENV.match(key_env) or key_env.startswith(_RESERVED_ENV)):
+        return "Key variable: a name like OPENROUTER_API_KEY"
+    return None
 
 
 def public() -> dict:

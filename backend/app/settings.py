@@ -48,7 +48,7 @@ def apply():
     """Environment first (explicit operator choice), then the stored settings. LiteLLM reads keys from
     the environment, so a stored key is exported into this process only."""
     data = _cache
-    provider = providers.PROVIDERS.get(data.get("provider") or "")
+    provider = providers.spec(data.get("provider"), data)
     if provider:
         llm.MENTOR_MODEL = os.getenv("MENTOR_MODEL") or data.get("mentor_model") or provider["mentor"]
         llm.EXTRACT_MODEL = os.getenv("EXTRACT_MODEL") or data.get("extract_model") or provider["extract"]
@@ -56,7 +56,7 @@ def apply():
             os.environ[provider["key_env"]] = data["mentor_key"]
         if provider.get("api_base"):
             os.environ.setdefault("OLLAMA_API_BASE", provider["api_base"])
-    embed = providers.PROVIDERS.get(data.get("embed_provider") or data.get("provider") or "")
+    embed = providers.spec(data.get("embed_provider") or data.get("provider"), data)
     if embed and embed["embed"]:
         llm.EMBED_MODEL = os.getenv("EMBED_MODEL") or embed["embed"]
         llm.EMBED_DIM = int(os.getenv("EMBED_DIM") or embed["embed_dim"])
@@ -88,7 +88,7 @@ def public() -> dict:
         out[field + "_set"] = bool(value)
         out[field + "_tail"] = value[-4:] if value else ""
     out["models"] = {"mentor": llm.MENTOR_MODEL, "extract": llm.EXTRACT_MODEL, "embed": llm.EMBED_MODEL, "embed_dim": llm.EMBED_DIM}
-    prov = providers.PROVIDERS.get(data.get("provider") or "", {})
+    prov = providers.spec(data.get("provider"), data) or {}
     out["features"] = {"voice": bool(prov.get("voice")), "video": bool(prov.get("video"))}
     out["configured"] = configured()
     return out
