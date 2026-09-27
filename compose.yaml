@@ -12,6 +12,16 @@ x-common: &common
   security_opt: ["no-new-privileges:true"]
 
 services:
+  # One-shot: gives the two data folders to the app's user (uid 10002). The API drops all
+  # privileges and cannot do this itself; without it, lessons and backups would have nowhere to go.
+  init:
+    image: alpine:3.20
+    command: sh -c "chown 10002:10002 /artifacts /backups && chmod 750 /artifacts /backups"
+    volumes:
+      - artifacts:/artifacts
+      - ./backups:/backups
+    restart: "no"
+
   neo4j:
     <<: *common
     image: neo4j:5.26.30-community
@@ -57,6 +67,8 @@ services:
     depends_on:
       neo4j:
         condition: service_healthy
+      init:
+        condition: service_completed_successfully
     mem_limit: "${API_MEM_LIMIT:-768m}"
     cap_drop: [ALL]
 

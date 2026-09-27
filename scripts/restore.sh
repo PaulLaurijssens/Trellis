@@ -11,17 +11,18 @@ source .env
 echo "1/4 stopping the app (the database keeps running)"
 docker compose stop api frontend author web >/dev/null
 echo "2/4 wiping the graph"
-docker compose exec -T neo4j cypher-shell -u neo4j -p "$NEO4J_PASSWORD" "MATCH (n) DETACH DELETE n" >/dev/null
-docker compose exec -T neo4j cypher-shell -u neo4j -p "$NEO4J_PASSWORD" --format plain "SHOW CONSTRAINTS YIELD name RETURN name" | tail -n +2 | while read -r c; do
-  [ -n "$c" ] && docker compose exec -T neo4j cypher-shell -u neo4j -p "$NEO4J_PASSWORD" "DROP CONSTRAINT \`${c//\"/}\` IF EXISTS" >/dev/null; done
-docker compose exec -T neo4j cypher-shell -u neo4j -p "$NEO4J_PASSWORD" --format plain "SHOW INDEXES YIELD name, type WHERE type <> 'LOOKUP' RETURN name" | tail -n +2 | while read -r i; do
-  [ -n "$i" ] && docker compose exec -T neo4j cypher-shell -u neo4j -p "$NEO4J_PASSWORD" "DROP INDEX \`${i//\"/}\` IF EXISTS" >/dev/null; done
+CS() { docker compose exec -T neo4j cypher-shell -u neo4j -p "$NEO4J_PASSWORD" --format plain "$@"; }
+# All constraints and indexes in one call (APOC), then the nodes in batches: works for big graphs too.
+CS "CALL apoc.schema.assert({}, {}, true) YIELD label RETURN count(*)" >/dev/null
+CS "MATCH (n) CALL { WITH n DETACH DELETE n } IN TRANSACTIONS OF 1000 ROWS" >/dev/null
+[ "$(CS 'MATCH (n) RETURN count(n)' | tail -1)" = "0" ] || { echo "the graph is not empty after the wipe; stopping"; exit 1; }
 echo "3/4 loading $GRAPH"
-gunzip -c "$GRAPH" | docker compose exec -T neo4j cypher-shell -u neo4j -p "$NEO4J_PASSWORD" --format plain >/dev/null
+gunzip -c "$GRAPH" | docker compose exec -T neo4j cypher-shell -u neo4j -p "$NEO4J_PASSWORD" --format plain --fail-fast >/dev/null
 if [ -f "$ART" ]; then
   echo "    restoring lesson files"
-  docker compose run --rm --no-deps -T --user root --entrypoint sh -v "$PWD/$ART:/restore.tar.gz:ro" api -c \
-    'rm -rf /artifacts/* && tar -C /artifacts -xzf /restore.tar.gz && chown -R 10002:10002 /artifacts' >/dev/null
+  # As the app's own user: the folder belongs to it, so no chown (the API has no such capability).
+  docker compose run --rm --no-deps -T --entrypoint sh -v "$PWD/$ART:/restore.tar.gz:ro" api -c \
+    'rm -rf /artifacts/* /artifacts/.[!.]* 2>/dev/null; tar -C /artifacts -xzf /restore.tar.gz --no-same-owner' >/dev/null
 fi
 echo "4/4 starting the app"
 docker compose up -d >/dev/null
