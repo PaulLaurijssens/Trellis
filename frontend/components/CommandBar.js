@@ -5,7 +5,7 @@ import { matchNodes } from "../lib/detect";
 import { useT } from "../lib/i18n";
 
 const SOURCE_TYPES = ["podcast", "youtube", "paper", "artikel", "tekst"];
-const TYPES = ["topic", "transcript", "youtube", "paper"];
+const TYPES = ["topic", "youtube", "file", "link", "transcript", "paper"];
 const DOT = { learning: "#54A9FF", learned: "#5FCE9E", suggested: "#5B6673", queued: "#C99A3B" };
 
 const SearchIcon = () => (
@@ -25,6 +25,7 @@ export default function CommandBar({
   levels, level, nodes, candidates = [], busy, empty, shifted,
   clusters = [], clusterScope = "", onCluster, focusRequest,
   onSearch, onOpen, onLearn, onGenerate, onAnalyze, onAnalyzeYoutube, onCandidate,
+  onAnalyzeFile, onAnalyzeUrl, onPodcastEpisodes, onAnalyzePodcast,
 }) {
   const { t, lang } = useT();
   const [elapsed, setElapsed] = useState(0);
@@ -49,6 +50,10 @@ export default function CommandBar({
   const [sourceType, setSourceType] = useState("podcast");
   const [url, setUrl] = useState("");
   const [youtubeFailed,setYoutubeFailed] = useState(false);
+  const [file, setFile] = useState(null);
+  const [feed, setFeed] = useState(null);          // {title, episodes} of a podcast feed
+  const [feedBusy, setFeedBusy] = useState(false);
+  const [linkError, setLinkError] = useState("");
   const input = useRef(null);
   const firstField = useRef(null);
   const wrap = useRef(null);
@@ -111,8 +116,11 @@ export default function CommandBar({
   };
 
   // ---- invoerkaart ----
+  const isRss = (u) => /\/(feed|rss)(\/|$)|\.(rss|xml)(\?|$)|feeds?\./i.test(u);
   const canSubmit = type === "topic" ? !!term.trim()
     : type === "youtube" ? /(?:youtube\.com|youtu\.be)\//i.test(url.trim())
+    : type === "file" ? !!file
+    : type === "link" ? /^https?:\/\/\S+$/i.test(url.trim())
     : !!paste.trim() && !!title.trim();
   const submitCard = async () => {
     if (!canSubmit || busy) return;
@@ -121,6 +129,16 @@ export default function CommandBar({
       setYoutubeFailed(false);
       const success = await onAnalyzeYoutube(url.trim());
       if (!success) { setYoutubeFailed(true); return; }
+    }
+    else if (type === "file") { const ok = await onAnalyzeFile(file, title.trim()); if (!ok) return; }
+    else if (type === "link") {
+      setLinkError("");
+      if (isRss(url.trim()) && !feed) {           // a podcast feed: list the episodes first, the learner picks one
+        setFeedBusy(true);
+        try { setFeed(await onPodcastEpisodes(url.trim())); } catch (e) { setLinkError(e.message); } finally { setFeedBusy(false); }
+        return;
+      }
+      const ok = await onAnalyzeUrl(url.trim()); if (!ok) return;
     }
     else onAnalyze({ text: paste, title: title.trim(), source_type: sourceType, url: url.trim() });
     clearCard();
@@ -132,7 +150,7 @@ export default function CommandBar({
     clearCard();
     setAdding(false);
   };
-  const clearCard = () => { setTerm(""); setContext(""); setPaste(""); setTitle(""); setUrl(""); };
+  const clearCard = () => { setTerm(""); setContext(""); setPaste(""); setTitle(""); setUrl(""); setFile(null); setFeed(null); setLinkError(""); };
   const onCardKey = (e) => {
     if (e.key === "Escape") { e.stopPropagation(); closeCard(); return; }
     if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); submitCard(); return; }
@@ -209,6 +227,41 @@ export default function CommandBar({
                   <span className="meta">{t("cmd.chars", { n: paste.length.toLocaleString() })}</span>
                   <button className="btn" disabled={!canSubmit || !!busy} onClick={submitCard}>{t("cmd.analyze")} ⌘↵</button>
                 </div>
+              </div>
+            )}
+
+            {type === "file" && (
+              <div className="cmd-form one">
+                <div className="field">
+                  <label htmlFor="add-file">{t("cmd.file")}</label>
+                  <input id="add-file" ref={firstField} type="file" accept=".pdf,.mp3,.m4a,.wav,.ogg,.txt,.md,.srt,.vtt,application/pdf,audio/*,text/plain" onChange={(e) => setFile(e.target.files?.[0] || null)} />
+                </div>
+                <div className="field">
+                  <label htmlFor="add-file-title">{t("cmd.title")}</label>
+                  <input id="add-file-title" value={title} placeholder={t("cmd.fileTitlePh")} onChange={(e) => setTitle(e.target.value)} />
+                </div>
+                <p className="hint">{t("cmd.fileHint")}</p>
+                <div className="cmd-actions">
+                  <button className="btn primary" disabled={!canSubmit || !!busy} onClick={submitCard}>{busy ? <><span className="spinner" /> {t("import.analyzing")}</> : <>{t("cmd.analyze")} ↵</>}</button>
+                </div>
+              </div>
+            )}
+
+            {type === "link" && (
+              <div className="cmd-form one">
+                <div className="field">
+                  <label htmlFor="add-link">{t("cmd.link")}</label>
+                  <input id="add-link" ref={firstField} value={url} placeholder="https://…" onChange={(e) => { setUrl(e.target.value); setFeed(null); }} />
+                </div>
+                <p className="hint">{t("cmd.linkHint")}</p>
+                {linkError && <p role="alert" className="hint">{linkError}</p>}
+                {feed && <div className="episode-list"><strong>{feed.title}</strong>
+                  {feed.episodes.slice(0, 12).map((ep) => <button key={ep.audio_url} type="button" className="episode" disabled={!!busy} onClick={async () => { const ok = await onAnalyzePodcast({ audio_url: ep.audio_url, title: ep.title, feed_title: feed.title }); if (ok) { clearCard(); setAdding(false); } }}>
+                    <span>{ep.title}</span><small>{ep.duration}{ep.bytes ? " · " + (ep.bytes / 1e6).toFixed(0) + " MB" : ""}</small></button>)}
+                  <p className="hint">{t("cmd.episodeHint")}</p></div>}
+                {!feed && <div className="cmd-actions">
+                  <button className="btn primary" disabled={!canSubmit || !!busy || feedBusy} onClick={submitCard}>{busy || feedBusy ? <><span className="spinner" /> {t("import.analyzing")}</> : <>{isRss(url.trim()) ? t("cmd.listEpisodes") : t("cmd.analyze")} ↵</>}</button>
+                </div>}
               </div>
             )}
 

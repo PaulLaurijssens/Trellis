@@ -150,6 +150,33 @@ def consolidate_stale(minutes=30):
     return done
 
 
+def record_exercise(person_id, run_id, attempt, activity_type=None):
+    """Layer 1 for exercises is the :ExerciseAttempt node; this writes its evidence into memory_v2.runs
+    of every concept the activity teaches. Called after the attempt has a server-side outcome."""
+    if attempt.get("outcome") not in ("demonstrated","needs_practice"):
+        return 0
+    def commit():
+        count=0
+        for concept_id in attempt.get("concept_ids") or []:
+            state=graph.understands_state(person_id,concept_id)
+            if state is None:
+                if not graph.run("MATCH (c:Concept {id:$cid}) RETURN c.id AS id",cid=concept_id): continue
+                state={}
+            doc=memory_model.initialize(state,concept_id,state.get("concept_status"))
+            items=memory_model.validate_run([{"attempt_id":attempt["id"],"activity_type":activity_type}],{attempt["id"]:attempt},run_id,person_id,graph._now())
+            if not items: continue
+            entry=doc.setdefault("runs",{}).setdefault(run_id,{"evidence":[],"observations":[],"changes":[],"date":items[0]["date"]})
+            known={e["id"] for e in entry["evidence"]}
+            entry["evidence"]+=[e for e in items if e["id"] not in known]
+            entry["date"]=max(entry.get("date") or "",items[0]["date"] or "")
+            projected=memory_model.project(doc)
+            projected.update(level=state.get("level"),last_session=state.get("last_session"))
+            graph.write_understands(person_id,concept_id,projected)
+            count+=1
+        return count
+    return graph.memory_transaction(person_id,commit)
+
+
 def rebuild(person_id):
     # Replay accepted checkpoints atomically. No clearing and no nondeterministic
     # new model judgments; pending conversations stay pending for normal retry.
@@ -163,6 +190,12 @@ def rebuild(person_id):
                     message=messages.get(evidence["seq"])
                     if not message or message["role"]!="user" or evidence["quote"] not in message["content"]:
                         raise ConsolidationError("Evidence source missing; rebuild left memory unchanged.")
+                count+=1
+            for rid,entry in doc.get("runs",{}).items():
+                for evidence in entry.get("evidence",[]):
+                    rows=graph.run("MATCH (a:ExerciseAttempt {id:$aid, person_id:$pid, run_id:$rid}) RETURN a.outcome AS outcome, a.assessed_by AS by",aid=evidence["attempt_id"],pid=person_id,rid=rid)
+                    if not rows or rows[0]["by"] not in memory_model.ASSESSORS:
+                        raise ConsolidationError("Exercise evidence source missing; rebuild left memory unchanged.")
                 count+=1
             rebuilt=memory_model.project(doc)
             rebuilt.update(level=state.get("level"),last_session=state.get("last_session"))

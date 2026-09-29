@@ -11,7 +11,7 @@ export default function MemoryBlock({ state, onRemove, onObservation, onPosition
   const active=observations.filter(o=>o.state==="active"),history=observations.filter(o=>o.state!=="active");
   const date=value=>value?new Date(value).toLocaleDateString():t("memory.unknownDate");
   const change=async action=>{setSaving(true);try{await action();}finally{setSaving(false);}};
-  const proof=e=><div className="memory-proof" key={e.id}><strong>{t("memory."+e.kind)} · {t("memory."+e.outcome)}</strong><p><LocalizedText>{e.assessment}</LocalizedText></p><blockquote>{e.quote}</blockquote><small>{date(e.date)} · {t("memory.message",{n:e.seq+1})}</small></div>;
+  const proof=e=><div className="memory-proof" key={e.id}><strong>{t("memory."+e.kind)} · {t("memory."+e.outcome)}</strong><p><LocalizedText>{e.assessment}</LocalizedText></p>{e.origin==="exercise"?<p className="hint">{e.prompt}</p>:<blockquote>{e.quote}</blockquote>}<small>{date(e.date)} · {e.origin==="exercise"?t("memory.exercise")+" · "+t("memory.exerciseHint"):t("memory.message",{n:e.seq+1})}</small></div>;
   const observation=o=><article className="memory-observation" key={o.id}>
     <p><LocalizedText>{o.text}</LocalizedText></p><small>{t("memory."+o.state)} · {o.corrected_by==="learner"?t("memory.learnerCorrection"):o.origin==="legacy"?t("memory.legacy"):t("memory.conversation")}</small>
     {(o.evidence_ids?.length>0||o.resolution_evidence_ids?.length>0)&&<details><summary>{t("memory.sources")}</summary>{[...new Set([...(o.evidence_ids||[]),...(o.resolution_evidence_ids||[])])].map(id=>evidence.find(e=>e.id===id)).filter(Boolean).map(proof)}</details>}

@@ -4,10 +4,14 @@ Ownership rule: every node carries person_id and every query matches on it, so n
 another learner's lesson even though the deployment has no login (access control is the tailnet).
 These writes are not learner memory, so they do not take the per-person memory lock."""
 import json
+from datetime import datetime, timedelta, timezone
 import uuid
 
-from .. import graph, llm
+import logging
+from .. import graph, llm, memory, memory_model
 from . import artifacts, model
+
+log = logging.getLogger("uvicorn.error")
 
 ACTIVE_JOB_STAGES = [s for s in model.JOB_STAGES if s not in model.JOB_TERMINAL]
 
@@ -29,6 +33,26 @@ def _job(props):
 def get_job(person_id, job_id):
     rows = graph.run("MATCH (j:LessonJob {id:$jid, person_id:$pid}) RETURN properties(j) AS j", jid=job_id, pid=person_id)
     return _job(rows[0]["j"]) if rows else None
+
+
+def usage_summary(person_id, days=30) -> dict:
+    """Tokens and lessons of the last `days` days, for the cost card. Cached tokens are counted apart:
+    most providers bill them at a fraction of the input price."""
+    since = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
+    rows = graph.run("MATCH (j:LessonJob {person_id:$pid}) WHERE j.created_at >= $since RETURN j.stage AS stage, j.usage_json AS usage",
+                     pid=person_id, since=since)
+    out = {"days": days, "jobs": 0, "lessons": 0, "prompt": 0, "completion": 0, "cached": 0}
+    for row in rows:
+        out["jobs"] += 1
+        out["lessons"] += row["stage"] == "ready"
+        usage = json.loads(row["usage"] or "null") or {}
+        for phase, v in usage.items():
+            if isinstance(v, dict) and phase != "total":
+                out["prompt"] += int(v.get("prompt") or 0)
+                out["completion"] += int(v.get("completion") or 0)
+                out["cached"] += int(v.get("cached") or 0)
+    out["total"] = out["prompt"] + out["completion"]
+    return out
 
 
 def create_job(person_id, request: dict, idempotency_key: str) -> tuple[dict, bool]:
@@ -125,8 +149,11 @@ def lessons_for(person_id, topic_id=None, concept_id=None) -> list[dict]:
         WITH l, v ORDER BY v.created_at DESC WITH l, collect(v)[0] AS v
         OPTIONAL MATCH (r:LessonRun {person_id:$pid, lesson_id:l.id}) WHERE r.status IN ["active","paused"]
         WITH l, v, r ORDER BY r.updated_at DESC WITH l, v, collect(r)[0] AS r
+        OPTIONAL MATCH (d:LessonRun {person_id:$pid, lesson_id:l.id, status:"completed"})
+        WITH l, v, r, count(d) AS done
         RETURN l.id AS lesson_id, l.title AS title, l.topic_id AS topic_id, v.id AS version_id, v.outcome AS outcome,
-               v.language AS language, v.created_at AS created_at, r.id AS open_run_id, r.updated_at AS run_updated_at
+               v.language AS language, v.created_at AS created_at, r.id AS open_run_id, r.updated_at AS run_updated_at,
+               r.step AS run_step, done > 0 AS completed
         ORDER BY coalesce(r.updated_at, v.created_at) DESC LIMIT 50''', pid=person_id, tid=topic_id, cid=concept_id)
     return rows
 
@@ -230,7 +257,13 @@ def record_attempt(person_id, run_id, activity_id, response, params, hint_usage,
               level=level, params=_json(model.widget_state(version["spec"], activity_id, params or {})), now=now, op=op,
               outcome=outcome, by=(result or {}).get("assessed_by"), rationale=(result or {}).get("rationale", ""),
               uncertainty=(result or {}).get("uncertainty"), rubric=version["content_hash"][:12])
-    return _attempt(graph.run("MATCH (a:ExerciseAttempt {id:$aid}) RETURN properties(a) AS a", aid=aid)[0]["a"])
+    props = graph.run("MATCH (a:ExerciseAttempt {id:$aid}) RETURN properties(a) AS a", aid=aid)[0]["a"]
+    if props.get("assessed_by") in memory_model.ASSESSORS:
+        try:
+            memory.record_exercise(person_id, run_id, props, activity["type"])
+        except Exception:
+            log.exception("exercise evidence not recorded for attempt %s", aid)   # the attempt itself is saved; rebuild replays it
+    return _attempt(props)
 
 
 def _assess_rubric(person_id, activity, response):

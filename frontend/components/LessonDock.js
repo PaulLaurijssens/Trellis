@@ -29,6 +29,7 @@ export default function LessonDock({ conceptId, conceptName, group, lang, onOpen
   const [job, setJob] = useState(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [makeOpen, setMakeOpen] = useState(false);            // the "make another lesson" form, collapsed by default
   const alive = useRef(true);
 
   const load = useCallback(async () => {
@@ -74,9 +75,15 @@ export default function LessonDock({ conceptId, conceptName, group, lang, onOpen
   });
   const confirm = () => guard(async () => {
     const { topic_id, drafted_by, ...objectiveBody } = draft;
-    await teach.saveObjective(topic_id, { objective: objectiveBody, expected_revision: objective?.revision || 0, answers: { ...answers, time_budget_min: minutes } });
+    const saved = await teach.saveObjective(topic_id, { objective: objectiveBody, expected_revision: objective?.revision || 0, answers: { ...answers, time_budget_min: minutes } });
     if (!alive.current) return;
-    setMode("idle"); setDraft(null); await load();
+    setMode("idle"); setDraft(null);
+    // The goal is the reason for the lesson: start the job right away instead of showing the button again.
+    const created = await teach.createJob({ topic_id, concept_id: conceptId, objective_id: saved?.id || saved?.objective?.id || null, language: lang,
+      time_budget_min: minutes, intent: answers.intent || null, note: note.trim() || null,
+      idempotency_key: "job-" + conceptId.slice(0, 8) + "-" + Date.now().toString(36) });
+    if (alive.current) setJob(created);
+    await load();
   });
   const makeLesson = (withObjective) => guard(async () => {
     const tp = await ensureTopic();
@@ -88,6 +95,11 @@ export default function LessonDock({ conceptId, conceptName, group, lang, onOpen
   const open = (lessonId, versionId) => onOpen({ lessonId, versionId, minutes });
 
   const running = job && STAGES.includes(job.stage);
+  const latest = ctx.lessons?.[0] || null;             // newest first (server order)
+  // The syllabus: the topic's lessons in the order they were written. Each is a block: done, in progress or not started.
+  const syllabus = (ctx.lessons || []).slice().sort((a, b) => (a.created_at || "").localeCompare(b.created_at || ""));
+  const blockState = (l) => l.completed ? "done" : l.open_run_id ? "open" : "new";
+  const nextBlock = syllabus.find((l) => blockState(l) === "open") || syllabus.find((l) => blockState(l) === "new") || null;
   return <section className="teach-dock" aria-label={t("teach.title")}>
     <div className="teach-dock-head"><span className="teach-badge">{t("teach.title")}</span>{topic && <span className="teach-topic">{topic.title}</span>}</div>
 
@@ -115,14 +127,25 @@ export default function LessonDock({ conceptId, conceptName, group, lang, onOpen
         <button className="textlink" disabled={busy} onClick={() => setMode("questions")}>{t("teach.back")}</button></div>
     </div>}
 
-    {mode === "idle" && !running && <div className="teach-start">
-      {ctx.resume && <button className="btn primary" onClick={() => open(ctx.resume.lesson_id, ctx.resume.version_id)}>{t("teach.continue")}: {ctx.resume.title} →</button>}
-      {!objective && <button className={"btn" + (ctx.resume ? "" : " primary")} onClick={startQuestions}>{t("teach.setGoal")}</button>}
-      <div className="teach-make">
+    {mode === "idle" && !running && job?.stage !== "ready" && <div className="teach-start">
+      {/* One primary action. A lesson in progress: continue it. Lessons made: open the newest. None yet: set a goal (which makes the lesson) or make one without a goal. */}
+      {syllabus.length > 0 && <ol className="syllabus" aria-label={t("teach.syllabus")}>
+        {syllabus.map((l, i) => { const st = blockState(l); return <li key={l.lesson_id} className={"syllabus-block " + st}>
+          <span className="syllabus-mark" aria-hidden="true">{st === "done" ? "✓" : i + 1}</span>
+          <div className="syllabus-text"><b>{l.title}</b><span>{l.outcome}</span><small>{t("teach.block." + st)}</small></div>
+          <button className={"btn" + (l === nextBlock ? " primary" : " ghost")} onClick={() => open(l.lesson_id, l.version_id)}>{st === "open" ? t("teach.continue") : st === "done" ? t("teach.review") : t("teach.start")} →</button>
+        </li>; })}
+        {!makeOpen && <li className="syllabus-block next"><span className="syllabus-mark" aria-hidden="true">{syllabus.length + 1}</span>
+          <div className="syllabus-text"><b>{t("teach.nextBlock")}</b><span>{t("teach.nextBlockHint")}</span></div>
+          <button className="btn ghost" onClick={() => setMakeOpen(true)}>{t("teach.makeAnother")}</button></li>}
+      </ol>}
+      {syllabus.length === 0 && !objective && <button className="btn primary" onClick={startQuestions}>{t("teach.setGoal")}</button>}
+      {syllabus.length === 0 && !objective && !makeOpen && <button className="textlink" onClick={() => setMakeOpen(true)}>{t("teach.makeWithoutGoal")}</button>}
+      {(makeOpen || (objective && !latest)) && <div className="teach-make">
         <Pills label={t("teach.q.minutes")} options={MINUTES} value={minutes} onChange={(v) => setMinutes(v || 10)} render={(o) => t("teach.minutes", { n: o })} />
         <input className="teach-note" maxLength={400} value={note} onChange={(e) => setNote(e.target.value)} placeholder={t("teach.notePlaceholder")} aria-label={t("teach.notePlaceholder")} />
-        <button className={"btn" + (objective && !ctx.resume ? " primary" : "")} disabled={busy} onClick={() => makeLesson(!!objective)}>{busy ? <span className="spinner" /> : objective ? t("teach.make") : t("teach.makeWithoutGoal")}</button>
-      </div>
+        <button className={"btn" + (latest ? "" : " primary")} disabled={busy} onClick={() => makeLesson(!!objective)}>{busy ? <span className="spinner" /> : objective ? t("teach.make") : t("teach.makeWithoutGoal")}</button>
+      </div>}
     </div>}
 
     {running && <div className="teach-progress" role="status" aria-live="polite">
@@ -131,12 +154,11 @@ export default function LessonDock({ conceptId, conceptName, group, lang, onOpen
       <p className="teach-hint">{t("teach.progressHint")}</p>
       <button className="textlink" onClick={() => teach.cancelJob(job.id).then(setJob).catch(() => {})}>{t("teach.cancel")}</button>
     </div>}
-    {job?.stage === "ready" && <div className="teach-ready"><p>{job.detail}</p><button className="btn primary" onClick={() => open(job.lesson_id, job.lesson_version_id)}>{t("teach.open")} →</button></div>}
+    {job?.stage === "ready" && <div className="teach-ready"><p>{job.detail}</p><button className="btn primary" onClick={() => open(job.lesson_id, job.lesson_version_id)}>{t("teach.open")} →</button> <button className="textlink" onClick={() => { setJob(null); setMakeOpen(true); }}>{t("teach.makeAnother")}</button></div>}
     {job && ["failed", "cancelled"].includes(job.stage) && <p className="teach-failed" role="alert">{t(job.stage === "cancelled" ? "teach.cancelled" : job.error === "not_published" ? "teach.failedTest" : "teach.failed")} <button className="textlink" onClick={() => setJob(null)}>{t("teach.retry")}</button></p>}
     {error && <p className="teach-failed" role="alert">{error}</p>}
 
-    {(ctx.lessons?.length > 0 || ctx.references?.length > 0 || ctx.recommendations?.length > 0) && <details className="teach-more"><summary>{t("teach.more", { lessons: ctx.lessons.length, references: ctx.references.length })}</summary>
-      {ctx.lessons.map((l) => <button key={l.lesson_id} className="teach-row" onClick={() => open(l.lesson_id, l.version_id)}><b>{l.title}</b><span>{l.outcome}</span></button>)}
+    {(ctx.references?.length > 0 || ctx.recommendations?.length > 0) && <details className="teach-more"><summary>{t("teach.cards", { references: ctx.references.length })}</summary>
       {ctx.references.map((r) => <button key={r.id} className="teach-row" onClick={() => onReference(r.id)}><b>{t("teach.kind." + r.kind)} · {r.title}</b></button>)}
       {ctx.recommendations.map((r) => <div key={r.id} className="teach-row teach-rec"><b>{t("teach.recommended")}: {r.title}</b><span>{r.reason}</span>
         <span className="teach-actions"><button className="textlink" onClick={() => teach.recommendation(r.id, "accepted").then(() => { onExploreTopic(r.title); load(); })}>{t("teach.recAccept")}</button>

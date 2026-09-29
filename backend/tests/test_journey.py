@@ -56,7 +56,9 @@ class JourneyTests(unittest.TestCase):
           {'outcome':'demonstrated','date':'2000-01-01T00:00:00+00:00','quote':'Old'},
           {'outcome':'demonstrated','date':'2999-01-01T00:00:00+00:00','quote':'New'}]},
           {'concept':'B','evidence':[{'outcome':'needs_practice','date':'2000-01-01','quote':'Wrong'}]}]
-        self.assertEqual(self.journey.overview('learner')['review'],[])
+        review=self.journey.overview('learner')['review']
+        # A: the latest evidence is a fresh success, so nothing is due. B: needs_practice is due after a day.
+        self.assertEqual([r['concept'] for r in review],['B']);self.assertEqual(review[0]['kind'],'practice')
 
     def test_goal_context_and_helpful_examples_are_data_not_mastery(self):
         goal={'title':'Read this paper','source_title':None,'steps':[]}
@@ -65,3 +67,51 @@ class JourneyTests(unittest.TestCase):
         self.assertIn('Read this paper',result)
         self.assertIn('A water analogy',result)
         self.assertIn('not proof of mastery',result)
+
+
+class RoadmapGoalTests(JourneyTests):
+    def test_roadmap_order_kept_and_prerequisites_inserted(self):
+        nodes=[{'id':n,'name':n} for n in ['A','B','C','D']]
+        edges=[{'source':'A','target':'C','type':'PREREQUISITE_OF'}]
+        steps,_=self.journey.learning_steps(['D','C','B'],nodes,edges,160)
+        self.assertEqual([s['name'] for s in steps],['D','A','C','B'])
+
+    def test_roadmap_goal_allows_more_steps_than_manual(self):
+        nodes=[{'id':f'c{i}','name':f'c{i}'} for i in range(80)]
+        ids=[n['id'] for n in nodes]
+        with self.assertRaises(ValueError):self.journey.learning_steps(ids,nodes,[],self.journey.MAX_STEPS['manual'])
+        self.assertEqual(len(self.journey.learning_steps(ids,nodes,[],self.journey.MAX_STEPS['roadmap'])[0]),80)
+
+    def test_unknown_origin_refused(self):
+        with self.assertRaises(ValueError):self.journey.create_goal('p','Course',['A'],None,'weird')
+
+
+class DueReviewTests(unittest.TestCase):
+    def setUp(self):
+        import datetime as dt
+        self.dt=dt
+        self.now=dt.datetime(2026,9,29,tzinfo=dt.timezone.utc)
+        pkg=types.ModuleType('journey_due_app');pkg.__path__=[str(Path(__file__).resolve().parents[1]/'app')]
+        self.modules=patch.dict(sys.modules,{'journey_due_app':pkg,'journey_due_app.graph':MagicMock()});self.modules.start();self.addCleanup(self.modules.stop)
+        self.journey=importlib.import_module('journey_due_app.journey')
+    def ev(self,days_ago,outcome,**more):
+        return {'outcome':outcome,'date':(self.now-self.dt.timedelta(days=days_ago)).isoformat(),'quote':'said so',**more}
+    def state(self,name,evidence):return {'concept':name,'concept_id':name.lower(),'evidence':evidence}
+    def test_streak_lengthens_the_gap_and_needs_practice_shortens_it(self):
+        states=[self.state('One',[self.ev(2,'demonstrated')]),                                   # streak 1: due after 1 day
+                self.state('Two',[self.ev(20,'demonstrated'),self.ev(10,'demonstrated'),self.ev(5,'demonstrated')]),  # streak 3: 7 days, not yet
+                self.state('Three',[self.ev(30,'demonstrated'),self.ev(2,'needs_practice')]),   # practice: due after 1 day
+                self.state('Four',[self.ev(0,'demonstrated')]),                                  # today: not due
+                self.state('Five',[self.ev(3,'demonstrated',outcome_x=1)])]
+        due=self.journey.due_reviews(states,self.now)
+        names={d['concept']:d for d in due}
+        self.assertIn('One',names);self.assertIn('Three',names);self.assertNotIn('Two',names);self.assertNotIn('Four',names)
+        self.assertEqual(names['Three']['kind'],'practice');self.assertEqual(names['One']['kind'],'strengthen')
+    def test_assisted_success_resets_the_streak_and_exercise_prompt_is_shown(self):
+        states=[self.state('A',[self.ev(40,'demonstrated'),self.ev(9,'assisted',origin='exercise',prompt='Which one?',quote=None)])]
+        due=self.journey.due_reviews(states,self.now)
+        self.assertEqual(due[0]['streak'],0);self.assertEqual(due[0]['quote'],'Which one?');self.assertEqual(due[0]['origin'],'exercise')
+    def test_most_overdue_first_and_capped(self):
+        states=[self.state(f'C{i}',[self.ev(i+2,'demonstrated')]) for i in range(8)]
+        due=self.journey.due_reviews(states,self.now)
+        self.assertEqual(len(due),5);self.assertEqual(due[0]['concept'],'C7')

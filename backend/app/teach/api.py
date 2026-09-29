@@ -149,6 +149,18 @@ async def create_lesson_job(person_id: str, body: JobCreate):
     return _public_job(job)
 
 
+@router.get("/lesson-jobs/summary")
+def lesson_usage_summary(person_id: str, days: int = 30):
+    """Token use of the last `days` days plus a rough cost estimate from the price table in settings."""
+    summary = lessons.usage_summary(person_id, max(1, min(days, 365)))
+    price_in, price_out = orchestrator.prices()
+    summary["model"] = orchestrator.AUTHOR_MODEL
+    summary["price_per_mtok"] = {"input": price_in, "output": price_out}
+    summary["estimated_usd"] = round(((summary["prompt"] - summary["cached"]) * price_in + summary["cached"] * price_in * 0.1
+                                      + summary["completion"] * price_out) / 1e6, 2)
+    return summary
+
+
 @router.get("/lesson-jobs/{job_id}")
 def get_lesson_job(person_id: str, job_id: str, trace: bool = False):
     job = lessons.get_job(person_id, job_id)

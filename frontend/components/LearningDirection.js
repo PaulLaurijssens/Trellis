@@ -8,7 +8,8 @@ export function GoalCard({ goal, onOpen, onUpdate, busy }) {
   if (!goal) return null;
   const next = goal.steps.find(s => !s.done);
   return <section className="goal-card">
-    <small>{t("journey.goal")}</small><h3>{goal.title}</h3>
+    <small>{t(goal.origin === "roadmap" ? "journey.course" : "journey.goal")}</small><h3>{goal.title}</h3>
+    {goal.origin === "roadmap" && <p className="hint">{t("journey.courseHint")}</p>}
     {goal.source_title && <p className="hint">{t("panel.source")}: {goal.source_title}</p>}
     {goal.cycle && <p className="hint">{t("journey.cycle")}</p>}
     {next && <><p>{t("journey.next")}: <b>{next.name}</b></p><p className="hint">{next.reason || (next.for_concept ? t("journey.prerequisite", { name: next.for_concept }) : t("journey.chosen"))}</p><button className="btn" onClick={() => onOpen(next.name)}>{t("journey.continue")} →</button></>}
@@ -28,10 +29,12 @@ export function LearningHome({ data, error, nodes, onRetry, onOpen, onCreate, on
     {children}
     <div className="learning-sidebar-content">
       {error ? <div role="alert"><p>{t("journey.loadError")}</p><button className="btn" onClick={onRetry}>{t("journey.retry")}</button></div> : !data ? <p>{t("journey.loading")}</p> : <>
+        {!!data.review?.length && <section className="due-today"><small>{t("journey.review")} · {data.review.length}</small><p className="hint">{t("journey.reviewHint")}</p>
+          {data.review.map(r => <div className="due-item" key={r.concept}><button className="textlink" onClick={() => onOpen(r.concept, true)}>{r.concept}</button><small>{t(r.kind === "practice" ? "journey.duePractice" : "journey.dueStrengthen", { days: r.days, streak: r.streak })}</small><button className="btn" onClick={() => onOpen(r.concept, true)}>{t("journey.quickCheck")} →</button></div>)}
+        </section>}
         <GoalCard goal={active} onOpen={onOpen} onUpdate={onUpdate} busy={busy} />
         {recent && recent.concept !== selectedName && <section className="last-conversation"><small>{t("journey.recent")}</small><h3>{recent.concept}</h3><p className="hint">{t(recent.consolidated ? "journey.fromMemory" : "journey.fromConversation")}</p><button className="btn primary" onClick={() => onOpen(recent.concept)}>{t("journey.resume")} →</button></section>}
         {!recent && !selectedName && !active && <section className="learning-welcome"><h3>{t("home.start")}</h3><p>{t("home.startHint")}</p><button className="btn primary" onClick={onSearch}>{t("home.chooseTopic")}</button></section>}
-        {!!data.review?.length && <details><summary>{t("journey.review")}</summary><p className="hint">{t("journey.reviewHint")}</p>{data.review.map(r => <div className="review-option" key={r.concept}><button className="textlink" onClick={() => onOpen(r.concept, true)}>{r.concept} →</button><small>{r.date.slice(0,10)}</small><blockquote>{r.quote}</blockquote></div>)}</details>}
         {!!data.goals?.filter(g => g.status !== "active").length && <details><summary>{t("journey.saved")}</summary>{data.goals.filter(g => g.status !== "active").map(g => <div className="saved-goal" key={g.id}><span>{g.title} <small>· {t("journey." + g.status)}</small></span><button disabled={busy} className="textlink" onClick={() => onUpdate(g.id, { status: "active" })}>{t("journey.resume")}</button></div>)}</details>}
         <section className="learning-next-actions"><h3>{t("home.nextAction")}</h3><button className="btn ghost" onClick={onSearch}>{t("home.otherTopic")} ↗</button><button className="btn ghost" onClick={()=>setFormOpen(!formOpen)} aria-expanded={formOpen}>{t("journey.newGoal")} +</button></section>
         {formOpen && <form className="goal-form" onSubmit={async e => {e.preventDefault(); if(await onCreate({title,source_id:source || null,concept_ids:targets})){setTitle("");setTargets([]);setSource("");setFormOpen(false);}}}>

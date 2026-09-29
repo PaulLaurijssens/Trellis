@@ -3,10 +3,10 @@ import asyncio
 import logging
 import os
 
-from fastapi import Body, Depends, FastAPI, HTTPException, Query, Request
+from fastapi import Body, Depends, FastAPI, File, Form, HTTPException, Query, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from . import graph, extract, mentor, chat, memory, jobs, transcript, journey, learn as learning, auth, settings, llm, backup
+from . import graph, extract, mentor, chat, memory, jobs, transcript, journey, learn as learning, auth, settings, llm, backup, migrate, sources, guide
 from .teach import api as teach_api
 
 # Identity comes from the session cookie (auth.py). `Me` replaces every person_id default; a route
@@ -47,6 +47,8 @@ async def _consolidation_loop():
 @app.on_event("startup")
 async def startup():
     graph.init_schema()
+    for name in migrate.apply():
+        log.info("migration: %s", name)
     settings.load()                       # models + keys from the setup screen (or .env), session secret
     if settings.configured():
         try:
@@ -179,6 +181,114 @@ def ingest_youtube(body: IngestYoutube, me: str = Me):
     title = meta["title"] or f"YouTube {vid}"
     return extract.suggest_segments(segments, meta["chapters"], True, "youtube", title,
                                     body.url, body.job_id, meta["duration_sec"], language=body.ui_language)
+
+
+class IngestUrl(BaseModel):
+    url: str
+    job_id: str | None = None
+
+class PodcastFeed(BaseModel):
+    feed_url: str
+
+class PodcastEpisode(BaseModel):
+    audio_url: str
+    title: str
+    feed_title: str | None = None
+    job_id: str | None = None
+
+
+def _source_error(exc):
+    return HTTPException(422, str(exc))
+
+
+@app.post("/ingest/file")
+async def ingest_file(file: UploadFile = File(...), title: str = Form(""), job_id: str | None = Form(None), me: str = Me):
+    """A PDF, an audio file or a text/transcript file. Text goes into the same pipeline as pasted text."""
+    language = graph.ui_language(me)
+    data = await file.read()
+    try:
+        kind = sources.kind_of(file.filename or "", file.content_type)
+        jobs.update(job_id, "fetch", 0, 0, "Reading the file…")
+        if kind == "pdf":
+            out = sources.pdf_text(data)
+            text, source_type, name = out["text"], "paper", title.strip() or out["title"] or (file.filename or "PDF")
+        elif kind == "audio":
+            jobs.update(job_id, "fetch", 0, 0, "Transcribing the audio… (a long episode takes a few minutes)")
+            text = await asyncio.to_thread(sources.audio_transcript, data, file.content_type, file.filename or "", graph.LANGUAGE_NAMES_EN[language])
+            source_type, name = "podcast", title.strip() or (file.filename or "Audio").rsplit(".", 1)[0]
+        else:
+            if len(data) > sources.MAX_TEXT_BYTES:
+                raise sources.SourceError("Text file larger than 4 MB.")
+            text, source_type, name = data.decode("utf-8", "replace"), "tekst", title.strip() or (file.filename or "Text").rsplit(".", 1)[0]
+    except sources.SourceError as exc:
+        jobs.update(job_id, "error", 0, 0, str(exc))
+        raise _source_error(exc)
+    return await asyncio.to_thread(extract.suggest, text, source_type, name[:200], None, job_id, language)
+
+
+@app.post("/ingest/url")
+async def ingest_url(body: IngestUrl, me: str = Me):
+    """A web article (or a PDF behind a link)."""
+    language = graph.ui_language(me)
+    jobs.update(body.job_id, "fetch", 0, 0, "Fetching the page…")
+    try:
+        out = await asyncio.to_thread(sources.article_text, body.url.strip())
+    except sources.SourceError as exc:
+        jobs.update(body.job_id, "error", 0, 0, str(exc))
+        raise _source_error(exc)
+    return await asyncio.to_thread(extract.suggest, out["text"], out["source_type"], out["title"][:200], body.url.strip(), body.job_id, language)
+
+
+@app.post("/ingest/podcast/episodes")
+async def podcast_episodes(body: PodcastFeed, me: str = Me):
+    try:
+        return await asyncio.to_thread(sources.podcast_episodes, body.feed_url.strip())
+    except sources.SourceError as exc:
+        raise _source_error(exc)
+
+
+@app.post("/ingest/podcast")
+async def ingest_podcast(body: PodcastEpisode, me: str = Me):
+    """Download one episode and transcribe it with the configured model. The learner saw the size first."""
+    language = graph.ui_language(me)
+    jobs.update(body.job_id, "fetch", 0, 0, "Downloading and transcribing the episode… (a few minutes)")
+    try:
+        text = await asyncio.to_thread(sources.podcast_transcript, body.audio_url.strip(), graph.LANGUAGE_NAMES_EN[language])
+    except sources.SourceError as exc:
+        jobs.update(body.job_id, "error", 0, 0, str(exc))
+        raise _source_error(exc)
+    name = (body.feed_title + ": " if body.feed_title else "") + body.title
+    return await asyncio.to_thread(extract.suggest, text, "podcast", name[:200], body.audio_url.strip(), body.job_id, language)
+
+
+class GuideRequest(BaseModel):
+    level: int = 3
+    rewrite: bool = False
+
+
+@app.get("/concepts/{concept_id}/guide")
+def get_guide(concept_id: str, level: int = 3, me: str = Me):
+    """The stored study guide for this concept and depth, or 404 when none was written yet."""
+    found = guide.find(me, concept_id, max(1, min(level, 5)))
+    if not found:
+        raise HTTPException(404, "No study guide yet")
+    return found
+
+
+@app.post("/concepts/{concept_id}/guide")
+async def write_guide(concept_id: str, body: GuideRequest, me: str = Me):
+    """Write (or rewrite) the study guide with the mentor model: one call, a few cents, stored for good."""
+    level = max(1, min(body.level, 5))
+    if not body.rewrite:
+        found = guide.find(me, concept_id, level)
+        if found:
+            return found
+    try:
+        return await asyncio.to_thread(guide.write, me, concept_id, level)
+    except KeyError:
+        raise HTTPException(404, "Concept not found")
+    except RuntimeError as exc:
+        raise HTTPException(502, "The guide came back too short; try again.") from exc
 
 
 @app.get("/ingest/status/{job_id}")
@@ -456,6 +566,7 @@ class GoalCreate(BaseModel):
     title: str
     concept_ids: list[str] = []
     source_id: str | None = None
+    origin: Literal['manual', 'roadmap'] = 'manual'
 
 class GoalPatch(BaseModel):
     status: str | None = None
@@ -484,7 +595,7 @@ def get_journey(person_id: str = Own):
 
 @app.post("/journey/{person_id}/goals")
 def create_learning_goal(body: GoalCreate, person_id: str = Own):
-    return journey_action(journey.create_goal,person_id,body.title,body.concept_ids,body.source_id)
+    return journey_action(journey.create_goal,person_id,body.title,body.concept_ids,body.source_id,body.origin)
 
 @app.patch("/journey/{person_id}/goals/{goal_id}")
 def update_learning_goal(goal_id: str, body: GoalPatch, person_id: str = Own):

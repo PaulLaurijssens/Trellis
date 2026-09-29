@@ -47,3 +47,32 @@ class MemoryModelTests(unittest.TestCase):
         entry=m.validate(self.payload(),self.messages(),"new","today");entry["summary_inactive_ids"]=[oid]
         doc["sessions"]["new"]=entry
         self.assertFalse(m.project(doc)["summary_stale"])
+
+
+class ExerciseEvidenceTests(unittest.TestCase):
+    """M2: exercise evidence lives in memory_v2.runs, next to the chat sessions."""
+    def attempt(self,**over):
+        base={"id":"a1","person_id":"p","run_id":"r1","outcome":"demonstrated","assessed_by":"deterministic","assistance_level":"none",
+              "uncertainty":"low","prompt_snapshot":"Which weight grows?","occurred_at":"2026-09-28T10:00:00+00:00"}
+        base.update(over);return base
+    def test_only_owned_assessed_attempts_become_evidence(self):
+        attempts={"a1":self.attempt(),"a2":self.attempt(id="a2",person_id="someone"),"a3":self.attempt(id="a3",run_id="other"),
+                  "a4":self.attempt(id="a4",assessed_by=None,outcome="pending"),"a5":self.attempt(id="a5",assessed_by="frame")}
+        items=[{"attempt_id":k,"activity_type":"quiz"} for k in ["a1","a2","a3","a4","a5","nope"]]
+        got=m.validate_run(items,attempts,"r1","p","today")
+        self.assertEqual([e["attempt_id"] for e in got],["a1"])
+        self.assertEqual(got[0]["origin"],"exercise");self.assertEqual(got[0]["kind"],"recall");self.assertNotIn("quote",got[0])
+    def test_assisted_success_is_never_demonstrated(self):
+        got=m.validate_run([{"attempt_id":"a1","activity_type":"predict"}],{"a1":self.attempt(assistance_level="hint")},"r1","p","today")
+        self.assertEqual(got[0]["outcome"],"assisted")
+    def test_projection_counts_unassisted_checks_and_ignores_runs_on_old_docs(self):
+        doc=m.initialize({"quiz_correct":1},"c")
+        items=m.validate_run([{"attempt_id":"a1","activity_type":"quiz"},{"attempt_id":"a2","activity_type":"quiz"},{"attempt_id":"a3","activity_type":"explain"}],
+                             {"a1":self.attempt(),"a2":self.attempt(id="a2",outcome="needs_practice",assessed_by="mentor"),"a3":self.attempt(id="a3",assistance_level="worked_example")},"r1","p","today")
+        doc["runs"]["r1"]={"evidence":items,"observations":[],"changes":[],"date":"2026-09-28"}
+        state=m.project(doc)
+        self.assertEqual(state["quiz_correct"],2);self.assertEqual(state["quiz_wrong"],1)
+        self.assertEqual(sorted(e["outcome"] for e in state["evidence"]),["assisted","demonstrated","needs_practice"])
+        self.assertEqual(m.project(doc),state)          # replay is deterministic
+        del doc["runs"]                                  # a document from before M2 still projects
+        self.assertEqual(m.project(doc)["quiz_correct"],1)

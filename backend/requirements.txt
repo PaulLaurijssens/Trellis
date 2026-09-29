@@ -5,3 +5,7 @@ litellm
 pydantic
 python-dotenv
 youtube-transcript-api
+python-multipart
+httpx
+pymupdf
+trafilatura

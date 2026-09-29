@@ -14,6 +14,7 @@ export default function LessonStage({ lessonId, versionId, minutes, onAsk, onAct
   const [status, setStatus] = useState("loading");           // loading | running | completed | stopped | error
   const [synced, setSynced] = useState(true);
   const [online, setOnline] = useState(true);
+  const [stopReason, setStopReason] = useState("");
   const handlers = useRef({});
   handlers.current = { onAsk, onActivity, onReference, onOpenLesson };
 
@@ -43,7 +44,7 @@ export default function LessonStage({ lessonId, versionId, minutes, onAsk, onAct
       onOpenSource: ({ source_id, start_sec }) => { const s = sources.get(source_id); const href = s?.url && (momentLink(s.url, start_sec) || s.url); if (href) window.open(href, "_blank", "noopener,noreferrer"); },
       onOpenLink: ({ kind, id }) => (kind === "reference" ? handlers.current.onReference?.(id) : handlers.current.onOpenLesson?.(id)),
       onCompleted: () => setStatus("completed"),
-      onHostile: () => { setStatus("stopped"); teach.run(run.id).then((r) => teach.checkpoint(run.id, { expected_revision: r.state_revision, status: "needs_attention" })).catch(() => {}); },
+      onHostile: (reason) => { console.warn("Trellis lesson stopped:", reason); setStopReason(reason || ""); setStatus("stopped"); teach.run(run.id).then((r) => teach.checkpoint(run.id, { expected_revision: r.state_revision, status: "needs_attention" })).catch(() => {}); },
     });
   }, [run, version, status === "running"]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -55,7 +56,7 @@ export default function LessonStage({ lessonId, versionId, minutes, onAsk, onAct
     </div>
     {status === "loading" && <p className="teach-hint"><span className="spinner" /> {t("teach.loading")}</p>}
     {status === "error" && <p className="teach-failed" role="alert">{t("teach.loadFailed")}</p>}
-    {status === "stopped" && <p className="teach-failed" role="alert">{t("teach.stopped")}</p>}
+    {status === "stopped" && <p className="teach-failed" role="alert">{t("teach.stopped")}{stopReason && <><br /><small>({stopReason})</small></>}</p>}
     {status === "completed" && <div className="teach-ready"><p>{t("teach.completed")}</p><button className="btn primary" onClick={onClose}>{t("teach.backToTopic")}</button></div>}
     {/* sandbox WITHOUT allow-same-origin: opaque origin. No forms, popups, top navigation, downloads or microphone. */}
     {(status === "running" || status === "completed") && <iframe ref={frameRef} className="teach-frame" hidden={status === "completed"} title={version?.manifest?.title || "lesson"}

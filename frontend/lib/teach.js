@@ -28,6 +28,7 @@ export const teach = {
   saveObjective: (topicId, data) => req("/topics/" + topicId + "/objective", body(data, "PUT")),
   dismissProposal: (topicId) => req("/topics/" + topicId + "/objective/proposal", { method: "DELETE" }),
   createJob: (data) => req("/lesson-jobs", body(data)),
+  usageSummary: (days = 30) => req("/lesson-jobs/summary?days=" + days),
   job: (id) => req("/lesson-jobs/" + id),
   cancelJob: (id) => req("/lesson-jobs/" + id + "/cancel", { method: "POST" }),
   version: (lessonId, versionId) => req("/lessons/" + lessonId + "/versions/" + versionId),
@@ -61,6 +62,9 @@ export function attachLesson(iframe, url, { run, manifest, onAsk, onOpenSource, 
   const sourceIds = (manifest.sources || []).map((s) => s.source_id);
   let port = null, ready = false, lastSeq = 0, dropped = 0, alive = true;
   let revision = run.state_revision, saving = false, queued = null, windowStart = 0, inWindow = 0;
+  // The newest state the lesson reported, so a re-handshake after a reload resumes exactly there.
+  const latest = { state: { ...(run.state || {}) }, step: run.step || 0, current_activity: run.current_activity || null };
+  let reannounce = null;              // after a late or repeated load: accept one new handshake for a while
 
   const drop = () => { dropped += 1; if (dropped > 50) hostile("too many malformed messages"); };
   const hostile = (reason) => { if (!alive) return; detach(); onHostile && onHostile(reason); };
@@ -100,8 +104,8 @@ export function attachLesson(iframe, url, { run, manifest, onAsk, onOpenSource, 
     const p = msg.payload;
     if (msg.type === "activity.state_changed") {
       const step = Number.isInteger(p.step) && p.step >= 0 && p.step < 64 ? p.step : undefined;
-      if (msg.activity_id) { save({ activity_id: msg.activity_id, params: p.params || {}, step }); onActivity && onActivity({ activity_id: msg.activity_id, params: p.params || {}, step }); }
-      else if (step !== undefined) { save({ step }); onActivity && onActivity({ activity_id: null, params: {}, step }); }
+      if (msg.activity_id) { latest.state[msg.activity_id] = p.params || {}; latest.current_activity = msg.activity_id; if (step !== undefined) latest.step = step; save({ activity_id: msg.activity_id, params: p.params || {}, step }); onActivity && onActivity({ activity_id: msg.activity_id, params: p.params || {}, step }); }
+      else if (step !== undefined) { latest.step = step; save({ step }); onActivity && onActivity({ activity_id: null, params: {}, step }); }
       if (p.completed === true) { save({ status: "completed" }); onCompleted && onCompleted(); }
     } else if (msg.type === "activity.answer_submitted" && msg.activity_id && typeof p.client_op_id === "string") {
       let feedback;
@@ -118,18 +122,29 @@ export function attachLesson(iframe, url, { run, manifest, onAsk, onOpenSource, 
   }
 
   function onWindowMessage(event) {
-    if (event.source !== iframe.contentWindow || ready) return;          // origin is "null" for a sandboxed frame: never trust it alone
+    if (event.source !== iframe.contentWindow || (ready && !reannounce)) return;   // origin is "null" for a sandboxed frame: never trust it alone
     const msg = event.data;
     if (!msg || msg.v !== 1 || msg.type !== "lesson.ready" || !Array.isArray(msg.activities)) return drop();
     if ([...msg.activities].sort().join("|") !== [...activityIds].sort().join("|")) return hostile("the lesson announced other activities than its manifest");
-    ready = true;
+    if (port) { port.onmessage = null; port.close(); }                   // a re-handshake replaces the old channel
+    if (reannounce) { clearTimeout(reannounce); reannounce = null; }
+    ready = true; lastSeq = 0;
     const channel = new MessageChannel();
     port = channel.port1; port.onmessage = onPortMessage;
     iframe.contentWindow.postMessage({ v: 1, type: "host.init", payload: { run_id: run.id, channel: run.channel, locale: manifest.language,
-      reduced_motion: window.matchMedia("(prefers-reduced-motion: reduce)").matches, state: run.state || {}, step: run.step || 0, current_activity: run.current_activity || null } }, "*", [channel.port2]);
+      reduced_motion: window.matchMedia("(prefers-reduced-motion: reduce)").matches, state: latest.state, step: latest.step, current_activity: latest.current_activity } }, "*", [channel.port2]);
   }
-  // A lesson never navigates. A load AFTER the handshake means it went somewhere else: stop it.
-  const onLoad = () => { if (ready) hostile("the lesson tried to navigate"); };
+  // The frame's `load` event is NOT proof of navigation: the lesson announces itself as soon as its
+  // script runs, and Chrome fires `load` only after every embedded font and image is in, so with a
+  // slow machine or many extensions the load arrives AFTER the handshake for the very same document.
+  // So a load after the handshake never stops the lesson. It only opens a window in which a fresh
+  // lesson.ready (a real reload) is accepted and replaces the channel; a document that navigated
+  // elsewhere has no port and cannot reach anything, which is the sandbox doing its job.
+  const onLoad = () => {
+    if (!ready) return;
+    if (reannounce) clearTimeout(reannounce);
+    reannounce = setTimeout(() => { reannounce = null; }, 5000);
+  };
 
   function detach() {
     if (!alive) return;
@@ -138,6 +153,7 @@ export function attachLesson(iframe, url, { run, manifest, onAsk, onOpenSource, 
     window.removeEventListener("message", onWindowMessage); window.removeEventListener("online", online);
     document.removeEventListener("visibilitychange", hidden);
     iframe.removeEventListener("load", onLoad);
+    if (reannounce) { clearTimeout(reannounce); reannounce = null; }
     if (port) { port.onmessage = null; port.close(); port = null; }
   }
   window.addEventListener("message", onWindowMessage); window.addEventListener("online", online);

@@ -10,18 +10,35 @@ import TeachingIllustration from "./TeachingIllustration";
 // als lopende tekst met backticks erin.
 // Inline: `code` en **vet**; meer markdown doet de mentor niet.
 function inline(text) {
-  return text.split(/(`[^`]+`|\*\*[^*]+\*\*)/g).map((seg, i) => {
+  return text.split(/(`[^`]+`|\*\*[^*]+\*\*|\*[^*\s][^*]*\*)/g).map((seg, i) => {
     if (seg.startsWith("`")) return <code key={i}>{seg.slice(1, -1)}</code>;
     if (seg.startsWith("**")) return <b key={i}>{seg.slice(2, -2)}</b>;
+    if (seg.startsWith("*") && seg.length > 2) return <em key={i}>{seg.slice(1, -1)}</em>;
     return seg;
   });
+}
+
+// A block of Markdown outside code fences: headings, bullet and numbered lists, simple tables, paragraphs.
+function block(para, key) {
+  const lines = para.split("\n");
+  const h = para.match(/^(#{1,4})\s+(.*)$/);
+  if (h && lines.length === 1) { const Tag = "h" + Math.min(4, h[1].length + 1); return <Tag key={key}>{inline(h[2])}</Tag>; }
+  if (lines.every((l) => /^\s*[-*]\s+/.test(l))) return <ul key={key}>{lines.map((l, i) => <li key={i}>{inline(l.replace(/^\s*[-*]\s+/, ""))}</li>)}</ul>;
+  if (lines.every((l) => /^\s*\d+[.)]\s+/.test(l))) return <ol key={key}>{lines.map((l, i) => <li key={i}>{inline(l.replace(/^\s*\d+[.)]\s+/, ""))}</li>)}</ol>;
+  if (lines.length >= 2 && lines.every((l) => l.trim().startsWith("|"))) {
+    const rows = lines.filter((l) => !/^\s*\|?\s*:?-+/.test(l)).map((l) => l.trim().replace(/^\||\|$/g, "").split("|").map((c) => c.trim()));
+    return <table key={key}><thead><tr>{rows[0].map((c, i) => <th key={i}>{inline(c)}</th>)}</tr></thead><tbody>{rows.slice(1).map((r, i) => <tr key={i}>{r.map((c, j) => <td key={j}>{inline(c)}</td>)}</tr>)}</tbody></table>;
+  }
+  // A heading glued to its paragraph without a blank line
+  if (h) return <div key={key}>{block(lines[0], key + "h")}{block(lines.slice(1).join("\n"), key + "p")}</div>;
+  return <p key={key}>{inline(para)}</p>;
 }
 
 export function render(content) {
   return String(content).split(/```/).map((part, i) =>
     i % 2
       ? <pre key={i}><code>{part.replace(/^[a-z]*\n/, "").trim()}</code></pre>
-      : part.split(/\n\s*\n/).filter(Boolean).map((para, j) => <p key={i + "-" + j}>{inline(para)}</p>)
+      : part.split(/\n\s*\n/).filter((x) => x.trim()).map((para, j) => block(para.trim(), i + "-" + j))
   );
 }
 

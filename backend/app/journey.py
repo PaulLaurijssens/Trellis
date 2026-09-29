@@ -2,12 +2,16 @@
 import hashlib
 import json
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from . import graph
 
 
-def learning_steps(targets, nodes, edges):
-    """Prerequisite-first order using saved directed edges only. Report cycles."""
+MAX_STEPS = {'manual': 60, 'roadmap': 160}
+
+
+def learning_steps(targets, nodes, edges, limit=60):
+    """Prerequisite-first order using saved directed edges only; the order of `targets` is kept,
+    prerequisites are inserted before the step that needs them. Report cycles."""
     by_id = {n['id']: n for n in nodes}
     incoming = {}
     for edge in edges:
@@ -32,8 +36,8 @@ def learning_steps(targets, nodes, edges):
                       'for_concept': by_id[dependent]['name'] if dependent else None, 'done': False})
     for cid in dict.fromkeys(targets):
         visit(cid)
-    if not steps or len(steps) > 60:
-        raise ValueError('Choose a smaller goal with 1–60 connected concepts')
+    if not steps or len(steps) > limit:
+        raise ValueError(f'Choose a smaller goal with 1–{limit} connected concepts')
     return steps, cycle
 
 
@@ -44,6 +48,7 @@ def sources():
 def _goal(row):
     row = dict(row)
     row['steps'] = json.loads(row.pop('steps_json', '[]') or '[]')
+    row.setdefault('origin', 'manual')
     return row
 
 
@@ -56,10 +61,14 @@ def active_goal(pid):
     return _goal(rows[0]['goal']) if rows else None
 
 
-def create_goal(pid, title, targets, source_id=None):
+def create_goal(pid, title, targets, source_id=None, origin='manual'):
+    """origin 'manual': typed by the learner. 'roadmap': a course made from the learning roadmap;
+    `targets` then is the route in roadmap order and that order is kept."""
     title = title.strip()
     if not title or len(title) > 400:
         raise ValueError('Enter a learning goal of 1–400 characters')
+    if origin not in MAX_STEPS:
+        raise ValueError('Unknown goal origin')
     gid, now = str(uuid.uuid4()), graph._now()
     def commit():
         source = None
@@ -74,13 +83,13 @@ def create_goal(pid, title, targets, source_id=None):
                 selected = rows[0]['concepts']
         nodes = graph.run('MATCH (c:Concept) RETURN c.id AS id, c.name AS name')
         edges = graph.run('MATCH (a:Concept)-[r:PREREQUISITE_OF]->(b:Concept) RETURN a.id AS source,b.id AS target,type(r) AS type,r.reason AS reason')
-        steps, cycle = learning_steps(selected, nodes, edges)
+        steps, cycle = learning_steps(selected, nodes, edges, MAX_STEPS[origin])
         graph.run('MATCH (g:LearningGoal {person_id:$pid,status:"active"}) SET g.status="paused",g.updated_at=$now', pid=pid, now=now)
-        graph.run('''MATCH (p:Person {id:$pid}) CREATE (g:LearningGoal {id:$gid,person_id:$pid,title:$title,status:"active",
+        graph.run('''MATCH (p:Person {id:$pid}) CREATE (g:LearningGoal {id:$gid,person_id:$pid,title:$title,status:"active",origin:$origin,
           source_id:$sid,source_title:$source,steps_json:$steps,cycle:$cycle,created_at:$now,updated_at:$now})
           CREATE (p)-[:HAS_GOAL]->(g) SET p.active_goal_id=$gid
           WITH g UNWIND $cids AS cid MATCH (c:Concept {id:cid}) CREATE (g)-[:INCLUDES]->(c)''',
-          pid=pid,gid=gid,title=title,sid=source_id,source=source,steps=json.dumps(steps),cycle=cycle,now=now,cids=[s['concept_id'] for s in steps])
+          pid=pid,gid=gid,title=title,origin=origin,sid=source_id,source=source,steps=json.dumps(steps),cycle=cycle,now=now,cids=[s['concept_id'] for s in steps])
         if source_id:
             graph.run('MATCH (g:LearningGoal {id:$gid}),(s:Source {id:$sid}) CREATE (g)-[:USES_SOURCE]->(s)',gid=gid,sid=source_id)
         return active_goal(pid)
@@ -155,20 +164,50 @@ def overview(pid):
       WHERE EXISTS { MATCH (s)-[:HAS_MESSAGE]->(:ChatMessage) }
       RETURN s.id AS session_id,c.id AS concept_id,c.name AS concept,s.last_activity AS date,s.consolidated AS consolidated
       ORDER BY date DESC LIMIT 1''',pid=pid)
-    review = []
-    for state in graph.all_understands(pid):
-        evidence = [e for e in state.get('evidence',[]) if e.get('outcome') == 'demonstrated' and e.get('date')]
-        if evidence:
-            latest = max(evidence,key=lambda e:e['date'])
-            try:
-                date = datetime.fromisoformat(latest['date'].replace('Z','+00:00'))
-                if (datetime.now(timezone.utc)-date).days < 14:
-                    continue
-            except (ValueError,TypeError):
-                continue
-            review.append({'concept':state['concept'],'date':latest['date'],'quote':latest['quote']})
+    review = due_reviews(graph.all_understands(pid))
     return {'goals':goals(pid),'active_goal':active_goal(pid),'recent':recent[0] if recent else None,
-            'review':sorted(review,key=lambda e:e['date'])[:3], 'sources':sources()}
+            'review':review, 'sources':sources()}
+
+
+# Spaced review. Evidence only (chat and exercises), never a score: a streak of unassisted demonstrated
+# outcomes lengthens the gap (1, 3, 7, 14, 30 days); needs_practice or an assisted success shortens it
+# to one day. "Due" is an invitation, not a duty: the sidebar says so.
+INTERVALS = (1, 3, 7, 14, 30)
+DUE_LIMIT = 5
+
+
+def _date(value):
+    try:
+        parsed = datetime.fromisoformat(str(value).replace('Z', '+00:00'))
+    except (ValueError, TypeError):
+        return None
+    return parsed if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)
+
+
+def due_reviews(states, now=None, limit=DUE_LIMIT):
+    """Which concepts are due for a short check, oldest-due first, at most `limit`."""
+    now = now or datetime.now(timezone.utc)
+    due = []
+    for state in states:
+        evidence = sorted((e for e in state.get('evidence', []) if _date(e.get('date')) and e.get('outcome') in ('demonstrated', 'needs_practice', 'assisted')),
+                          key=lambda e: e['date'])
+        if not evidence:
+            continue
+        streak = 0
+        for e in evidence:
+            streak = streak + 1 if e['outcome'] == 'demonstrated' else 0
+        latest = evidence[-1]
+        gap = INTERVALS[min(streak, len(INTERVALS)) - 1] if streak else 1
+        next_at = _date(latest['date']) + timedelta(days=gap)
+        if next_at > now:
+            continue
+        days = (now - _date(latest['date'])).days
+        due.append({'concept': state['concept'], 'concept_id': state.get('concept_id'), 'date': latest['date'], 'days': days,
+                    'kind': 'strengthen' if latest['outcome'] == 'demonstrated' else 'practice', 'streak': streak,
+                    'quote': latest.get('quote') or latest.get('prompt') or '', 'origin': latest.get('origin', 'conversation'),
+                    'overdue_days': (now - next_at).days})
+    due.sort(key=lambda d: (-d['overdue_days'], d['date']))
+    return due[:limit]
 
 
 def source_material(items):

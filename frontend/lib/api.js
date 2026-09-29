@@ -74,6 +74,12 @@ export const api = {
       body: text,
     });
   },
+  guide: (conceptId, level) => req("/concepts/" + conceptId + "/guide?level=" + level),
+  writeGuide: (conceptId, level, rewrite) => req("/concepts/" + conceptId + "/guide", json({ level, rewrite: !!rewrite })),
+  analyzeFile: (file, title, jobId) => { const fd = new FormData(); fd.append("file", file); fd.append("title", title || ""); if (jobId) fd.append("job_id", jobId); return req("/ingest/file", { method: "POST", body: fd }); },
+  analyzeUrl: (url, jobId) => req("/ingest/url", json({ url, job_id: jobId })),
+  podcastEpisodes: (feed_url) => req("/ingest/podcast/episodes", json({ feed_url })),
+  analyzePodcast: (episode, jobId) => req("/ingest/podcast", json({ ...episode, job_id: jobId })),
   analyzeYoutube: (url, jobId, language) => req("/ingest/youtube", json({ url, job_id: jobId, ui_language: language, languages: language === "nl" ? ["nl", "en"] : ["en", "nl"] })),
   ingestStatus: (jobId) => req("/ingest/status/" + encodeURIComponent(jobId)),
   ingestTopic: (topic, depth) => req("/ingest/topic", json({ topic, depth })),

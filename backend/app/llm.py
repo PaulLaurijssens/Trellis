@@ -24,10 +24,19 @@ class Usage:
         completion = getattr(u, "completion_tokens", None) if u else None
         if prompt is None:
             prompt = fallback_chars // 4          # geen usage teruggekregen: schatting
-        p = self.phases.setdefault(phase, {"calls": 0, "prompt": 0, "completion": 0})
+        cached = 0
+        details = getattr(u, "prompt_tokens_details", None) if u else None
+        if details is not None:
+            cached = getattr(details, "cached_tokens", None) or (details.get("cached_tokens") if isinstance(details, dict) else 0) or 0
+        cached = cached or (getattr(u, "cache_read_input_tokens", None) or 0 if u else 0)
+        p = self.phases.setdefault(phase, {"calls": 0, "prompt": 0, "completion": 0, "cached": 0})
         p["calls"] += 1
         p["prompt"] += int(prompt or 0)
         p["completion"] += int(completion or 0)
+        p["cached"] = p.get("cached", 0) + int(cached or 0)
+
+    def total(self) -> int:
+        return sum(v["prompt"] + v["completion"] for v in self.phases.values())
 
     def report(self) -> dict:
         out = {k: {**v, "total": v["prompt"] + v["completion"]} for k, v in self.phases.items()}
@@ -118,19 +127,46 @@ class ToolLoopStopped(RuntimeError):
     """Budget, wall clock or cancellation ended an agent loop before the model did."""
 
 
+def _caches(model: str) -> bool:
+    """Anthropic needs explicit cache breakpoints; OpenAI and Gemini cache a stable prefix by themselves."""
+    return "claude" in model.lower() or model.lower().startswith("anthropic/")
+
+
+def _cached(text: str) -> list[dict]:
+    return [{"type": "text", "text": text, "cache_control": {"type": "ephemeral"}}]
+
+
+def _has_images(message) -> bool:
+    content = message.get("content") if isinstance(message, dict) else None
+    return isinstance(content, list) and any(isinstance(part, dict) and part.get("type") == "image_url" for part in content)
+
+
+def _drop_images(message) -> None:
+    """Old screenshots stay out of every later call: they were looked at once and cost the most."""
+    kept = [part for part in message["content"] if not (isinstance(part, dict) and part.get("type") == "image_url")]
+    kept.append({"type": "text", "text": "(earlier screenshots removed; a newer validation replaced them)"})
+    message["content"] = kept
+
+
 def tool_loop(system: str, task: str, tools: list[dict], handler, model: str, max_steps: int = 30,
               deadline: float | None = None, usage: Usage | None = None, phase: str = "agent",
-              should_stop=None, timeout: float = 180.0) -> str:
+              should_stop=None, timeout: float = 180.0, max_tokens: int | None = None, keep_images: int = 1) -> str:
     """Bounded agent loop over function calling. `handler(name, args)` returns (result_dict, extra_messages);
     extra messages (e.g. a screenshot for the model to look at) are appended after the tool results.
-    The assistant message is passed back unmodified, so provider fields (Gemini thought signatures) survive."""
+    The assistant message is passed back unmodified, so provider fields (Gemini thought signatures) survive.
+    Cost controls: the system prompt and task are cache breakpoints (Anthropic); only the newest
+    `keep_images` image messages stay in the context; `max_tokens` stops the loop over the whole job."""
     import time
-    messages = [{"role": "system", "content": system}, {"role": "user", "content": task}]
+    caching = _caches(model)
+    messages = [{"role": "system", "content": _cached(system) if caching else system},
+                {"role": "user", "content": _cached(task) if caching else task}]
     for _ in range(max_steps):
         if should_stop and should_stop():
             raise ToolLoopStopped("cancelled")
         if deadline and time.monotonic() > deadline:
             raise ToolLoopStopped("time budget used up")
+        if max_tokens and usage is not None and usage.total() > max_tokens:
+            raise ToolLoopStopped("token budget used up")
         resp = litellm.completion(model=model, messages=messages, tools=tools, tool_choice="auto",
                                   temperature=0.3, timeout=timeout)
         if usage is not None:
@@ -155,5 +191,9 @@ def tool_loop(system: str, task: str, tools: list[dict], handler, model: str, ma
             extras += extra or []
             if isinstance(result, dict) and result.get("finished"):
                 return str(result.get("summary") or "")
+        if any(_has_images(m) for m in extras):
+            with_images = [m for m in messages if m.get("role") == "user" and _has_images(m)]
+            for old in with_images[:max(0, len(with_images) - keep_images + 1)]:
+                _drop_images(old)
         messages += extras
     raise ToolLoopStopped("step budget used up")

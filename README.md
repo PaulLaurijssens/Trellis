@@ -84,14 +84,35 @@ The first visit shows a three-step setup screen:
    (150k–300k tokens). Every lesson job records its token use.
 3. **Your password.** Trellis is a private notebook; this password is its only door.
 
-Done. Add your first source with the **Add +** button: a YouTube link, or pasted text.
+Done. Add your first source with the **Add +** button.
+
+### What you can add
+
+| Add + tab | What goes in | Notes |
+|---|---|---|
+| Topic | A term you want to understand | Trellis writes a short source about it with your model. |
+| YouTube | A video link | Captions are fetched; without captions, Gemini watches the video. |
+| File | A PDF, an audio file or a text file | PDF up to 30 MB. Audio (mp3, m4a, wav, ogg) up to 25 MB is transcribed by your model provider: a few cents for an hour. |
+| Link | A web article, a PDF link, or a podcast feed (RSS) | A feed lists its episodes; pick one and it is downloaded and transcribed. A server behind an egress allow-list refuses fetches unless the host is allowed. |
+| Transcript, Paper/text | Pasted text | Time codes like `4:45` or `[00:12]` are kept, so the mentor can point to the moment. |
+
+Everything goes through the same review step: you tick the concepts you want before anything
+enters your map.
+
+### Your learning space
+
+The **Learning path** view draws your whole map as a roadmap: shared foundations on the left,
+specialist frontiers on the right, the green line is your route. **Start learning** turns that route
+into a course (a learning goal with ordered steps); the roadmap then shows your progress per branch.
+**Due today** in the sidebar lists concepts that are ready for a short check: a streak of good
+answers lengthens the gap (1, 3, 7, 14, 30 days), a miss shortens it. It is an invitation, not homework.
 
 ### Everyday commands
 
 ```bash
 docker compose up -d        # start (also after a reboot)
 docker compose down         # stop (your data stays)
-git pull && docker compose up -d --build     # update to a newer version
+git pull && docker compose up -d --build     # update to a newer version (press "Make a backup now" in Settings first)
 docker compose logs -f api  # watch the server log when something looks wrong
 ```
 
@@ -130,6 +151,23 @@ It stops the app, loads the graph and the lesson files, and starts the app again
 hundreds of concepts, a minute or two for tens of thousands). Log in with the password you had at
 the time of the backup. Moving to a new computer: install Trellis there, copy the two files into its
 `backups/` folder, run the same command.
+
+## Updating
+
+`git pull && docker compose up -d --build`. Your memory stays: the graph lives in a Docker volume and
+the lesson files in `artifacts/`. When an update changes the shape of the data, it ships a migration
+in `db/migrations/`; the API applies pending migrations at start and remembers the version in the
+database. Press **Make a backup now** before an update; the nightly backup can be a day old.
+`docker compose exec api python -m app.migrate --dry-run` shows what an update would apply.
+
+## Lesson costs
+
+An interactive lesson is the most expensive thing Trellis does. **My profile → Settings → Lesson
+costs** shows the lessons and tokens of the last 30 days with a rough estimate in dollars. To keep the
+bill down, Trellis inlines the small workspace files (one read instead of seven), lets the cheap
+model plan the lesson before the strong model writes it, keeps only the newest screenshots in the
+model's context, uses prompt caching where the provider supports it, and stops a job at
+`TEACH_MAX_TOKENS` (the last validated version still ships). `.env.example` lists the knobs.
 
 ## Reset a password
 

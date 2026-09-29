@@ -20,7 +20,7 @@ def initialize(state, concept_id, concept_status=None):
         for text in state.get(field, []):
             observations.append({"id":key("legacy",concept_id,field,norm(text)),"kind":field,"text":text,
                                  "state":"active","origin":"legacy","evidence_ids":[],"date":None})
-    return {"version":2,"baseline":baseline,"legacy":observations,"sessions":{},"corrections":{},
+    return {"version":2,"baseline":baseline,"legacy":observations,"sessions":{},"runs":{},"corrections":{},
             "intent":"queued" if concept_status=="queued" else "interested" if concept_status=="suggested" else "learning",
             "self_assessment":{"value":"understood","date":None,"origin":"legacy"} if concept_status=="learned" else None}
 
@@ -64,6 +64,33 @@ def validate(data, messages, session_id, date):
             "covered":strings(data.get("covered",[])),"summary":str(data.get("summary") or "")[:1500],
             "learning_style":{f:strings(style.get(f,[])) for f in ("works_well","works_poorly","preferences")},"date":date}
 
+EXERCISE_KINDS={"predict":"apply","manipulate":"apply","quiz":"recall","explain":"explain","steps":"apply","custom":"apply"}
+ASSESSORS=("deterministic","mentor")
+
+def exercise_kind(activity_type):
+    return EXERCISE_KINDS.get(activity_type,"apply")
+
+def validate_run(items, attempts, run_id, person_id, date):
+    """Exercise evidence (M0 §3.3). An item is accepted only when its attempt exists, belongs to this
+    person and run, and carries a server-side assessment. No quote, no seq. An assisted success is
+    stored as 'assisted': it never counts as demonstrated. Self reports are never evidence."""
+    if not isinstance(items,list): raise ValueError("Invalid exercise evidence")
+    evidence=[]
+    for item in items[:60]:
+        if not isinstance(item,dict): continue
+        attempt=attempts.get(item.get("attempt_id")) if isinstance(item.get("attempt_id"),str) else None
+        if not attempt or attempt.get("person_id")!=person_id or attempt.get("run_id")!=run_id: continue
+        outcome=attempt.get("outcome");by=attempt.get("assessed_by")
+        if outcome not in ("demonstrated","needs_practice") or by not in ASSESSORS: continue
+        level=attempt.get("assistance_level") or "none"
+        if level!="none" and outcome=="demonstrated": outcome="assisted"
+        eid=key("exercise",run_id,attempt["id"])
+        evidence.append({"id":eid,"origin":"exercise","kind":exercise_kind(item.get("activity_type") or attempt.get("activity_type")),
+                         "outcome":outcome,"attempt_id":attempt["id"],"assessment_id":attempt["id"],"assistance_level":level,
+                         "assessed_by":by,"uncertainty":attempt.get("uncertainty") or "low",
+                         "prompt":str(attempt.get("prompt_snapshot") or "")[:240],"date":attempt.get("occurred_at") or date})
+    return evidence
+
 def project(doc):
     state={k:deepcopy(v) for k,v in doc["baseline"].items() if k not in ("level","last_session","since","concept_id","concept_status","concept","status")}
     records={o["id"]:deepcopy(o) for o in doc["legacy"]}
@@ -81,6 +108,12 @@ def project(doc):
         if entry.get("summary") and "summary" not in state.get("manual_fields",[]):
             state["summary"]=entry["summary"]
             summary_inactive=set(entry.get("summary_inactive_ids",[]))
+    # Exercise runs: evidence only, next to the chat sessions. Old code ignores this key (rollback safe).
+    for rid,entry in sorted(doc.get("runs",{}).items(),key=lambda pair:(pair[1].get("date") or "",pair[0])):
+        for e in entry.get("evidence",[]):
+            evidence[e["id"]]=e
+            if e.get("assessed_by") in ASSESSORS and e.get("assistance_level","none")=="none" and e["outcome"] in ("demonstrated","needs_practice"):
+                checks[("run:"+rid,e["attempt_id"])]=e["outcome"]
     for oid,correction in doc["corrections"].items():
         if oid in records:records[oid].update(correction,corrected_by="learner")
     for record in records.values():

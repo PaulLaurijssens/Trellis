@@ -359,6 +359,15 @@ function App({ onLogout }) {
   const handleAnalyze = (payload) => runAnalyze(
     t("busy.analyze", { title: payload.title }), t("busy.analyzeHint"),
     (jobId) => api.analyze(payload, jobId), payload);
+  const handleFile = (file, title) => runAnalyze(
+    t("busy.file", { name: file.name }), t("busy.fileHint"),
+    (jobId) => api.analyzeFile(file, title, jobId), { file: file.name });
+  const handleUrl = (url) => runAnalyze(
+    t("busy.url"), t("busy.urlHint"),
+    (jobId) => api.analyzeUrl(url, jobId), { url });
+  const handlePodcast = (episode) => runAnalyze(
+    t("busy.podcast", { title: episode.title }), t("busy.podcastHint"),
+    (jobId) => api.analyzePodcast(episode, jobId), { podcast: episode });
   const handleYoutube = (url) => runAnalyze(
     t("busy.youtube"), t("busy.youtubeHint"),
     (jobId) => api.analyzeYoutube(url, jobId, lang), { youtube: url });
@@ -370,7 +379,7 @@ function App({ onLogout }) {
   const retryAnalyze = () => {
     const p = sourceRef.current?.payload;
     if (!p) return;
-    if (p.youtube) handleYoutube(p.youtube); else if (p.topic) handleGenerate(p.topic, p.depth); else handleAnalyze(p);
+    if (p.youtube) handleYoutube(p.youtube); else if (p.url) handleUrl(p.url); else if (p.podcast) handlePodcast(p.podcast); else if (p.topic) handleGenerate(p.topic, p.depth); else if (!p.file) handleAnalyze(p);
   };
 
   // ---- leren: elke /learn loopt hier langs ----
@@ -584,7 +593,7 @@ function App({ onLogout }) {
       {!reviewOpen && <div className="explore-view-switch" role="group" aria-label={t("explore.viewLabel")}><button aria-pressed={exploreView==='graph'} onClick={()=>setExploreView('graph')}>{t("explore.graph")}</button><button aria-pressed={exploreView==='path'} onClick={()=>setExploreView('path')}>{t("explore.path")}</button></div>}
       <div className="atlas-surface">
 
-      {exploreView==='path' && !reviewOpen && <LearningPath graph={graph} recent={journey?.recent?.concept} onLearn={name=>openConcept(name,{learn:true})} onGraph={name=>{setExploreView('graph');openConcept(name);}} />}
+      {exploreView==='path' && !reviewOpen && <LearningPath graph={graph} recent={journey?.recent?.concept} goal={journey?.active_goal} due={journey?.review} onCreateGoal={body=>journeyAction(()=>api.createGoal(body))} onLearn={name=>openConcept(name,{learn:true})} onGraph={name=>{setExploreView('graph');openConcept(name);}} />}
       <div style={{display:exploreView==='path'&&!reviewOpen?'none':'contents'}}>
       <GraphView
         data={graph}
@@ -623,6 +632,7 @@ function App({ onLogout }) {
         onGenerate={handleGenerate}
         onAnalyze={handleAnalyze}
         onAnalyzeYoutube={handleYoutube}
+        onAnalyzeFile={handleFile} onAnalyzeUrl={handleUrl} onPodcastEpisodes={api.podcastEpisodes} onAnalyzePodcast={handlePodcast}
       />
 
       {/* Op de telefoon ingeklapt achter één knop (die knop is op desktop verborgen). */}
