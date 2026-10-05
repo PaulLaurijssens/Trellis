@@ -165,6 +165,7 @@ class SettingsPatch(BaseModel):
     embed_model: str | None = Field(None, max_length=120)
     embed_dim: int | None = None
     key_env: str | None = Field(None, max_length=64)
+    lesson_cost_limit: float | None = Field(None, ge=0, le=100)     # USD per lesson; 0 = off
 
 
 CUSTOM_FIELDS = ("mentor_model", "extract_model", "embed_model", "embed_dim", "key_env")

@@ -1,5 +1,6 @@
-"""Cost controls of the authoring loop: cache breakpoints, screenshot pruning, token budget, digest."""
+"""Cost controls of the authoring loop: cache breakpoints, screenshot pruning, optional cost limit, digest."""
 import importlib
+import os
 import sys
 import types
 import unittest
@@ -59,13 +60,27 @@ class ToolLoopTests(unittest.TestCase):
         removed = [m for m in messages if isinstance(m.get("content"), list) and any("removed" in p.get("text", "") for p in m["content"])]
         self.assertEqual(len(removed), 1)
 
-    def test_token_budget_stops_the_loop(self):
+    def test_no_limit_by_default_even_for_big_jobs(self):
         usage = self.llm.Usage()
-        self.lite.script = [reply(tool_calls=[call("x")], prompt=900, completion=200), reply(content="never")]
+        self.lite.script = [reply(tool_calls=[call("x")], prompt=400_000) for _ in range(3)] + [reply(content="done")]
+        self.assertEqual(self.llm.tool_loop("sys", "task", [], lambda n, a: ({}, []), "gemini/x", usage=usage), "done")
+        self.assertEqual(len(self.lite.calls), 4)
+
+    def test_cost_limit_asks_to_wrap_up_then_stops(self):
+        self.lite.script = [reply(tool_calls=[call("x")]) for _ in range(5)]
         with self.assertRaises(self.llm.ToolLoopStopped) as stop:
-            self.llm.tool_loop("sys", "task", [], lambda n, a: ({}, []), "gemini/x", usage=usage, max_tokens=1000)
-        self.assertIn("token budget", str(stop.exception))
-        self.assertEqual(usage.total(), 1100)
+            self.llm.tool_loop("sys", "task", [], lambda n, a: ({}, []), "gemini/x", over_budget=lambda: len(self.lite.calls) >= 1,
+                               wrap_up="WRAP UP", grace_steps=2)
+        self.assertEqual(str(stop.exception), "cost limit reached")
+        self.assertEqual(len(self.lite.calls), 3)            # one before the limit, then two grace steps
+        nudges = [m for m in self.lite.calls[-1]["messages"] if m.get("content") == "WRAP UP"]
+        self.assertEqual(len(nudges), 1)
+
+    def test_cost_limit_lets_the_author_finish(self):
+        self.lite.script = [reply(tool_calls=[call("x")]), reply(tool_calls=[call("finish")])]
+        handler = lambda n, a: ({"finished": True, "summary": "published"} if n == "finish" else {}, [])
+        out = self.llm.tool_loop("sys", "task", [], handler, "gemini/x", over_budget=lambda: True, wrap_up="WRAP UP")
+        self.assertEqual(out, "published")
 
     def test_usage_counts_cached_tokens(self):
         usage = self.llm.Usage()
@@ -73,6 +88,30 @@ class ToolLoopTests(unittest.TestCase):
         resp.usage.prompt_tokens_details = SimpleNamespace(cached_tokens=400)
         usage.add("author", resp)
         self.assertEqual(usage.report()["author"]["cached"], 400)
+
+
+class CostLimitTests(unittest.TestCase):
+    def setUp(self):
+        src = (Path(__file__).resolve().parents[1] / 'app/teach/orchestrator.py').read_text()
+        start, end = src.index('PRICE_TABLE = '), src.index('WRAP_UP = ')
+        self.stored = {}
+        self.ns = {'os': os, 'AUTHOR_MODEL': 'gemini/gemini-3.1-pro-preview', 'llm': SimpleNamespace(Usage=object),
+                   'settings': SimpleNamespace(get=lambda: dict(self.stored))}
+        exec(src[start:end], self.ns)
+
+    def test_off_unless_the_owner_sets_it(self):
+        self.assertEqual(self.ns['cost_limit'](), 0.0)
+        for value, expected in ((0, 0.0), ("", 0.0), (1, 1.0), ("0.5", 0.5), ("abc", 0.0), (-3, 0.0)):
+            self.stored['lesson_cost_limit'] = value
+            self.assertEqual(self.ns['cost_limit'](), expected, value)
+
+    def test_cached_input_costs_a_tenth(self):
+        estimate = self.ns['estimate_usd']
+        with patch.dict(os.environ, {}, clear=False):
+            os.environ.pop('TEACH_PRICE_IN', None); os.environ.pop('TEACH_PRICE_OUT', None)
+            self.assertAlmostEqual(estimate(1_000_000, 0, 0), 2.0)
+            self.assertAlmostEqual(estimate(1_000_000, 1_000_000, 0), 0.2)
+            self.assertAlmostEqual(estimate(0, 0, 1_000_000), 12.0)
 
 
 class DigestTests(unittest.TestCase):

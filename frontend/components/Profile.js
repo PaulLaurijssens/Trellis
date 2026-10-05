@@ -85,7 +85,7 @@ export default function Profile({ person, onClose, onRebuilt, ambientMotion, onA
             <div className="card"><h4>{t("profile.language")}</h4><p className="hint">{t("profile.languageSafe")}</p><div className="seg">{LANGS.map(([code,label])=><button key={code} aria-pressed={code===lang} className={code===lang?"on":""} disabled={busy} onClick={async()=>{setBusy(true);try{await setLang(code);}catch(e){setMsg({text:e.message,err:true});}finally{setBusy(false);}}}>{label}</button>)}</div></div>
             {account && <div className="card account-card"><h4>{t("profile.account")}</h4><p className="hint">{t("profile.accountHint", { name: account.name })}</p><button className="btn ghost" onClick={onLogout}>{t("menu.logout")}</button></div>}
             {account?.is_admin && <Backups />}
-            <LessonCosts />
+            <LessonCosts canEdit={!!account?.is_admin} />
             <div className="card motion-setting"><h4>{t("profile.motion")}</h4><label><input type="checkbox" checked={ambientMotion} disabled={motionSaving} onChange={(e) => onAmbientMotion(e.target.checked)} />{t("profile.motionLabel")}</label><p className="hint">{reducedMotion ? t("profile.motionReduced") : t("profile.motionHint")}</p></div>
           </div>}
           {tab === "teaching" && <div className="profile-teaching">

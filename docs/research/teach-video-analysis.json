@@ -1,0 +1,321 @@
+{
+  "status": "completed",
+  "output": [
+    "```json\n{\n  \"accessible\": true,\n  \"title\": \"Matt Pocock's Stateful 'teach' Skill Demonstration\",\n  \"summary\": \"Matt Pocock presents a custom, stateful 'teach' skill designed for coding agents (specifically demonstrated inside Claude Code CLI using Claude Opus 4.8). Rather than delivering stateless one-off explanations, the skill maintains persistent learning state across sessions by writing Markdown files and standalone interactive HTML lessons directly to the local filesystem. Pocock demonstrates the tool through his personal journey learning how to solve a 3x3 Rubik's cube, showcasing mission framing, primary source curation, interactive browser drills, glossary and solve cards, learning records, and zone of proximal development (ZPD) targeting.\",\n  \"demonstrated_examples\": [\n    {\n      \"topic\": \"Rubik's Cube: Anatomy, Notation & White Cross (Lesson 0001)\",\n      \"what_the_learner_sees_or_does\": \"Learner views an HTML lesson with styled diagrams explaining cube pieces vs. stickers, notation definitions, edge-case callouts ('traps'), inline multiple-choice self-checks, step-by-step Daisy technique instructions, and a practice prompt to complete before the next session.\",\n      \"approximate_timestamp\": \"03:40 - 04:20\"\n    },\n    {\n      \"topic\": \"Rubik's Cube: Learning Record & Position the Corners (Lesson 0006)\",\n      \"what_the_learner_sees_or_does\": \"Learner reviews a generated learning record tracking white cross competency and opens Lesson 6 HTML showing corner permutation rules, citations to source guides, self-check quiz questions, and a 4-step procedure.\",\n      \"approximate_timestamp\": \"04:24 - 05:22\"\n    },\n    {\n      \"topic\": \"Rubik's Cube: Reference Documents (Glossary & Solve Card)\",\n      \"what_the_learner_sees_or_does\": \"Learner accesses a generated comprehensive glossary of cube anatomy/notation and a condensed 'Solve Card' cheat sheet summarizing all 7 solve stages and trigger algorithms for rapid reference.\",\n      \"approximate_timestamp\": \"05:24 - 06:02\"\n    },\n    {\n      \"topic\": \"Rubik's Cube: Corner Cycle Muscle Memory Drill (Lesson 0009)\",\n      \"what_the_learner_sees_or_does\": \"Learner prompts the agent ('teach I can basically complete the Rubik's Cube now, except for the corner cycle...'). The agent diagnoses the ZPD bottleneck, reads prior lessons, and generates a new HTML lesson featuring an interactive 'Corner-Cycle Recall Trainer' with clickable move buttons, a Guided/Blind toggle mode, streak counter, and clean-run target.\",\n      \"approximate_timestamp\": \"06:12 - 08:26\"\n    }\n  ],\n  \"teaching_workflow\": {\n    \"initialization\": \"The user runs the skill in a dedicated directory via a coding agent CLI (e.g. Claude Code). The skill creates 'MISSION.md' defining user goals, constraints, and success criteria, followed by 'RESOURCES.md' containing curated web sources and community links.\",\n    \"incremental_delivery\": \"Lessons are generated sequentially as standalone HTML files in a 'lessons/' folder, tailored to teach single, manageable concepts targeted at the learner's Zone of Proximal Development (ZPD).\",\n    \"assessment_and_reflection\": \"When the learner reports progress or blockers in chat, the agent records qualitative evidence, status, and pedagogical implications into numbered Markdown files in 'learning-records/'.\",\n    \"reference_building\": \"As concepts and jargon accumulate, the agent populates 'reference/glossary.html' and reference cheat sheets ('solve-card.html') to keep future lessons concise.\",\n    \"session_continuation\": \"On every invocation, the agent inspects the file tree, learning records, and internal teacher notes ('NOTES.md') to diagnose the learner's current state and craft the next targeted drill or lesson.\"\n  },\n  \"html_and_interactivity_details\": {\n    \"format_and_styling\": \"Lessons are self-contained HTML files with embedded CSS styling (clean typography, color-coded accents, high-contrast cards, and structured callouts).\",\n    \"visual_aids\": \"Includes SVG/CSS-based diagrams (such as 3x3 face grids illustrating centers, edges, and corners).\",\n    \"embedded_interactivity\": \"Demonstrated live with an interactive JavaScript tap-drill widget for algorithm memorization ('Corner-Cycle Recall Trainer') featuring button inputs ('U', 'R', 'U\\'', 'L\\''), guided move ghosts, blind mode testing, and streak counters.\",\n    \"inline_quizzes\": \"Multiple-choice 'Check Yourself' sections embedded directly into lesson flows to test conceptual understanding and provide rapid feedback loops.\",\n    \"resources_and_community\": \"Footers contain external citations to primary sources (e.g., Ruwix, J Perm) and community links (e.g., r/Cubers) for asking questions outside the agent loop.\"\n  },\n  \"memory_and_personalization\": {\n    \"stateful_architecture\": \"All memory is externalized to the local filesystem, avoiding LLM context drift across multi-session learning journeys.\",\n    \"workspace_structure\": {\n      \"learning_records\": \"Directory containing numbered markdown files (e.g., '0001-can-build-white-cross.md', '0007-first-full-solve.md') documenting learner self-reports, evidence, and pedagogical implications.\",\n      \"lessons\": \"Directory containing numbered HTML lesson files (e.g., '0001-anatomy-notation-white-cross.html', '0009-the-corner-cycle.html').\",\n      \"reference\": \"Directory containing persistent reference sheets like 'glossary.html' and 'solve-card.html'.\",\n      \"root_files\": \"'MISSION.md' (goals/constraints), 'RESOURCES.md' (vetted links and knowledge sources), and 'NOTES.md' (agent's private teaching log, learner preferences, watch-outs, and curriculum state).\"\n    },\n    \"pedagogical_adaptation\": \"Employs the Zone of Proximal Development (ZPD) principle\u2014calibrating lesson difficulty so the student is challenged without being overwhelmed, adjusting drills based on self-reported friction (e.g., shifting from conceptual learning to muscle-memory drills).\"\n  },\n  \"limitations_or_caveats\": {\n    \"execution_environment\": \"Requires a local terminal coding agent capable of file system read/write operations and running shell scripts (demonstrated in Claude Code CLI via WSL/VS Code).\",\n    \"user_self_reporting\": \"Physical skill acquisition (like manipulating a Rubik's cube) relies entirely on user honesty and accurate self-reporting; the agent cannot independently verify physical manipulation.\",\n    \"browser_context\": \"The learner must open the generated local HTML lesson files in a browser to access interactive trainers and formatted visuals.\",\n    \"curation_dependency\": \"Effectiveness depends on the agent initially finding high-trust primary resources and structuring lessons accurately according to domain rules.\"\n  },\n  \"uncertain_observations\": {\n    \"actually_demonstrated\": \"Solving a 3x3 Rubik's cube, generating 9+ lessons, creating learning records, interactive JS corner-cycle trainer, notes.md, mission.md, and the SKILL.md specification inside VS Code/Claude Code.\",\n    \"suggested_or_inferred\": \"Pocock suggests applying the exact same skill for engineering team codebase onboarding, learning chess openings, music theory/vocal harmonies, and human or programming languages, but none of these alternative domains are demonstrated in the video.\"\n  }\n}\n```"
+  ],
+  "usage": {
+    "total_tokens": 87544,
+    "total_input_tokens": 418,
+    "input_tokens_by_modality": [
+      {
+        "modality": "text",
+        "tokens": 418
+      }
+    ],
+    "total_cached_tokens": 20391,
+    "cached_tokens_by_modality": [
+      {
+        "modality": "text",
+        "tokens": 647
+      },
+      {
+        "modality": "image",
+        "tokens": 9872
+      },
+      {
+        "modality": "video",
+        "tokens": 9872
+      }
+    ],
+    "total_output_tokens": 1917,
+    "total_tool_use_tokens": 74562,
+    "tool_use_tokens_by_modality": [
+      {
+        "modality": "video",
+        "tokens": 36300
+      },
+      {
+        "modality": "text",
+        "tokens": 1962
+      },
+      {
+        "modality": "image",
+        "tokens": 36300
+      }
+    ],
+    "total_thought_tokens": 10647,
+    "raw_prompt_token": 21904,
+    "model_invocation_token_counts": [
+      {
+        "prompt_tokens_details": [
+          {
+            "modality": "text",
+            "tokens": 547
+          }
+        ],
+        "candidates_tokens_details": [
+          {
+            "modality": "text",
+            "tokens": 31
+          }
+        ],
+        "thoughts_tokens_details": [
+          {
+            "modality": "text",
+            "tokens": 171
+          }
+        ]
+      },
+      {
+        "prompt_tokens_details": [
+          {
+            "modality": "text",
+            "tokens": 776
+          }
+        ],
+        "candidates_tokens_details": [
+          {
+            "modality": "text",
+            "tokens": 59
+          }
+        ],
+        "thoughts_tokens_details": [
+          {
+            "modality": "text",
+            "tokens": 36
+          }
+        ]
+      },
+      {
+        "prompt_tokens_details": [
+          {
+            "modality": "text",
+            "tokens": 1116
+          },
+          {
+            "modality": "image",
+            "tokens": 7260
+          },
+          {
+            "modality": "video",
+            "tokens": 7260
+          }
+        ],
+        "candidates_tokens_details": [
+          {
+            "modality": "text",
+            "tokens": 59
+          }
+        ],
+        "thoughts_tokens_details": [
+          {
+            "modality": "text",
+            "tokens": 43
+          }
+        ]
+      },
+      {
+        "prompt_tokens_details": [
+          {
+            "modality": "text",
+            "tokens": 1443
+          },
+          {
+            "modality": "image",
+            "tokens": 13860
+          },
+          {
+            "modality": "video",
+            "tokens": 13860
+          }
+        ],
+        "candidates_tokens_details": [
+          {
+            "modality": "text",
+            "tokens": 59
+          }
+        ],
+        "thoughts_tokens_details": [
+          {
+            "modality": "text",
+            "tokens": 24
+          }
+        ]
+      },
+      {
+        "prompt_tokens_details": [
+          {
+            "modality": "text",
+            "tokens": 1591
+          },
+          {
+            "modality": "image",
+            "tokens": 15180
+          },
+          {
+            "modality": "video",
+            "tokens": 15180
+          }
+        ],
+        "cache_tokens_details": [
+          {
+            "modality": "video",
+            "tokens": 11353
+          },
+          {
+            "modality": "image",
+            "tokens": 11353
+          }
+        ],
+        "candidates_tokens_details": [
+          {
+            "modality": "text",
+            "tokens": 1737
+          }
+        ],
+        "thoughts_tokens_details": [
+          {
+            "modality": "text",
+            "tokens": 403
+          }
+        ]
+      }
+    ],
+    "non_grounding_model_invocation_token_counts": [
+      {
+        "prompt_tokens_details": [
+          {
+            "modality": "text",
+            "tokens": 547
+          }
+        ],
+        "candidates_tokens_details": [
+          {
+            "modality": "text",
+            "tokens": 31
+          }
+        ],
+        "thoughts_tokens_details": [
+          {
+            "modality": "text",
+            "tokens": 171
+          }
+        ]
+      },
+      {
+        "prompt_tokens_details": [
+          {
+            "modality": "text",
+            "tokens": 776
+          }
+        ],
+        "candidates_tokens_details": [
+          {
+            "modality": "text",
+            "tokens": 59
+          }
+        ],
+        "thoughts_tokens_details": [
+          {
+            "modality": "text",
+            "tokens": 36
+          }
+        ]
+      },
+      {
+        "prompt_tokens_details": [
+          {
+            "modality": "text",
+            "tokens": 1116
+          },
+          {
+            "modality": "image",
+            "tokens": 7260
+          },
+          {
+            "modality": "video",
+            "tokens": 7260
+          }
+        ],
+        "candidates_tokens_details": [
+          {
+            "modality": "text",
+            "tokens": 59
+          }
+        ],
+        "thoughts_tokens_details": [
+          {
+            "modality": "text",
+            "tokens": 43
+          }
+        ]
+      },
+      {
+        "prompt_tokens_details": [
+          {
+            "modality": "text",
+            "tokens": 1443
+          },
+          {
+            "modality": "image",
+            "tokens": 13860
+          },
+          {
+            "modality": "video",
+            "tokens": 13860
+          }
+        ],
+        "candidates_tokens_details": [
+          {
+            "modality": "text",
+            "tokens": 59
+          }
+        ],
+        "thoughts_tokens_details": [
+          {
+            "modality": "text",
+            "tokens": 24
+          }
+        ]
+      },
+      {
+        "prompt_tokens_details": [
+          {
+            "modality": "text",
+            "tokens": 1591
+          },
+          {
+            "modality": "image",
+            "tokens": 15180
+          },
+          {
+            "modality": "video",
+            "tokens": 15180
+          }
+        ],
+        "cache_tokens_details": [
+          {
+            "modality": "video",
+            "tokens": 11353
+          },
+          {
+            "modality": "image",
+            "tokens": 11353
+          }
+        ],
+        "candidates_tokens_details": [
+          {
+            "modality": "text",
+            "tokens": 1737
+          }
+        ],
+        "thoughts_tokens_details": [
+          {
+            "modality": "text",
+            "tokens": 403
+          }
+        ]
+      }
+    ]
+  }
+}

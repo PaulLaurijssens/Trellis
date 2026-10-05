@@ -150,23 +150,32 @@ def _drop_images(message) -> None:
 
 def tool_loop(system: str, task: str, tools: list[dict], handler, model: str, max_steps: int = 30,
               deadline: float | None = None, usage: Usage | None = None, phase: str = "agent",
-              should_stop=None, timeout: float = 180.0, max_tokens: int | None = None, keep_images: int = 1) -> str:
+              should_stop=None, timeout: float = 180.0, over_budget=None, wrap_up: str = "", grace_steps: int = 4,
+              keep_images: int = 1) -> str:
     """Bounded agent loop over function calling. `handler(name, args)` returns (result_dict, extra_messages);
     extra messages (e.g. a screenshot for the model to look at) are appended after the tool results.
     The assistant message is passed back unmodified, so provider fields (Gemini thought signatures) survive.
     Cost controls: the system prompt and task are cache breakpoints (Anthropic); only the newest
-    `keep_images` image messages stay in the context; `max_tokens` stops the loop over the whole job."""
+    `keep_images` image messages stay in the context. Optional cost limit: when `over_budget()` turns true,
+    the model gets `wrap_up` once and `grace_steps` more steps to finish; then the loop stops."""
     import time
     caching = _caches(model)
     messages = [{"role": "system", "content": _cached(system) if caching else system},
                 {"role": "user", "content": _cached(task) if caching else task}]
+    grace = None                              # steps left after the cost limit; None = limit not reached
     for _ in range(max_steps):
         if should_stop and should_stop():
             raise ToolLoopStopped("cancelled")
         if deadline and time.monotonic() > deadline:
             raise ToolLoopStopped("time budget used up")
-        if max_tokens and usage is not None and usage.total() > max_tokens:
-            raise ToolLoopStopped("token budget used up")
+        if over_budget is not None:
+            if grace is None and over_budget():
+                grace = grace_steps - 1            # this step and grace_steps - 1 more
+                messages.append({"role": "user", "content": wrap_up or "The cost limit is reached. Finish now."})
+            elif grace is not None:
+                grace -= 1
+                if grace < 0:
+                    raise ToolLoopStopped("cost limit reached")
         resp = litellm.completion(model=model, messages=messages, tools=tools, tool_choice="auto",
                                   temperature=0.3, timeout=timeout)
         if usage is not None:

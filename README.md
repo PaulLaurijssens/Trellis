@@ -166,8 +166,9 @@ An interactive lesson is the most expensive thing Trellis does. **My profile →
 costs** shows the lessons and tokens of the last 30 days with a rough estimate in dollars. To keep the
 bill down, Trellis inlines the small workspace files (one read instead of seven), lets the cheap
 model plan the lesson before the strong model writes it, keeps only the newest screenshots in the
-model's context, uses prompt caching where the provider supports it, and stops a job at
-`TEACH_MAX_TOKENS` (the last validated version still ships). `.env.example` lists the knobs.
+model's context, and uses prompt caching where the provider supports it. There is no cost limit by
+default. The owner can set one per lesson in the same card ($0.50, $1 or $2): near the limit the
+author stops adding new parts and publishes what passed its checks. `.env.example` lists the other knobs.
 
 ## Reset a password
 

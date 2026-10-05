@@ -21,7 +21,7 @@ export function Login({ status, onDone }) {
   const submit = async (e) => {
     e.preventDefault(); setBusy(true); setError("");
     try { await session.login({ person_id: personId || null, password }); onDone(); }
-    catch (err) { setError(err.status === 429 ? t("gate.tooMany") : t("gate.wrongPassword")); }
+    catch (err) { setError(err.status === 401 ? t("gate.wrongPassword") : err.status === 429 ? t("gate.tooMany") : t("gate.noServer")); }
     finally { setBusy(false); }
   };
   return <form className="gate" onSubmit={submit}>

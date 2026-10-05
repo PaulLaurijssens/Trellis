@@ -8,7 +8,7 @@ import logging
 import os
 import time
 
-from .. import graph, llm, memory_model
+from .. import graph, llm, memory_model, settings
 from . import artifacts, lessons, model, objectives, skill, worker, workspace
 
 log = logging.getLogger("uvicorn.error")
@@ -20,7 +20,6 @@ AUTHOR_MODEL = os.getenv("TEACH_AUTHOR_MODEL", llm.MENTOR_MODEL)
 # with the cheap model and hands the strong model a plan; the strong model still writes every lesson.
 PLAN_MODEL = os.getenv("TEACH_PLAN_MODEL", llm.EXTRACT_MODEL)
 PLAN_STEP = os.getenv("TEACH_PLAN", "1") not in ("0", "false", "off")
-MAX_TOKENS = int(os.getenv("TEACH_MAX_TOKENS", "220000"))        # whole job; the last validated bundle still ships
 # USD per million tokens, for the cost card only. Override with TEACH_PRICE_IN / TEACH_PRICE_OUT when the
 # list is stale; it is a rough estimate, the provider's bill is the truth.
 PRICE_TABLE = (("flash-lite", 0.1, 0.4), ("flash", 0.3, 2.5), ("gemini", 2.0, 12.0), ("haiku", 1.0, 5.0), ("sonnet", 3.0, 15.0),
@@ -36,6 +35,30 @@ def prices() -> tuple[float, float]:
         if key in name:
             return p_in, p_out
     return 2.0, 10.0
+
+
+def estimate_usd(prompt: int, cached: int, completion: int) -> float:
+    """Rough cost: cached input at a tenth of the input price (most providers bill it lower)."""
+    price_in, price_out = prices()
+    return ((max(0, prompt - cached) + cached * 0.1) * price_in + completion * price_out) / 1e6
+
+
+def usage_usd(usage: llm.Usage) -> float:
+    return estimate_usd(sum(v["prompt"] for v in usage.phases.values()), sum(v.get("cached", 0) for v in usage.phases.values()),
+                        sum(v["completion"] for v in usage.phases.values()))
+
+
+def cost_limit() -> float:
+    """Optional limit per lesson in USD, set by the owner in Settings. 0 or empty = off (the default)."""
+    try:
+        return max(0.0, float(settings.get().get("lesson_cost_limit") or 0))
+    except (TypeError, ValueError):
+        return 0.0
+
+
+WRAP_UP = ("The owner's cost limit for one lesson (${limit:.2f}) is reached. Do not start new parts. If the last "
+           "lesson_validate passed, call lesson_publish now. Otherwise fix only what the last validation reported, "
+           "validate once, and publish if it passes. Then call finish.")
 
 
 DIGEST_FILES = ("MISSION.md", "NOTES.md", "CONCEPTS.md", "lessons/INDEX.md", "lessons/ATTEMPTS.md", "reference/INDEX.md", "GLOSSARY.md")
@@ -369,9 +392,12 @@ class Job:
                                intent_line=("" if self.objective else f"Temporary lesson intent (no confirmed objective yet): {req.get('intent') or 'understand'}\n"),
                                validations=MAX_VALIDATIONS)
             lessons.set_stage(self.job_id, "generating")
+            limit = cost_limit()
             summary = llm.tool_loop(skill.system_prompt(), task, TOOLS, self.handle, AUTHOR_MODEL, max_steps=MAX_STEPS,
                                     deadline=time.monotonic() + MAX_SECONDS, usage=self.usage, phase="author",
-                                    should_stop=lambda: lessons.cancel_requested(self.job_id), max_tokens=MAX_TOKENS)
+                                    should_stop=lambda: lessons.cancel_requested(self.job_id),
+                                    over_budget=(lambda: usage_usd(self.usage) >= limit) if limit else None,
+                                    wrap_up=WRAP_UP.format(limit=limit))
             if not self.published and self.ok_bundle:
                 self._publish_ok_bundle(edited_since=self.dirty)
                 self.trace.append({"tool": "auto_publish", "args": {}, "ok": True, "error": None, "ms": 0})
@@ -389,6 +415,8 @@ class Job:
                 self._finish("ready", detail="", lesson_id=self.published["lesson_id"], lesson_version_id=self.published["version_id"])
             elif str(stop) == "cancelled":
                 self._finish("cancelled")
+            elif str(stop) == "cost limit reached":
+                self._finish("failed", error="cost_limit", detail=f"{cost_limit():.2f}")
             else:
                 self._finish("failed", error="budget", detail=str(stop))
         except Exception as exc:

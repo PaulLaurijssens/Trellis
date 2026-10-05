@@ -156,8 +156,8 @@ def lesson_usage_summary(person_id: str, days: int = 30):
     price_in, price_out = orchestrator.prices()
     summary["model"] = orchestrator.AUTHOR_MODEL
     summary["price_per_mtok"] = {"input": price_in, "output": price_out}
-    summary["estimated_usd"] = round(((summary["prompt"] - summary["cached"]) * price_in + summary["cached"] * price_in * 0.1
-                                      + summary["completion"] * price_out) / 1e6, 2)
+    summary["estimated_usd"] = round(orchestrator.estimate_usd(summary["prompt"], summary["cached"], summary["completion"]), 2)
+    summary["cost_limit"] = orchestrator.cost_limit()
     return summary
 
 

@@ -1517,3 +1517,6 @@ button.chip:hover:not(:disabled) { border-color: rgba(84, 169, 255, 0.45); color
 /* The sheet's × sits inside .side-switch, whose button rule is more specific: restate it there */
 .lesson-side .side-switch .sheet-close { flex:0 0 48px; width:48px; height:48px; padding:0; border-radius:50%; font-size:34px; line-height:1; font-weight:300; color:var(--text); background:rgba(255,255,255,.06); border:1px solid var(--line-strong); }
 @media (max-width:800px) { .lesson-side .side-switch { padding-right:64px; } .lesson-side .side-switch .sheet-close { display:grid; place-items:center; position:absolute; right:10px; top:10px; } }
+.costs-card .costs-limit { margin:14px 0 6px; padding-top:12px; border-top:1px solid var(--line-soft); }
+.costs-card .costs-limit h5 { margin:0 0 8px; font-size:16px; font-weight:600; color:var(--text-2); }
+.costs-card .costs-limit .seg button.on { background: rgba(95, 206, 158, 0.16); color: var(--accent-soft); }

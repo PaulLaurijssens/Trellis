@@ -7,6 +7,7 @@ from neo4j import GraphDatabase
 driver = GraphDatabase.driver(
     os.getenv("NEO4J_URI", "bolt://localhost:7687"),
     auth=(os.getenv("NEO4J_USER", "neo4j"), os.getenv("NEO4J_PASSWORD", "changeme123")),
+    notifications_min_severity="OFF",     # schema hints ("index already exists" etc.) flooded the API log
 )
 
 VALID_RELS = {"PREREQUISITE_OF", "PART_OF", "RELATED_TO"}
