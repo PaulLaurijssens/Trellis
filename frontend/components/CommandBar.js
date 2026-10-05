@@ -301,7 +301,7 @@ export default function CommandBar({
               />
             )}
             {!busy && activeCluster && <button className="scope-chip chip" onClick={()=>onCluster?.("")} aria-label={t("search.clearCluster",{name:activeCluster.name})}>{activeCluster.name} ×</button>}
-            {!busy && text && <button className="icon-btn x" onClick={resetSearch} aria-label={t("cmd.clear")} style={{ fontSize: 16 }}>×</button>}
+            {!busy && text && <button className="icon-btn x" onClick={resetSearch} aria-label={t("cmd.clear")}>×</button>}
             {!busy && !text && <span className="kbd" title="Sneltoets">/</span>}
             <button className="cta" onClick={openCard} disabled={!!busy} title="⌘N">{t("cmd.add")} +</button>
           </div>

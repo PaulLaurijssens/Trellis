@@ -1492,3 +1492,28 @@ button.chip:hover:not(:disabled) { border-color: rgba(84, 169, 255, 0.45); color
 .syllabus-text small { color:var(--text-3); font-size:12px; text-transform:uppercase; letter-spacing:.04em; }
 .syllabus-block .btn { white-space:nowrap; }
 @media (max-width:640px) { .syllabus-block { grid-template-columns:28px 1fr; } .syllabus-block .btn { grid-column:2; justify-self:start; } }
+
+/* Phone: the mentor/context panel is a bottom sheet over the board, never in the flow */
+.sheet-grip, .sheet-close { display:none; }
+@media (max-width:800px) {
+  .lesson-side { display:none; }
+  .context-open .lesson-side { display:flex; position:fixed; left:0; right:0; bottom:0; top:auto; height:78dvh; width:100% !important; max-width:none; margin:0; border-radius:18px 18px 0 0; border:1px solid var(--line-strong); border-bottom:0; box-shadow:0 -12px 40px rgba(0,0,0,.6); z-index:30; }
+  .lesson-side .side-switch { position:relative; flex-wrap:wrap; padding:6px 52px 10px 12px; touch-action:pan-x; }
+  .sheet-grip { display:block; width:44px; height:4px; border-radius:2px; background:var(--line-strong); margin:4px auto 8px; flex-basis:100%; }
+  .sheet-close { display:grid; place-items:center; position:absolute; right:10px; top:14px; width:34px; height:34px; border-radius:50%; border:1px solid var(--line); background:transparent; color:var(--text); font-size:22px; flex:0 0 auto !important; }
+  .side-grip { display:none; }
+}
+
+/* Close buttons, one size everywhere: a 48 px round target with a clear × */
+.redesigned .icon-btn.x, .redesigned .preview-close, .map-detail-close, .sheet-close, .edge-detail > button:first-child, .toast .close {
+  width:48px; height:48px; min-width:48px; padding:0; border-radius:50%; display:grid; place-items:center;
+  font-size:32px; line-height:1; font-weight:300; color:var(--text); background:rgba(255,255,255,.04); border:1px solid var(--line); cursor:pointer;
+}
+.redesigned .icon-btn.x:hover, .redesigned .preview-close:hover, .map-detail-close:hover, .sheet-close:hover, .edge-detail > button:first-child:hover, .toast .close:hover { background:rgba(255,255,255,.1); border-color:var(--line-strong); color:var(--text); }
+.map-detail-close { top:8px; right:8px; }
+.embedded-preview .preview-close { top:-10px; right:-10px; }
+.toast .close { width:40px; height:40px; min-width:40px; font-size:26px; margin-left:8px; }
+@media (max-width:800px) { .sheet-close { display:grid; width:48px; height:48px; top:8px; right:8px; font-size:32px; } }
+/* The sheet's × sits inside .side-switch, whose button rule is more specific: restate it there */
+.lesson-side .side-switch .sheet-close { flex:0 0 48px; width:48px; height:48px; padding:0; border-radius:50%; font-size:34px; line-height:1; font-weight:300; color:var(--text); background:rgba(255,255,255,.06); border:1px solid var(--line-strong); }
+@media (max-width:800px) { .lesson-side .side-switch { padding-right:64px; } .lesson-side .side-switch .sheet-close { display:grid; place-items:center; position:absolute; right:10px; top:10px; } }

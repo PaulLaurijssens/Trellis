@@ -113,6 +113,10 @@ export default function MentorPanel({
     window.addEventListener("pointermove", move); window.addEventListener("pointerup", up);
   };
   useEffect(() => { try { localStorage.setItem("trellis.sideWidth", String(sideWidth)); } catch {} }, [sideWidth]);
+  // Phone: the panel is a sheet over the board. Swipe down on its header (or tap ×) to put it away.
+  const touch = useRef(null);
+  const sheetTouchStart = (e) => { touch.current = { y: e.touches[0].clientY, x: e.touches[0].clientX }; };
+  const sheetTouchEnd = (e) => { const t = touch.current; touch.current = null; if (!t) return; const dy = e.changedTouches[0].clientY - t.y, dx = Math.abs(e.changedTouches[0].clientX - t.x); if (dy > 70 && dx < 60) setContextOpen(false); };
   const [reference, setReference] = useState(null);
   const lessonCtx = useRef(null);                        // {run, activity_id, params}: goes with a question
   useEffect(() => { setLesson(null); setReference(null); setPane("lesson"); setView("lesson"); setSide("mentor"); lessonCtx.current = null; }, [concept?.name]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -165,7 +169,7 @@ export default function MentorPanel({
     </div>
     <aside className={"lesson-context" + (teaching ? " lesson-side" : "")} aria-label={t("learn.context")} style={teaching ? { width: sideWidth } : undefined}>
       {teaching && <div className="side-grip" role="separator" aria-orientation="vertical" aria-label="Resize" onPointerDown={dragSide} />}
-      {teaching && <div className="side-switch" role="tablist"><button role="tab" aria-selected={side === "mentor"} onClick={() => setSide("mentor")}>{t("teach.tabMentor")}</button><button role="tab" aria-selected={side === "context"} onClick={() => setSide("context")}>{t("learn.context")}</button></div>}
+      {teaching && <div className="side-switch" role="tablist" onTouchStart={sheetTouchStart} onTouchEnd={sheetTouchEnd}><span className="sheet-grip" aria-hidden="true" /><button role="tab" aria-selected={side === "mentor"} onClick={() => setSide("mentor")}>{t("teach.tabMentor")}</button><button role="tab" aria-selected={side === "context"} onClick={() => setSide("context")}>{t("learn.context")}</button><button className="sheet-close" aria-label={t("common.close")} onClick={() => setContextOpen(false)}>×</button></div>}
       {teaching && side === "mentor" && chatPanel}
       {(!teaching || side === "context") && <div className="side-context">
       {!teaching && <h2>{t("learn.context")}</h2>}
