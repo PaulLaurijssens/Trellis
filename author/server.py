@@ -109,7 +109,10 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_GET(self):
         if self.path == "/health":
-            return self._send(200, {"ok": True, "assets": ASSETS.is_dir()})
+            # "assets" is true only when the shared lesson components are really there: a wrong mount
+            # used to pass this check, and then every lesson failed on "unknown asset" after paying for it.
+            components = sorted(f"{p.parent.parent.name}@{p.parent.name}" for p in ASSETS.glob("*/*/sdk.js"))
+            return self._send(200, {"ok": True, "assets": bool(components), "components": components})
         self._send(404, {"error": "not found"})
 
     def do_DELETE(self):

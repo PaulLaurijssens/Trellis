@@ -519,6 +519,7 @@ const en = {
   "teach.failedTest": "The lesson did not pass its own test, so it was not shown to you. Your mentor is still here below.",
   "teach.failedCostLimit": "Your cost limit of ${usd} per lesson was reached before the lesson passed its checks. Raise or turn off the limit in My profile → Settings → Lesson costs, then try again.",
   "teach.failedBudget": "Making the lesson took too long, so it was stopped. Your mentor is still here below; try again in a moment.",
+  "teach.failedSetup": "Trellis cannot check lessons right now: the lesson checker is not set up correctly. Nothing was spent. The server log says what to fix.",
   "gate.welcomeBack": "Welcome back",
   "gate.who": "Who are you?",
   "gate.password": "Password",

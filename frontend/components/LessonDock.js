@@ -155,7 +155,7 @@ export default function LessonDock({ conceptId, conceptName, group, lang, onOpen
       <button className="textlink" onClick={() => teach.cancelJob(job.id).then(setJob).catch(() => {})}>{t("teach.cancel")}</button>
     </div>}
     {job?.stage === "ready" && <div className="teach-ready"><p>{job.detail}</p><button className="btn primary" onClick={() => open(job.lesson_id, job.lesson_version_id)}>{t("teach.open")} →</button> <button className="textlink" onClick={() => { setJob(null); setMakeOpen(true); }}>{t("teach.makeAnother")}</button></div>}
-    {job && ["failed", "cancelled"].includes(job.stage) && <p className="teach-failed" role="alert">{job.stage === "cancelled" ? t("teach.cancelled") : job.error === "cost_limit" ? t("teach.failedCostLimit", { usd: job.detail || "" }) : t({ not_published: "teach.failedTest", budget: "teach.failedBudget" }[job.error] || "teach.failed")} <button className="textlink" onClick={() => setJob(null)}>{t("teach.retry")}</button></p>}
+    {job && ["failed", "cancelled"].includes(job.stage) && <p className="teach-failed" role="alert">{job.stage === "cancelled" ? t("teach.cancelled") : job.error === "cost_limit" ? t("teach.failedCostLimit", { usd: job.detail || "" }) : t({ not_published: "teach.failedTest", budget: "teach.failedBudget", workbench_unavailable: "teach.failedSetup" }[job.error] || "teach.failed")} <button className="textlink" onClick={() => setJob(null)}>{t("teach.retry")}</button></p>}
     {error && <p className="teach-failed" role="alert">{error}</p>}
 
     {(ctx.references?.length > 0 || ctx.recommendations?.length > 0) && <details className="teach-more"><summary>{t("teach.cards", { references: ctx.references.length })}</summary>

@@ -532,6 +532,7 @@ const nl = {
   "teach.failedTest": "De les kwam niet door zijn eigen test en is je daarom niet getoond. Je mentor is er hieronder nog gewoon.",
   "teach.failedCostLimit": "Je kostenlimiet van ${usd} per les was bereikt voordat de les door zijn controles kwam. Verhoog of zet de limiet uit in Mijn profiel → Instellingen → Leskosten en probeer het opnieuw.",
   "teach.failedBudget": "Het maken van de les duurde te lang en is gestopt. Je mentor is er hieronder nog gewoon; probeer het zo opnieuw.",
+  "teach.failedSetup": "Trellis kan nu geen lessen controleren: de lescontrole is niet goed ingesteld. Er is niets uitgegeven. Het serverlog zegt wat je moet aanpassen.",
   "gate.welcomeBack": "Welkom terug",
   "gate.who": "Wie ben je?",
   "gate.password": "Wachtwoord",

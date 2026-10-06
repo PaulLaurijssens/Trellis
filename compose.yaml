@@ -79,11 +79,15 @@ services:
       dockerfile: Dockerfile.prod
     user: "10003:10002"
     read_only: true
+    environment:
+      # The API seeds the lesson components into <volume>/assets. Point the workbench there:
+      # with the volume root as its assets folder it found no component, and every lesson failed.
+      AUTHOR_ASSETS_DIR: /artifacts/assets
     tmpfs:
       - /work:size=256m,uid=10003,gid=10002,mode=0700
       - /tmp:size=256m,uid=10003,gid=10002,mode=0700
     volumes:
-      - artifacts:/assets:ro           # only the shared components; lessons are written by the API
+      - artifacts:/artifacts:ro        # read-only; the workbench only reads assets/ (paths are checked in bundle.py)
     networks: [author]                 # no route to the database or the internet
     cap_drop: [ALL]
     pids_limit: 256

@@ -1,12 +1,14 @@
 """Client for trellis-author (the lesson workbench). Internal HTTP, never through the egress proxy:
 the API's environment has HTTP(S)_PROXY set, so the proxy is switched off explicitly here."""
 import json
+import logging
 import os
 import urllib.error
 import urllib.request
 
 BASE = os.getenv("AUTHOR_URL", "http://trellis-author:8700").rstrip("/")
 _opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+log = logging.getLogger(__name__)
 
 
 class WorkerError(RuntimeError):
@@ -30,10 +32,15 @@ def _call(method: str, path: str, body: dict | None = None, timeout: float = 30.
 
 
 def healthy() -> bool:
+    """The workbench answers and can see the lesson components. Checked before a job spends tokens."""
     try:
-        return bool(_call("GET", "/health", timeout=3).get("ok"))
+        health = _call("GET", "/health", timeout=3)
     except WorkerError:
         return False
+    if health.get("ok") and health.get("assets") is False:
+        log.warning("lesson workbench sees no lesson components: check its AUTHOR_ASSETS_DIR and volume mount")
+        return False
+    return bool(health.get("ok"))
 
 
 def write_file(job_id, path, content):
