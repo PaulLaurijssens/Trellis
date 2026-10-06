@@ -88,10 +88,18 @@ def concept_context(person_id: str, concept_id: str, body: TopicLookup):
     topic_id = topics[0]["id"] if topics else None
     job = graph.run('''MATCH (j:LessonJob {person_id:$pid}) WHERE j.stage IN $active
         RETURN j.id AS id, j.stage AS stage, j.request_json AS request LIMIT 1''', pid=person_id, active=lessons.ACTIVE_JOB_STAGES)
+    # The newest job for this concept, when it failed but its lesson was kept and not opened yet: the learner
+    # gets "Open it anyway / Fix these" back after a reload instead of an empty form.
+    recent = graph.run('''MATCH (j:LessonJob {person_id:$pid}) RETURN j.id AS id, j.request_json AS request
+        ORDER BY j.created_at DESC LIMIT 20''', pid=person_id)
+    last = next((r["id"] for r in recent if json.loads(r["request"] or "{}").get("concept_id") == concept_id), None)
+    last = lessons.get_job(person_id, last) if last else None
+    kept = _public_job(last) if last and last["stage"] == "failed" and last.get("draft") and not last.get("lesson_version_id") else None
     return {"topics": topics, "lessons": made, "resume": next((l for l in made if l["open_run_id"]), None),
             "references": lessons.references_for(person_id, topic_id=topic_id, concept_id=concept_id),
             "recommendations": lessons.recommendations(person_id, topic_id), "defaults": objectives.defaults(person_id),
-            "active_job": ({"id": job[0]["id"], "stage": job[0]["stage"], "concept_id": json.loads(job[0]["request"]).get("concept_id")} if job else None)}
+            "active_job": ({"id": job[0]["id"], "stage": job[0]["stage"], "concept_id": json.loads(job[0]["request"]).get("concept_id")} if job else None),
+            "kept_job": kept}
 
 
 @router.get("/topics/{topic_id}/objective")
@@ -128,25 +136,50 @@ class JobCreate(BaseModel):
     time_budget_min: Literal[5, 10, 20] = 10
     intent: str | None = None
     note: str | None = Field(None, max_length=400)
+    device: Literal["phone", "desktop"] = "desktop"      # phone: phone layout problems block the lesson
+    repair_of: str | None = Field(None, max_length=64)    # "Fix these": continue from the kept draft of this failed job
     idempotency_key: str = Field(min_length=8, max_length=80)
 
 
 def _public_job(job):
-    out = {k: job.get(k) for k in ("id", "stage", "error", "detail", "repairs", "lesson_id", "lesson_version_id", "created_at", "updated_at")}
+    out = {k: job.get(k) for k in ("id", "stage", "error", "detail", "repairs", "lesson_id", "lesson_version_id", "created_at", "updated_at", "draft")}
+    out["repair_of"] = job["request"].get("repair_of")
     out["concept_id"] = job["request"].get("concept_id")
     return out
 
 
 @router.post("/lesson-jobs")
 async def create_lesson_job(person_id: str, body: JobCreate):
-    if not objectives.get_topic(body.topic_id):
+    request = body.model_dump(exclude={"idempotency_key"})
+    if body.repair_of:
+        # The repair asks for the same lesson again: topic, concept and goal come from the failed job, not the client.
+        old = lessons.get_job(person_id, body.repair_of)
+        if not old or old["stage"] != "failed" or not old.get("draft"):
+            raise HTTPException(404, "There is no kept lesson to fix")
+        request = {**old["request"], "device": body.device, "repair_of": body.repair_of}
+    if not objectives.get_topic(request["topic_id"]):
         raise HTTPException(404, "Topic not found")
-    if body.intent is not None and body.intent not in model.INTENTS:
+    if request.get("intent") is not None and request["intent"] not in model.INTENTS:
         raise HTTPException(400, "intent")
-    job, created = guarded(lessons.create_job, person_id, body.model_dump(exclude={"idempotency_key"}), body.idempotency_key)
+    job, created = guarded(lessons.create_job, person_id, request, body.idempotency_key)
     if created:
         asyncio.create_task(asyncio.to_thread(orchestrator.run_job, person_id, job["id"]))
     return _public_job(job)
+
+
+@router.post("/lesson-jobs/{job_id}/open-draft")
+def open_lesson_draft(person_id: str, job_id: str):
+    """"Open it anyway": the kept lesson becomes a version, marked with the checks it did not pass."""
+    job = lessons.get_job(person_id, job_id)
+    if not job or not job.get("draft"):
+        raise HTTPException(404, "There is no kept lesson to open")
+    if job.get("lesson_version_id"):
+        return {"lesson_id": job["lesson_id"], "version_id": job["lesson_version_id"]}
+    draft = artifacts.read_draft(job_id)
+    if not draft or draft.get("person_id") != person_id or not draft.get("html"):
+        raise HTTPException(409, "This lesson cannot be opened: it broke a safety rule or did not load. Use Fix these.")
+    published = orchestrator.publish_draft(person_id, job_id, draft)
+    return {"lesson_id": published["lesson_id"], "version_id": published["version_id"]}
 
 
 @router.get("/lesson-jobs/summary")
@@ -184,8 +217,9 @@ def get_version(person_id: str, lesson_id: str, version_id: str):
     version = lessons.get_version(person_id, version_id)
     if not version or version["lesson_id"] != lesson_id:
         raise HTTPException(404, "Lesson not found")
-    return {k: version[k] for k in ("id", "lesson_id", "manifest", "sources", "language", "outcome", "created_at",
-                                    "skill_upstream_commit", "skill_adaptation_revision", "content_hash")}
+    return {k: version.get(k) for k in ("id", "lesson_id", "manifest", "sources", "language", "outcome", "created_at",
+                                        "skill_upstream_commit", "skill_adaptation_revision", "content_hash",
+                                        "phone_issues", "open_issues")}     # the two notes the lesson screen shows
 
 
 @router.get("/lessons/{lesson_id}/versions/{version_id}/artifact")

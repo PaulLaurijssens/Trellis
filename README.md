@@ -170,6 +170,14 @@ model's context, and uses prompt caching where the provider supports it. There i
 default. The owner can set one per lesson in the same card ($0.50, $1 or $2): near the limit the
 author stops adding new parts and publishes what passed its checks. `.env.example` lists the other knobs.
 
+Every lesson is tested in a hidden browser before you see it: safe (no internet, no forbidden code),
+starts within 10 seconds, no errors, complete, readable. Phone layout problems block a lesson only when
+you ask for it on a phone; made on a computer, the lesson gets a "may not work well on a phone" note.
+A lesson that still fails is never thrown away. Trellis first checks it once more without the AI (free).
+If it still fails, you see what failed and choose: **Fix these** (the AI continues from that lesson and
+fixes only those problems, for fewer tokens than a new lesson) or **Open it anyway** (free; only for
+quality problems, never for safety ones).
+
 ## Reset a password
 
 On the machine that runs Trellis:

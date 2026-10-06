@@ -31,6 +31,7 @@ export const teach = {
   usageSummary: (days = 30) => req("/lesson-jobs/summary?days=" + days),
   job: (id) => req("/lesson-jobs/" + id),
   cancelJob: (id) => req("/lesson-jobs/" + id + "/cancel", { method: "POST" }),
+  openDraft: (id) => req("/lesson-jobs/" + id + "/open-draft", { method: "POST" }),
   version: (lessonId, versionId) => req("/lessons/" + lessonId + "/versions/" + versionId),
   artifactUrl: (lessonId, versionId) => BASE + "/teach/" + me() + "/lessons/" + lessonId + "/versions/" + versionId + "/artifact",
   createRun: (versionId, minutes) => req("/runs", body({ lesson_version_id: versionId, time_budget_min: minutes || null })),

@@ -16,7 +16,7 @@ WORK = Path(os.getenv("AUTHOR_WORK_DIR", "/work"))
 ASSETS = Path(os.getenv("AUTHOR_ASSETS_DIR", "/assets"))
 JOB = re.compile(r"^[A-Za-z0-9-]{8,64}$")
 MAX_BODY = 1024 * 1024
-MAX_JOB_BYTES = 4 * 1024 * 1024
+MAX_JOB_BYTES = 10 * 1024 * 1024
 MAX_JOBS = 8
 _browser_lock = threading.Lock()          # one Chromium at a time keeps memory bounded
 
@@ -44,7 +44,7 @@ def op_write(job, body):
         raise bundler.BundleError("allowed file types: .html .css .js .json .svg .md .txt")
     used = sum(p.stat().st_size for p in job.rglob("*") if p.is_file() and p != target)
     if used + len(content.encode()) > MAX_JOB_BYTES:
-        raise bundler.BundleError("the lesson directory is full (4 MB)")
+        raise bundler.BundleError(f"the lesson directory is full ({MAX_JOB_BYTES // (1024 * 1024)} MB)")
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(content, encoding="utf-8")
     return {"path": body["path"], "bytes": len(content.encode())}
@@ -73,7 +73,7 @@ def op_validate(job, body):
     import validate                        # imports Playwright; keep the service startable without it
     with _browser_lock:
         browser = validate.run(result["html"], result["script_hashes"], body.get("manifest") or {},
-                               screenshot=body.get("screenshot", True))
+                               screenshot=body.get("screenshot", True), phone_strict=bool(body.get("phone_strict")))
     return {**report, **browser}
 
 

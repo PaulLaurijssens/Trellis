@@ -136,3 +136,27 @@ def read_lesson(lesson_id: str, content_hash: str) -> str:
     if hashlib.sha256(data).hexdigest() != content_hash:
         raise FileNotFoundError("lesson file does not match its recorded hash")
     return data.decode("utf-8")
+
+
+# ---- Drafts: a lesson that did not pass its checks is kept, not thrown away --------------------
+# The source files (so "Fix these" continues from them) and, when it bundled without breaking a safety
+# rule, the bundled page (so "Open it anyway" can publish it). One JSON file per failed job.
+
+def _draft_path(job_id: str) -> Path:
+    if not UUID.match(job_id or ""):
+        raise ValueError("Invalid job id")
+    return ROOT / "drafts" / f"{job_id}.json"
+
+
+def store_draft(job_id: str, data: dict) -> None:
+    path = _draft_path(job_id)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
+    path.chmod(0o640)
+
+
+def read_draft(job_id: str) -> dict | None:
+    try:
+        return json.loads(_draft_path(job_id).read_text(encoding="utf-8"))
+    except (FileNotFoundError, ValueError):
+        return None

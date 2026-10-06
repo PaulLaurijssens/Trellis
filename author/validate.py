@@ -15,7 +15,7 @@ from bundle import csp
 
 ORIGIN = "http://trellis.invalid"
 HARNESS = (Path(__file__).parent / "harness.html").read_text()
-READY_TIMEOUT_MS = 5000
+READY_TIMEOUT_MS = 10000
 
 PROBE = """() => {
   const visible = (el) => { const r = el.getBoundingClientRect(); const s = getComputedStyle(el);
@@ -69,8 +69,11 @@ CONTRAST = """() => {
 }"""
 
 
-def run(html: str, hashes: list[str], manifest: dict, screenshot: bool = True) -> dict:
-    errors, warnings, blocked, console = [], [], [], []
+def run(html: str, hashes: list[str], manifest: dict, screenshot: bool = True, phone_strict: bool = False) -> dict:
+    """Phone layout problems (sideways scroll, small buttons, several activities at once) block the lesson only
+    when the learner asked for it on a phone (`phone_strict`). Made on a computer, they are warnings and the
+    lesson is marked "may not work well on a phone": a good desktop lesson is never thrown away for them."""
+    errors, warnings, blocked, console, phone_issues = [], [], [], [], []
     started = time.monotonic()
     with sync_playwright() as p:
         browser = p.chromium.launch(args=["--no-sandbox", "--disable-dev-shm-usage", "--disable-gpu"])
@@ -102,7 +105,7 @@ def run(html: str, hashes: list[str], manifest: dict, screenshot: bool = True) -
                 try:
                     page.wait_for_function("window.__ready === true", timeout=READY_TIMEOUT_MS)
                 except Exception:
-                    errors.append("lesson.ready was not received within 5 s: load the SDK and call TrellisLesson.start()")
+                    errors.append(f"lesson.ready was not received within {READY_TIMEOUT_MS // 1000} s: load the SDK and call TrellisLesson.start()")
                 ready_ms = int((time.monotonic() - t0) * 1000)
                 page.wait_for_timeout(300)
                 frame = next((f for f in page.frames if f.url == ORIGIN + "/lesson"), None)
@@ -134,7 +137,7 @@ def run(html: str, hashes: list[str], manifest: dict, screenshot: bool = True) -
             errors.append(f"{name}: the lesson did not load")
             continue
         if probe["overflow"] > 1:
-            errors.append(f"{name}: the page scrolls horizontally by {probe['overflow']} px")
+            (phone_issues if name == "phone" else errors).append(f"{name}: the page scrolls horizontally by {probe['overflow']} px")
         if (host.get("loads") or 0) > 1:
             errors.append(f"{name}: the lesson navigated or reloaded itself")
         if host.get("rejected"):
@@ -148,7 +151,7 @@ def run(html: str, hashes: list[str], manifest: dict, screenshot: bool = True) -
         for missing in [a for a in declared if a not in found]:
             errors.append(f'activity "{missing}" is in the manifest but has no <section data-dl-activity="{missing}">')
         if sum(a["visible"] for a in phone["activities"]) > 1:
-            errors.append("phone: more than one activity is visible at the same time; the SDK stepper shows one")
+            phone_issues.append("phone: more than one activity is visible at the same time; the SDK stepper shows one")
         if not phone["objective"]:
             errors.append("the lesson does not show its outcome: add an element with data-dl-objective")
         if not phone["askMentor"]:
@@ -168,7 +171,7 @@ def run(html: str, hashes: list[str], manifest: dict, screenshot: bool = True) -
                 if t["type"] in ("range", "checkbox", "radio"):
                     continue
                 if min(t["w"], t["h"]) < 32:
-                    errors.append(f"step {step['step']}: touch target too small ({t['w']}x{t['h']} px): {t['tag']} {t['label']!r}; use .dl-btn / .dl-input (44 px)")
+                    phone_issues.append(f"step {step['step']}: touch target too small ({t['w']}x{t['h']} px): {t['tag']} {t['label']!r}; use .dl-btn / .dl-input (44 px)")
                 elif min(t["w"], t["h"]) < 44:
                     warnings.append(f"step {step['step']}: touch target under 44 px ({t['w']}x{t['h']}): {t['tag']} {t['label']!r}")
     for step in report.get("steps") or []:
@@ -178,7 +181,8 @@ def run(html: str, hashes: list[str], manifest: dict, screenshot: bool = True) -
         if step["lightBoxes"] and not any(i["light_background"] for i in step["bad"]):
             warnings.append(f"step {step['step']}: {step['lightBoxes']} light-coloured box(es) in a dark lesson; use the theme tokens")
         if step["overflow"] > 1:
-            errors.append(f"step {step['step']}: scrolls horizontally by {step['overflow']} px on a phone")
+            phone_issues.append(f"step {step['step']}: scrolls horizontally by {step['overflow']} px on a phone")
+    (errors if phone_strict else warnings).extend(phone_issues)
     if (report.get("phone") or {}).get("ready_ms", 0) > 3000:
         warnings.append("the lesson needs more than 3 s to become ready")
     if blocked:
@@ -189,7 +193,7 @@ def run(html: str, hashes: list[str], manifest: dict, screenshot: bool = True) -
             hint = (" -> a coordinate is not a number. Draw with TrellisLesson.plane helpers (they name the bad argument), pass points as "
                     "[[x, y], ...] arrays of numbers, check every division (sigma = 0?) and every value read from state or an input (Number(...)).")
         errors.append("browser error: " + line + hint)
-    return {"ok": not errors, "errors": errors[:25], "warnings": warnings[:15],
+    return {"ok": not errors, "errors": errors[:25], "warnings": warnings[:15], "phone_issues": phone_issues[:15],
             "screenshots_jpeg_b64": report.get("screenshots_jpeg_b64") or [],
             "ready_ms": (report.get("phone") or {}).get("ready_ms"),
             "seconds": round(time.monotonic() - started, 1),

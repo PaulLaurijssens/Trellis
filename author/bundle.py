@@ -10,7 +10,7 @@ from pathlib import Path
 
 MAX_FILE = 512 * 1024
 MAX_FILES = 40
-MAX_BUNDLE = 3 * 1024 * 1024
+MAX_BUNDLE = 10 * 1024 * 1024        # the shared components are ~0.3 MB; the rest is the lesson's own code and media
 ASSET_REF = re.compile(r"^assets/([a-z0-9][a-z0-9-]{0,63})/(\d+\.\d+\.\d+)/([A-Za-z0-9][A-Za-z0-9._/-]{0,200})$")
 IMAGE_TYPES = {".svg": "image/svg+xml", ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
                ".webp": "image/webp", ".gif": "image/gif"}

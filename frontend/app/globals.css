@@ -1520,3 +1520,12 @@ button.chip:hover:not(:disabled) { border-color: rgba(84, 169, 255, 0.45); color
 .costs-card .costs-limit { margin:14px 0 6px; padding-top:12px; border-top:1px solid var(--line-soft); }
 .costs-card .costs-limit h5 { margin:0 0 8px; font-size:16px; font-weight:600; color:var(--text-2); }
 .costs-card .costs-limit .seg button.on { background: rgba(95, 206, 158, 0.16); color: var(--accent-soft); }
+/* "May not work well on a phone": only phones need to see it. */
+.teach-phone-note { display:none; margin:8px 0 0; color:var(--text-2); }
+@media (max-width: 800px) { .teach-phone-note { display:block; } }
+/* A lesson that did not pass every check, kept: fix it or open it anyway. */
+.teach-kept { margin: 12px 0 0; padding: 16px 18px; border-radius: 14px; border: 1px solid rgba(232, 179, 77, 0.35); background: rgba(232, 179, 77, 0.06); }
+.teach-kept p { margin: 0 0 8px; color: var(--text-1); line-height: 1.5; }
+.teach-kept ul { margin: 0 0 14px; padding-left: 20px; color: var(--text-2); line-height: 1.6; }
+.teach-kept .teach-actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 8px; }
+.teach-open-issues { margin: 8px 0 0; color: var(--text-2); }

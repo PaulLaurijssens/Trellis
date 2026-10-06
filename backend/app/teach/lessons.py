@@ -27,6 +27,7 @@ def _job(props):
     out["request"] = json.loads(out.pop("request_json", "{}") or "{}")
     out["usage"] = json.loads(out.pop("usage_json", "null") or "null")
     out["trace"] = json.loads(out.pop("trace_json", "[]") or "[]")
+    out["draft"] = json.loads(out.pop("draft_json", "null") or "null")      # a failed lesson that was kept: {issues, can_open}
     return out
 
 
@@ -71,7 +72,7 @@ def create_job(person_id, request: dict, idempotency_key: str) -> tuple[dict, bo
 
 def set_stage(job_id, stage, **fields):
     assert stage in model.JOB_STAGES
-    allowed = {k: v for k, v in fields.items() if k in ("error", "detail", "lesson_id", "lesson_version_id", "usage_json", "trace_json", "repairs")}
+    allowed = {k: v for k, v in fields.items() if k in ("error", "detail", "lesson_id", "lesson_version_id", "usage_json", "trace_json", "repairs", "draft_json")}
     graph.run("MATCH (j:LessonJob {id:$jid}) WHERE NOT j.stage IN $terminal SET j.stage=$stage, j.updated_at=$now, j += $fields",
               jid=job_id, stage=stage, now=graph._now(), fields=allowed, terminal=list(model.JOB_TERMINAL))
 
@@ -132,6 +133,9 @@ def _version(props, with_spec=False):
     out = {k: v for k, v in props.items() if k not in ("spec_json", "validation_report_json", "source_snapshot_json")}
     out["manifest"] = model.public_manifest(spec) if spec else None
     out["sources"] = json.loads(props.get("source_snapshot_json") or "[]")      # id, title, url: the host opens them, not the frame
+    report = json.loads(props.get("validation_report_json") or "{}")
+    out["phone_issues"] = len(report.get("phone_issues") or [])                  # > 0: show "may not work well on a phone"
+    out["open_issues"] = report.get("opened_with_issues") or []                  # opened anyway: [{kind, steps}] it did not pass
     if with_spec:
         out["spec"] = spec
     return out

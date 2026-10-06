@@ -11,6 +11,8 @@ const FAMILIARITY = ["new", "basics", "using"];
 const APPROACHES = ["concepts", "examples", "hands_on", "mix"];
 const MINUTES = [5, 10, 20];
 const STAGES = ["queued", "preparing", "generating", "validating"];
+// A lesson asked for on a phone must work on a phone; one made on a computer gets phone problems as a note, not a fail.
+const device = () => (typeof window !== "undefined" && window.matchMedia("(max-width: 800px), (pointer: coarse)").matches ? "phone" : "desktop");
 
 function Pills({ label, options, value, onChange, render }) {
   return <fieldset className="teach-pills"><legend>{label}</legend>
@@ -39,6 +41,7 @@ export default function LessonDock({ conceptId, conceptName, group, lang, onOpen
       setCtx(c);
       if (c.defaults?.time_budget_min) setMinutes(c.defaults.time_budget_min);
       if (c.active_job && c.active_job.concept_id === conceptId) setJob((j) => j || c.active_job);
+      else if (c.kept_job && c.kept_job.concept_id === conceptId) setJob((j) => j || c.kept_job);     // a failed lesson that was kept
     } catch { if (alive.current) setCtx({ unavailable: true }); }
   }, [conceptId, group]);
 
@@ -80,7 +83,7 @@ export default function LessonDock({ conceptId, conceptName, group, lang, onOpen
     setMode("idle"); setDraft(null);
     // The goal is the reason for the lesson: start the job right away instead of showing the button again.
     const created = await teach.createJob({ topic_id, concept_id: conceptId, objective_id: saved?.id || saved?.objective?.id || null, language: lang,
-      time_budget_min: minutes, intent: answers.intent || null, note: note.trim() || null,
+      time_budget_min: minutes, intent: answers.intent || null, note: note.trim() || null, device: device(),
       idempotency_key: "job-" + conceptId.slice(0, 8) + "-" + Date.now().toString(36) });
     if (alive.current) setJob(created);
     await load();
@@ -88,13 +91,27 @@ export default function LessonDock({ conceptId, conceptName, group, lang, onOpen
   const makeLesson = (withObjective) => guard(async () => {
     const tp = await ensureTopic();
     const created = await teach.createJob({ topic_id: tp.id, concept_id: conceptId, objective_id: withObjective ? objective?.id : null, language: lang,
-      time_budget_min: minutes, intent: answers.intent || null, note: note.trim() || null,
+      time_budget_min: minutes, intent: answers.intent || null, note: note.trim() || null, device: device(),
       idempotency_key: "job-" + conceptId.slice(0, 8) + "-" + Date.now().toString(36) });
     if (alive.current) setJob(created);
   });
   const open = (lessonId, versionId) => onOpen({ lessonId, versionId, minutes });
 
   const running = job && STAGES.includes(job.stage);
+  // The lesson did not pass every check, but it was kept: fix it (cheaper than a new one) or open it anyway.
+  const kept = job?.stage === "failed" && job.draft && !job.lesson_version_id ? job : null;
+  const fixKept = () => guard(async () => {
+    const created = await teach.createJob({ topic_id: topic?.id || "kept", concept_id: conceptId, language: lang, time_budget_min: minutes,
+      repair_of: kept.id, device: device(), idempotency_key: "fix-" + kept.id.slice(0, 8) + "-" + Date.now().toString(36) });
+    if (alive.current) setJob(created);
+  });
+  const openKept = () => guard(async () => {
+    const r = await teach.openDraft(kept.id);
+    if (!alive.current) return;
+    setJob(null);
+    open(r.lesson_id, r.version_id);
+    load();
+  });
   const latest = ctx.lessons?.[0] || null;             // newest first (server order)
   // The syllabus: the topic's lessons in the order they were written. Each is a block: done, in progress or not started.
   const syllabus = (ctx.lessons || []).slice().sort((a, b) => (a.created_at || "").localeCompare(b.created_at || ""));
@@ -127,7 +144,7 @@ export default function LessonDock({ conceptId, conceptName, group, lang, onOpen
         <button className="textlink" disabled={busy} onClick={() => setMode("questions")}>{t("teach.back")}</button></div>
     </div>}
 
-    {mode === "idle" && !running && job?.stage !== "ready" && <div className="teach-start">
+    {mode === "idle" && !running && !kept && job?.stage !== "ready" && <div className="teach-start">
       {/* One primary action. A lesson in progress: continue it. Lessons made: open the newest. None yet: set a goal (which makes the lesson) or make one without a goal. */}
       {syllabus.length > 0 && <ol className="syllabus" aria-label={t("teach.syllabus")}>
         {syllabus.map((l, i) => { const st = blockState(l); return <li key={l.lesson_id} className={"syllabus-block " + st}>
@@ -150,12 +167,23 @@ export default function LessonDock({ conceptId, conceptName, group, lang, onOpen
 
     {running && <div className="teach-progress" role="status" aria-live="polite">
       <ol>{STAGES.map((s) => <li key={s} className={s === job.stage ? "now" : STAGES.indexOf(s) < STAGES.indexOf(job.stage) ? "done" : ""}>{t("teach.stage." + s)}</li>)}</ol>
+      {job.repair_of && <p className="teach-hint teach-repair">{t("teach.kept.fixing")}</p>}
       {job.repairs > 0 && <p className="teach-hint teach-repair">{t("teach.repairing", { n: job.repairs })}</p>}
       <p className="teach-hint">{t("teach.progressHint")}</p>
       <button className="textlink" onClick={() => teach.cancelJob(job.id).then(setJob).catch(() => {})}>{t("teach.cancel")}</button>
     </div>}
     {job?.stage === "ready" && <div className="teach-ready"><p>{job.detail}</p><button className="btn primary" onClick={() => open(job.lesson_id, job.lesson_version_id)}>{t("teach.open")} →</button> <button className="textlink" onClick={() => { setJob(null); setMakeOpen(true); }}>{t("teach.makeAnother")}</button></div>}
-    {job && ["failed", "cancelled"].includes(job.stage) && <p className="teach-failed" role="alert">{job.stage === "cancelled" ? t("teach.cancelled") : job.error === "cost_limit" ? t("teach.failedCostLimit", { usd: job.detail || "" }) : t({ not_published: "teach.failedTest", budget: "teach.failedBudget", workbench_unavailable: "teach.failedSetup" }[job.error] || "teach.failed")} <button className="textlink" onClick={() => setJob(null)}>{t("teach.retry")}</button></p>}
+    {kept && <div className="teach-kept" role="alert">
+      <p><b>{t("teach.kept.title")}</b></p>
+      <ul>{(kept.draft.issues || []).map((i) => <li key={i.kind}>{t("teach.issue." + i.kind)}{i.steps?.length ? " (" + t("teach.issueSteps", { steps: i.steps.join(", ") }) + ")" : ""}</li>)}</ul>
+      <div className="teach-actions">
+        <button className="btn primary" disabled={busy} onClick={fixKept}>{busy ? <span className="spinner" /> : t("teach.kept.fix")}</button>
+        {kept.draft.can_open && <button className="btn" disabled={busy} onClick={openKept}>{t("teach.kept.open")}</button>}
+        <button className="textlink" disabled={busy} onClick={() => { setJob(null); setMakeOpen(true); }}>{t("teach.kept.startOver")}</button>
+      </div>
+      <p className="teach-hint">{kept.draft.can_open ? t("teach.kept.hint") : t("teach.kept.cannotOpen")}</p>
+    </div>}
+    {job && !kept && ["failed", "cancelled"].includes(job.stage) && <p className="teach-failed" role="alert">{job.stage === "cancelled" ? t("teach.cancelled") : job.error === "cost_limit" ? t("teach.failedCostLimit", { usd: job.detail || "" }) : t({ not_published: "teach.failedTest", budget: "teach.failedBudget", workbench_unavailable: "teach.failedSetup" }[job.error] || "teach.failed")} <button className="textlink" onClick={() => setJob(null)}>{t("teach.retry")}</button></p>}
     {error && <p className="teach-failed" role="alert">{error}</p>}
 
     {(ctx.references?.length > 0 || ctx.recommendations?.length > 0) && <details className="teach-more"><summary>{t("teach.cards", { references: ctx.references.length })}</summary>

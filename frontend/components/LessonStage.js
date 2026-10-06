@@ -54,6 +54,8 @@ export default function LessonStage({ lessonId, versionId, minutes, onAsk, onAct
       {(!online || !synced) && <span className="teach-offline" role="status">{online ? t("teach.notSaved") : t("teach.offline")}</span>}
       <button className="textlink" onClick={onClose}>{t("teach.pause")}</button>
     </div>
+    {version?.phone_issues > 0 && <p className="teach-hint teach-phone-note">{t("teach.phoneNote")}</p>}
+    {version?.open_issues?.length > 0 && <p className="teach-hint teach-open-issues">{t("teach.openedWithIssues")}</p>}
     {status === "loading" && <p className="teach-hint"><span className="spinner" /> {t("teach.loading")}</p>}
     {status === "error" && <p className="teach-failed" role="alert">{t("teach.loadFailed")}</p>}
     {status === "stopped" && <p className="teach-failed" role="alert">{t("teach.stopped")}{stopReason && <><br /><small>({stopReason})</small></>}</p>}

@@ -55,8 +55,8 @@ def list_files(job_id):
     return _call("POST", f"/jobs/{job_id}/list")["files"]
 
 
-def validate(job_id, manifest, screenshot=True):
-    return _call("POST", f"/jobs/{job_id}/validate", {"manifest": manifest, "screenshot": screenshot}, timeout=120)
+def validate(job_id, manifest, screenshot=True, phone_strict=False):
+    return _call("POST", f"/jobs/{job_id}/validate", {"manifest": manifest, "screenshot": screenshot, "phone_strict": phone_strict}, timeout=120)
 
 
 def bundle(job_id):
