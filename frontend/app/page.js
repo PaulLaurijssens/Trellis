@@ -349,6 +349,8 @@ function App({ onLogout }) {
       for (const w of res.meta?.warnings || []) toast({ type: "error", text: w });
       return true;
     } catch (e) {
+      // A link that could not be read: no error toast, the Link tab offers a paste box instead.
+      if (e.info?.paste) return { paste: true, message: e.message, title: e.info.title || "" };
       fail(e);
       return false;
     } finally {

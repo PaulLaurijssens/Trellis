@@ -1529,3 +1529,7 @@ button.chip:hover:not(:disabled) { border-color: rgba(84, 169, 255, 0.45); color
 .teach-kept ul { margin: 0 0 14px; padding-left: 20px; color: var(--text-2); line-height: 1.6; }
 .teach-kept .teach-actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 8px; }
 .teach-open-issues { margin: 8px 0 0; color: var(--text-2); }
+/* Link tab: the site would not hand over the article, so the learner pastes it; the link stays the source. */
+.link-paste { display: flex; flex-direction: column; gap: 10px; margin-top: 4px; }
+.link-paste p { margin: 0; line-height: 1.5; }
+.link-paste .paste { min-height: 160px; }

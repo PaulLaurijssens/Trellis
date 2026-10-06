@@ -58,6 +58,30 @@ class SourcesTests(unittest.TestCase):
                 s._fetch('https://example.org', 1000)
             self.assertIn('INGEST_URL_FETCH', str(err.exception))
 
+    # A link that cannot be read offers a paste box (paste=True) and, when the page had one, its title.
+    def test_a_bad_address_does_not_offer_the_paste_box(self):
+        with self.assertRaises(self.sources.SourceError) as err:
+            self.sources.article_text('not a link')
+        self.assertFalse(err.exception.paste)
+
+    def test_a_refused_fetch_offers_the_paste_box(self):
+        s = self.sources
+        with patch.object(s, '_fetch', side_effect=s.SourceError('The site answered 403.')):
+            with self.assertRaises(s.SourceError) as err:
+                s.article_text('https://example.org/story')
+        self.assertTrue(err.exception.paste)
+        self.assertIn('403', str(err.exception))
+
+    def test_a_bot_wall_offers_the_paste_box_with_the_page_title(self):
+        s = self.sources
+        page = b"<html><head><title>  Why cats &amp; dogs\n differ </title></head><body>Just a moment... enable JavaScript</body></html>"
+        fake = types.ModuleType('trafilatura'); fake.extract = lambda *a, **k: ''
+        with patch.object(s, '_fetch', return_value=(page, 'text/html')), patch.dict(sys.modules, {'trafilatura': fake}):
+            with self.assertRaises(s.SourceError) as err:
+                s.article_text('https://example.org/story')
+        self.assertTrue(err.exception.paste)
+        self.assertEqual(err.exception.title, 'Why cats & dogs differ')
+
 
 if __name__ == '__main__':
     unittest.main()

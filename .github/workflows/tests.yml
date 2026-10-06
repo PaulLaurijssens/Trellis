@@ -11,6 +11,16 @@ jobs:
       - run: python -m unittest discover -s backend/tests -p "test_teach_*.py" -v
       - run: python -m unittest backend.tests.test_memory_model backend.tests.test_illustrations backend.tests.test_suggestions -v
         working-directory: .
+  backend:
+    name: all backend unit tests (packages installed, no database)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - run: pip install -r backend/requirements.lock.txt
+      - run: python -m unittest discover -s tests -v
+        working-directory: backend
   compose:
     name: compose builds and starts
     runs-on: ubuntu-latest

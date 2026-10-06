@@ -235,6 +235,8 @@ async def ingest_url(body: IngestUrl, me: str = Me):
         out = await asyncio.to_thread(sources.article_text, body.url.strip())
     except sources.SourceError as exc:
         jobs.update(body.job_id, "error", 0, 0, str(exc))
+        if exc.paste:              # the Link tab offers a paste box and keeps this link as the source
+            raise HTTPException(422, {"message": str(exc), "paste": True, "title": exc.title})
         raise _source_error(exc)
     return await asyncio.to_thread(extract.suggest, out["text"], out["source_type"], out["title"][:200], body.url.strip(), body.job_id, language)
 

@@ -1,16 +1,32 @@
 # Trellis
 
-**A personal knowledge graph with an AI mentor that teaches you from your own sources.**
+**Structured learning on the topics you choose, taught by a mentor that learns how you learn.**
 
-You feed Trellis the things you learn from: YouTube videos, articles, papers, your own notes. It turns
-them into a map of concepts and how they depend on each other. A mentor explains any concept at the
-depth you choose, remembers what you understood and where you struggled, and builds short interactive
-lessons for you: predict, try, get feedback. Everything runs on your own machine or server, with your
-own model key. Your data never leaves it.
+Pick your topics and bring your videos, podcasts and papers. Trellis places each one on your personal
+knowledge map, turns that map into a learning path, and builds every lesson around you. Lessons are
+short and interactive (predict, try, get feedback), and the mentor remembers what you understood and
+where you struggled, so a concept comes back for a quick check when it is due.
+
+**Your data and memory are yours.** Everything is stored on your own computer or server, and you use
+your own AI key. For each answer, Trellis sends what the mentor needs to the AI provider you choose;
+with a local model, nothing leaves your machine.
 
 > Status: **alpha**, a personal project made public. It works for its author every day; expect rough
 > edges. Issues and pull requests are welcome. License: AGPL-3.0 (free to use, self-host and change;
 > if you offer it as a service, you must share your changes).
+
+**Try it** (about 15 minutes; the steps below explain each line). You need Docker Desktop and a key
+from one AI provider.
+
+```bash
+git clone https://github.com/PaulLaurijssens/Trellis.git && cd Trellis
+cp .env.example .env        # then put a long random string after NEO4J_PASSWORD= in .env
+docker compose up -d        # the first start takes 10 to 15 minutes
+```
+
+Then open <http://localhost:8080> and follow the three setup steps.
+
+<!-- Screenshots go here: docs/img/roadmap.png, docs/img/lesson.png, docs/img/phone.png -->
 
 ---
 
@@ -36,8 +52,8 @@ Resources, give Docker at least 6 GB of memory.
 Open a terminal (Mac: Terminal app; Windows: PowerShell) and run:
 
 ```bash
-git clone https://github.com/PaulLaurijssens/trellis.git
-cd trellis
+git clone https://github.com/PaulLaurijssens/Trellis.git
+cd Trellis
 ```
 
 No git? Download the ZIP from the green **Code** button on GitHub, unzip it, and `cd` into the folder.
@@ -60,7 +76,8 @@ inside Docker. Everything else in the file can stay as it is.
 docker compose up -d
 ```
 
-The first start downloads and builds everything: 5–10 minutes depending on your connection. Later
+The first start downloads and builds everything: 10 to 15 minutes, depending on your computer and
+connection. Later
 starts take seconds. When the command returns, open **<http://localhost:8080>** in your browser.
 
 ### 5. Finish the setup in the browser
@@ -93,7 +110,7 @@ Done. Add your first source with the **Add +** button.
 | Topic | A term you want to understand | Trellis writes a short source about it with your model. |
 | YouTube | A video link | Captions are fetched; without captions, Gemini watches the video. |
 | File | A PDF, an audio file or a text file | PDF up to 30 MB. Audio (mp3, m4a, wav, ogg) up to 25 MB is transcribed by your model provider: a few cents for an hour. |
-| Link | A web article, a PDF link, or a podcast feed (RSS) | A feed lists its episodes; pick one and it is downloaded and transcribed. A server behind an egress allow-list refuses fetches unless the host is allowed. |
+| Link | A web article, a PDF link, or a podcast feed (RSS) | A feed lists its episodes; pick one and it is downloaded and transcribed. Some sites block automatic reading (paywalls, bot checks, pages built with JavaScript). Then the Link tab asks you to paste the article text right there, and keeps the link as the source. |
 | Transcript, Paper/text | Pasted text | Time codes like `4:45` or `[00:12]` are kept, so the mentor can point to the moment. |
 
 Everything goes through the same review step: you tick the concepts you want before anything
@@ -101,11 +118,38 @@ enters your map.
 
 ### Your learning space
 
-The **Learning path** view draws your whole map as a roadmap: shared foundations on the left,
-specialist frontiers on the right, the green line is your route. **Start learning** turns that route
-into a course (a learning goal with ordered steps); the roadmap then shows your progress per branch.
+**The roadmap.** The *Learning path* view draws your whole map as a roadmap: shared foundations on
+the left, specialist topics on the right, and a green line for your route. **Start learning** turns
+that route into a course with ordered steps; the roadmap then shows your progress per branch.
+
+**A topic page** has three parts:
+
+- **Lesson**: the lessons of this topic as blocks (done, in progress, new). **Make me a lesson**
+  builds a new interactive lesson for the time you have (5, 10 or 20 minutes). It takes a few minutes.
+- **Study**: a written study guide at the depth you choose, from *First steps* to *Advanced*, built
+  from your own sources.
+- **Mentor**: a side panel next to the lesson. Ask anything; the mentor knows your study guide and
+  the lesson in front of you. *In context* shows where the concept sits in your map, your course,
+  and the sources that mention it. On a phone, the panel is a sheet you swipe away.
+
 **Due today** in the sidebar lists concepts that are ready for a short check: a streak of good
-answers lengthens the gap (1, 3, 7, 14, 30 days), a miss shortens it. It is an invitation, not homework.
+answers lengthens the gap (1, 3, 7, 14, 30 days), a miss shortens it. It is an invitation, not
+homework.
+
+### How lessons are checked
+
+Every lesson is tested in a hidden browser before you see it: it must be safe (no internet, no
+forbidden code), start within 10 seconds, run without errors, be complete, and be readable. Phone
+layout problems block a lesson only when you ask for it on a phone; a lesson made on a computer gets
+a "may not work well on a phone" note instead.
+
+A lesson that still fails is never thrown away. Trellis first checks it once more without the AI,
+which costs nothing. If it still fails, you see what failed, in plain words, and choose:
+
+- **Fix these**: the AI continues from that lesson and fixes only those problems, for fewer tokens
+  than a new lesson.
+- **Open it anyway**: free. Only for quality problems (hard-to-read text, an error in one part), never
+  for safety ones.
 
 ### Everyday commands
 
@@ -170,14 +214,6 @@ model's context, and uses prompt caching where the provider supports it. There i
 default. The owner can set one per lesson in the same card ($0.50, $1 or $2): near the limit the
 author stops adding new parts and publishes what passed its checks. `.env.example` lists the other knobs.
 
-Every lesson is tested in a hidden browser before you see it: safe (no internet, no forbidden code),
-starts within 10 seconds, no errors, complete, readable. Phone layout problems block a lesson only when
-you ask for it on a phone; made on a computer, the lesson gets a "may not work well on a phone" note.
-A lesson that still fails is never thrown away. Trellis first checks it once more without the AI (free).
-If it still fails, you see what failed and choose: **Fix these** (the AI continues from that lesson and
-fixes only those problems, for fewer tokens than a new lesson) or **Open it anyway** (free; only for
-quality problems, never for safety ones).
-
 ## Reset a password
 
 On the machine that runs Trellis:
@@ -209,15 +245,30 @@ locked frame with no network and no storage; answers are checked on the server. 
 ## For developers
 
 ```bash
-cp .env.example .env                                    # set NEO4J_PASSWORD and one model key
-docker compose -f compose.dev.yaml up -d                # hot reload: API on :8000, Neo4j browser on :7474
-cd frontend && npm install && NEXT_PUBLIC_API_URL=/api DEV_API_PROXY=http://localhost:8000 npm run dev
-docker compose -f compose.dev.yaml exec backend python -m unittest discover -s tests   # backend tests
-python3 -m unittest discover -s backend/tests -p "test_teach_*.py"                     # pure tests, no database
+cp .env.example .env                               # set NEO4J_PASSWORD and one model key
+docker compose -f compose.dev.yaml up -d           # hot reload: app on :3000, API on :8000, Neo4j browser on :7474
 ```
 
-The end-to-end lesson test (real Chromium, phone size) and the layout-regression test live in
-`author/tests/`. See [CONTRIBUTING.md](CONTRIBUTING.md).
+Tests:
+
+```bash
+docker compose -f compose.dev.yaml exec backend python -m unittest discover -s tests   # all backend tests
+cd backend && pip install -r requirements.lock.txt && python -m unittest discover -s tests   # the same, without Docker
+python3 -m unittest discover -s backend/tests -p "test_teach_*.py"                        # quick checks, no packages needed
+docker compose -f compose.dev.yaml exec backend python tests/e2e_kept_lesson.py           # see the "kept lesson" screen, no AI tokens
+```
+
+None of the backend tests need a running database. The end-to-end lesson test (real Chromium, phone
+size) and the layout-regression test live in `author/tests/`. GitHub runs the quick checks, all
+backend tests and a full `docker compose` start on every push. See [CONTRIBUTING.md](CONTRIBUTING.md).
+
+## Security
+
+Trellis has one password and no HTTPS of its own, so it listens only on your own computer by
+default; use Tailscale or a server with Caddy to reach it from elsewhere ([docs/VPS.md](docs/VPS.md)).
+Lessons run in a locked frame with no network and no storage, and your AI key never reaches the
+browser. Found a security problem? Please report it privately, as described in
+[SECURITY.md](SECURITY.md), not in a public issue.
 
 ## License
 

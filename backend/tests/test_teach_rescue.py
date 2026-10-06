@@ -3,7 +3,10 @@ kept as a draft that can be opened anyway (quality problems only) or fixed from 
 import unittest
 from unittest.mock import MagicMock, patch
 
-from app.teach import orchestrator, worker
+try:
+    from app.teach import orchestrator, worker
+except ImportError:      # the "pure" CI job runs test_teach_*.py without the backend's packages; the "backend" job runs this
+    raise unittest.SkipTest("needs the backend packages (pip install -r backend/requirements.lock.txt)")
 
 JOB = "0f8fad5b-d9cb-469f-a165-70867728950e"
 MANIFEST = {"title": "T", "sources": [], "activities": []}

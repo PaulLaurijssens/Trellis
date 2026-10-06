@@ -11,6 +11,7 @@ import io
 import os
 import re
 import xml.etree.ElementTree as ET
+from html import unescape
 from urllib.parse import urlparse
 
 import httpx
@@ -32,7 +33,18 @@ BOT_WALL = re.compile(r"just a moment|enable javascript|verify you are human|att
 
 
 class SourceError(ValueError):
-    """A message for the learner, not a stack trace."""
+    """A message for the learner, not a stack trace. `paste`: the learner can paste the text instead and keep
+    the link as the source (the Link tab then shows a paste box); `title`: the page title, when there was one."""
+
+    def __init__(self, message: str, paste: bool = False, title: str | None = None):
+        super().__init__(message)
+        self.paste, self.title = paste, title
+
+
+def _page_title(html: str) -> str | None:
+    match = re.search(r"<title[^>]*>(.*?)</title\s*>", html[:200000], re.I | re.S)
+    title = unescape(re.sub(r"\s+", " ", match.group(1))).strip() if match else ""
+    return title[:200] or None
 
 
 def kind_of(filename: str, content_type: str | None) -> str:
@@ -133,8 +145,16 @@ def clean_url(url: str) -> str:
 
 
 def article_text(url: str) -> dict:
+    """The main text of a web article (or a PDF behind a link). Every failure after a valid address comes with
+    paste=True: the learner pastes the text themselves and the link stays the source."""
     url = clean_url(url)
-    body, ctype = _fetch(url, MAX_TEXT_BYTES, "text/html,application/pdf;q=0.9,*/*;q=0.5")
+    parsed = urlparse(url)
+    if parsed.scheme not in ("http", "https") or not parsed.netloc:
+        raise SourceError("Enter a full web address that starts with http:// or https://.")
+    try:
+        body, ctype = _fetch(url, MAX_TEXT_BYTES, "text/html,application/pdf;q=0.9,*/*;q=0.5")
+    except SourceError as exc:
+        raise SourceError(str(exc), paste=True) from exc
     if "pdf" in ctype or body[:5] == b"%PDF-":
         out = pdf_text(body)
         return {**out, "source_type": "paper"}
@@ -146,8 +166,10 @@ def article_text(url: str) -> dict:
     text = trafilatura.extract(html, include_comments=False, include_tables=True, favor_recall=True) or ""
     if len(text.split()) < 80:
         if BOT_WALL.search(html[:20000]) or len(html) < 4000:
-            raise SourceError("The site did not hand over the article: it wants a real browser or blocks readers. Open it in your browser, select all, copy, and use Paper/text.")
-        raise SourceError("Could not find an article on that page (the text may load with JavaScript). Open it in your browser, select all, copy, and use Paper/text.")
+            raise SourceError("The site did not hand over the article: it wants a real browser or blocks automatic readers.",
+                              paste=True, title=_page_title(html))
+        raise SourceError("Could not find the article text on that page (it may load with JavaScript or sit behind a login).",
+                          paste=True, title=_page_title(html))
     meta = trafilatura.extract_metadata(html)
     title = (getattr(meta, "title", None) or "").strip() or url
     return {"text": text, "title": title, "source_type": "artikel"}

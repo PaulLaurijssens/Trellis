@@ -19,8 +19,13 @@ docker compose -f compose.dev.yaml up -d
 cd frontend && npm install && NEXT_PUBLIC_API_URL=/api DEV_API_PROXY=http://localhost:8000 npm run dev
 ```
 
-Tests: `docker compose -f compose.dev.yaml exec backend python -m unittest discover -s tests` and
-`python3 -m unittest discover -s backend/tests -p "test_teach_*.py"`. Please add a test with a fix.
+Tests: `docker compose -f compose.dev.yaml exec backend python -m unittest discover -s tests` runs all
+backend tests (no running database needed). `python3 -m unittest discover -s backend/tests -p "test_teach_*.py"`
+runs the quick checks without any packages; a `test_teach_*` file that needs the backend packages must
+skip itself there (see `test_teach_rescue.py`). GitHub runs both, plus a full `docker compose` start.
+Please add a test with a fix.
+
+Security problems: report them privately, see [SECURITY.md](SECURITY.md).
 
 Language: user-visible text goes through the dictionaries in `frontend/lib/` and prompts are English
 with a "write in {language}" rule. Never hard-code a language check in a component.

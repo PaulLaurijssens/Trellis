@@ -54,6 +54,8 @@ export default function CommandBar({
   const [feed, setFeed] = useState(null);          // {title, episodes} of a podcast feed
   const [feedBusy, setFeedBusy] = useState(false);
   const [linkError, setLinkError] = useState("");
+  const [linkPaste, setLinkPaste] = useState(null);   // {message}: the link could not be read, paste the text here
+  const pasteBox = useRef(null);
   const input = useRef(null);
   const firstField = useRef(null);
   const wrap = useRef(null);
@@ -120,7 +122,7 @@ export default function CommandBar({
   const canSubmit = type === "topic" ? !!term.trim()
     : type === "youtube" ? /(?:youtube\.com|youtu\.be)\//i.test(url.trim())
     : type === "file" ? !!file
-    : type === "link" ? /^https?:\/\/\S+$/i.test(url.trim())
+    : type === "link" ? (linkPaste ? !!paste.trim() && !!title.trim() : /^https?:\/\/\S+$/i.test(url.trim()))
     : !!paste.trim() && !!title.trim();
   const submitCard = async () => {
     if (!canSubmit || busy) return;
@@ -133,12 +135,24 @@ export default function CommandBar({
     else if (type === "file") { const ok = await onAnalyzeFile(file, title.trim()); if (!ok) return; }
     else if (type === "link") {
       setLinkError("");
-      if (isRss(url.trim()) && !feed) {           // a podcast feed: list the episodes first, the learner picks one
-        setFeedBusy(true);
-        try { setFeed(await onPodcastEpisodes(url.trim())); } catch (e) { setLinkError(e.message); } finally { setFeedBusy(false); }
-        return;
+      if (linkPaste) {                           // the learner pasted the text; the link stays the source
+        onAnalyze({ text: paste, title: title.trim(), source_type: "artikel", url: url.trim() });
+      } else {
+        if (isRss(url.trim()) && !feed) {         // a podcast feed: list the episodes first, the learner picks one
+          setFeedBusy(true);
+          try { setFeed(await onPodcastEpisodes(url.trim())); } catch (e) { setLinkError(e.message); } finally { setFeedBusy(false); }
+          return;
+        }
+        const r = await onAnalyzeUrl(url.trim());
+        if (r && r.paste) {                       // the site would not hand over the article: ask for the text right here
+          let host = "";
+          try { host = new URL(url.trim()).hostname.replace(/^www\./, ""); } catch {}
+          setLinkPaste({ message: r.message }); setTitle(r.title || host);
+          setTimeout(() => pasteBox.current?.focus(), 0);
+          return;
+        }
+        if (!r) return;
       }
-      const ok = await onAnalyzeUrl(url.trim()); if (!ok) return;
     }
     else onAnalyze({ text: paste, title: title.trim(), source_type: sourceType, url: url.trim() });
     clearCard();
@@ -150,7 +164,7 @@ export default function CommandBar({
     clearCard();
     setAdding(false);
   };
-  const clearCard = () => { setTerm(""); setContext(""); setPaste(""); setTitle(""); setUrl(""); setFile(null); setFeed(null); setLinkError(""); };
+  const clearCard = () => { setTerm(""); setContext(""); setPaste(""); setTitle(""); setUrl(""); setFile(null); setFeed(null); setLinkError(""); setLinkPaste(null); };
   const onCardKey = (e) => {
     if (e.key === "Escape") { e.stopPropagation(); closeCard(); return; }
     if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); submitCard(); return; }
@@ -251,10 +265,20 @@ export default function CommandBar({
               <div className="cmd-form one">
                 <div className="field">
                   <label htmlFor="add-link">{t("cmd.link")}</label>
-                  <input id="add-link" ref={firstField} value={url} placeholder="https://…" onChange={(e) => { setUrl(e.target.value); setFeed(null); }} />
+                  <input id="add-link" ref={firstField} value={url} placeholder="https://…" onChange={(e) => { setUrl(e.target.value); setFeed(null); setLinkPaste(null); }} />
                 </div>
-                <p className="hint">{t("cmd.linkHint")}</p>
+                {!linkPaste && <p className="hint">{t("cmd.linkHint")}</p>}
                 {linkError && <p role="alert" className="hint">{linkError}</p>}
+                {linkPaste && <div className="link-paste" role="alert">
+                  <p><b>{t("cmd.linkPasteTitle")}</b> <span className="hint">{linkPaste.message}</span></p>
+                  <textarea ref={pasteBox} className="paste" value={paste} placeholder={t("cmd.linkPastePh")}
+                            onChange={(e) => setPaste(e.target.value)} aria-label={t("cmd.linkPasteTitle")} />
+                  <div className="field">
+                    <label htmlFor="link-title">{t("cmd.title")}</label>
+                    <input id="link-title" value={title} placeholder={t("cmd.titlePh")} onChange={(e) => setTitle(e.target.value)} />
+                  </div>
+                  <p className="hint">{t("cmd.linkPasteHint")}</p>
+                </div>}
                 {feed && <div className="episode-list"><strong>{feed.title}</strong>
                   {feed.episodes.slice(0, 12).map((ep) => <button key={ep.audio_url} type="button" className="episode" disabled={!!busy} onClick={async () => { const ok = await onAnalyzePodcast({ audio_url: ep.audio_url, title: ep.title, feed_title: feed.title }); if (ok) { clearCard(); setAdding(false); } }}>
                     <span>{ep.title}</span><small>{ep.duration}{ep.bytes ? " · " + (ep.bytes / 1e6).toFixed(0) + " MB" : ""}</small></button>)}

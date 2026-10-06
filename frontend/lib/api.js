@@ -13,13 +13,16 @@ async function req(path, opts = {}) {
     throw new Error("Geen verbinding met de backend. Draait die op " + BASE + "?");
   }
   if (!res.ok) {
-    let detail = "Er ging iets mis (HTTP " + res.status + ")";
+    let detail = "Er ging iets mis (HTTP " + res.status + ")", info = null;
     try {
       const j = await res.json();
-      if (j.detail) detail = typeof j.detail === "string" ? j.detail : JSON.stringify(j.detail);
+      if (typeof j.detail === "string") detail = j.detail;
+      else if (j.detail?.message) { detail = j.detail.message; info = j.detail; }   // e.g. {message, paste, title} from /ingest/url
+      else if (j.detail) detail = JSON.stringify(j.detail);
     } catch {}
     const err = new Error(detail);
     err.status = res.status;
+    err.info = info;
     handleUnauthorized(err);
     throw err;
   }
