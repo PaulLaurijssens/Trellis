@@ -82,6 +82,10 @@ class SourcesTests(unittest.TestCase):
         self.assertTrue(err.exception.paste)
         self.assertEqual(err.exception.title, 'Why cats & dogs differ')
 
+    def test_a_bot_check_title_is_not_used(self):
+        self.assertIsNone(self.sources._page_title('<title>Just a moment...</title>'))
+        self.assertEqual(self.sources._page_title('<title>A real story</title>'), 'A real story')
+
 
 if __name__ == '__main__':
     unittest.main()

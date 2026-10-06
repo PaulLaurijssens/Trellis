@@ -44,6 +44,8 @@ class SourceError(ValueError):
 def _page_title(html: str) -> str | None:
     match = re.search(r"<title[^>]*>(.*?)</title\s*>", html[:200000], re.I | re.S)
     title = unescape(re.sub(r"\s+", " ", match.group(1))).strip() if match else ""
+    if BOT_WALL.search(title):          # "Just a moment...", "Access denied": not the article's title
+        return None
     return title[:200] or None
 
 

@@ -137,7 +137,8 @@ class Ask(BaseModel):
 
 @app.post("/ingest/text")
 def ingest_text(body: IngestText, me: str = Me):
-    return extract.suggest(body.text, body.source_type, body.title, body.url, body.job_id, language=graph.ui_language(me))
+    url = sources.clean_url(body.url) if body.url else None
+    return extract.suggest(body.text, body.source_type, body.title, url, body.job_id, language=graph.ui_language(me))
 
 
 @app.post("/ingest/raw")
@@ -151,6 +152,7 @@ def ingest_raw(
 ):
     """Rauwe tekst als request body: plakken zonder JSON-escaping.
     Timestamps worden bewaard als tijdcodes; hoofdstuktitels worden chunk-grenzen."""
+    url = sources.clean_url(url) if url else None      # tracking tags (utm_, li_fat_id, ...) do not belong in a source link
     return extract.suggest(text, source_type, title, url, job_id, language=graph.ui_language(me))
 
 
