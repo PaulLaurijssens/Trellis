@@ -2,6 +2,9 @@
 import asyncio, json, os, re
 import litellm
 
+# Provider presets include reasoning models that reject optional sampling parameters.
+litellm.drop_params = True
+
 # Twee taken, twee modellen: extractie is volume-werk (snel/goedkoop),
 # mentor-antwoorden vragen om redeneerkracht.
 EXTRACT_MODEL = os.getenv("EXTRACT_MODEL", "gemini/gemini-3.7-flash")
