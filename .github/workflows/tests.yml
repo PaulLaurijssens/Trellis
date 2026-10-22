@@ -27,9 +27,35 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: cp .env.example .env && sed -i 's/^NEO4J_PASSWORD=.*/NEO4J_PASSWORD=ci-only-password-1234567890/' .env
-      - run: docker compose up -d --build
-      - run: |
-          for i in $(seq 1 60); do curl -sf http://127.0.0.1:8080/api/health && exit 0; sleep 5; done
-          docker compose logs api; exit 1
+      # --wait returns when every health check passes (web waits for a healthy api and frontend).
+      - run: docker compose up -d --build --wait --wait-timeout 900
+      - run: curl -sf http://127.0.0.1:8080/api/health
       - run: curl -sf http://127.0.0.1:8080/api/health | grep -q '"setup_needed":true'
       - run: curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:8080/api/graph | grep -q 401
+      - if: failure()
+        run: docker compose ps -a; docker compose logs --tail 200
+  bundle:
+    name: release bundle builds and its compose file is valid
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: scripts/make-bundle.sh --version 0.0.0-ci --out dist
+      - name: the zip has every file the installer needs
+        run: |
+          unzip -Z1 dist/trellis-bundle.zip | sort > /tmp/files
+          cat /tmp/files
+          for f in compose.yaml .env.example deploy/nginx.conf db/schema.cypher backups/.gitkeep \
+                   setup.sh setup.ps1 README.md LICENSE scripts/restore.sh; do
+            grep -qx "trellis/$f" /tmp/files || { echo "missing in bundle: trellis/$f"; exit 1; }
+          done
+          if grep -v '^trellis/' /tmp/files; then echo "files outside trellis/"; exit 1; fi
+      - name: the bundled compose.yaml has no build sections and is valid
+        run: |
+          mkdir -p /tmp/b && cd /tmp/b && unzip -q "$GITHUB_WORKSPACE/dist/trellis-bundle.zip"
+          if grep -nE '^[[:space:]]+(build|context|dockerfile):' trellis/compose.yaml; then exit 1; fi
+          grep -q 'trellis-api:${TRELLIS_VERSION:-0.0.0-ci}' trellis/compose.yaml
+          printf 'NEO4J_PASSWORD=ci-only-password-1234567890\n' > trellis/.env
+          docker compose -f trellis/compose.yaml config --quiet
+          docker compose -f trellis/compose.yaml config --images
+      - name: SHA256SUMS matches the files
+        run: cd dist && sha256sum -c SHA256SUMS
