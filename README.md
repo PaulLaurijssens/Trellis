@@ -77,6 +77,10 @@ puts Trellis in a `Trellis` folder in your home folder, makes the database passw
 the ready-made images and starts Trellis. The first start takes a few minutes. Later starts take
 seconds. When it is done, it shows the address: **<http://localhost:8080>**.
 
+**Stuck on a step?** The installer stops with what went wrong, what to try, and a ready prompt to paste into
+ChatGPT, Claude or Copilot. Prefer an AI assistant to guide you from the start? See
+[Install with an AI assistant](docs/INSTALL-WITH-AI.md).
+
 You can run the installer again at any time. It checks everything again, repairs known problems and
 starts Trellis. Your data stays.
 

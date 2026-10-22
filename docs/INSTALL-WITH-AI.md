@@ -28,13 +28,13 @@ prompts on this page are for when you want the assistant in charge from the star
 Mac or Linux: open the Terminal app and run:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/PaulLaurijssens/Trellis/main/setup.sh | bash
+curl -fsSL https://github.com/PaulLaurijssens/Trellis/releases/latest/download/setup.sh | bash
 ```
 
 Windows: open PowerShell (Start menu, type "PowerShell") and run:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -c "irm https://raw.githubusercontent.com/PaulLaurijssens/Trellis/main/setup.ps1 | iex"
+powershell -ExecutionPolicy Bypass -c "irm https://github.com/PaulLaurijssens/Trellis/releases/latest/download/setup.ps1 | iex"
 ```
 
 Already have the Trellis folder (from the release zip or from git)? Run the installer inside it:
