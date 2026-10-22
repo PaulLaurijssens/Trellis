@@ -524,7 +524,7 @@ function Stop-Download([string]$Kind) {
         'tls' { Stop-Setup 'Your network or a proxy blocks the download.' "On a work or school network, try a home network or a phone hotspot.`nIf your organization uses a proxy, set it in Docker Desktop > Settings > Resources > Proxies.`nThen run the installer again." }
         'dns' { Stop-Setup 'This computer cannot find the download server. It may not be connected to the internet.' "Check that you are online: open https://github.com in your browser.`nThen restart Docker Desktop and run the installer again." }
         'ratelimit' { Stop-Setup 'The download server says there are too many downloads right now.' 'Wait 10 minutes and run the installer again.' }
-        'offline' { Stop-Setup 'The download server did not answer in time.' "Check your internet connection, then run the installer again.`nA VPN or firewall can also block it: try without the VPN." }
+        'offline' { Stop-Setup 'This computer could not reach the download server.' "Check your internet connection, then run the installer again.`nA VPN or firewall can also block it: try without the VPN." }
         default { Stop-Setup 'The download failed.' 'Run the installer again. If it fails again, use the text below with an AI assistant.' }
     }
 }

@@ -419,7 +419,7 @@ Then run the installer again." ;;
 Then restart Docker Desktop and run the installer again." ;;
     ratelimit) fail "The download server says there are too many downloads right now." \
 "Wait 10 minutes and run the installer again." ;;
-    offline) fail "The download server did not answer in time." \
+    offline) fail "This computer could not reach the download server." \
 "Check your internet connection, then run the installer again.
 A VPN or firewall can also block it: try without the VPN." ;;
     *) fail "The download failed." \
