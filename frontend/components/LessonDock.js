@@ -2,6 +2,7 @@
 // Entry to interactive lessons for one concept: continue a paused lesson, otherwise set the topic
 // goal (2-4 pills, skippable, previewed before it is stored) and ask the teacher for a lesson.
 // A failed or unavailable lesson never blocks the page: the normal chat stays right below.
+import { errorText } from "../lib/providerErrors.mjs";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useT } from "../lib/i18n";
 import { teach } from "../lib/teach";
@@ -183,7 +184,7 @@ export default function LessonDock({ conceptId, conceptName, group, lang, onOpen
       </div>
       <p className="teach-hint">{kept.draft.can_open ? t("teach.kept.hint") : t("teach.kept.cannotOpen")}</p>
     </div>}
-    {job && !kept && ["failed", "cancelled"].includes(job.stage) && <p className="teach-failed" role="alert">{job.stage === "cancelled" ? t("teach.cancelled") : job.error === "cost_limit" ? t("teach.failedCostLimit", { usd: job.detail || "" }) : t({ not_published: "teach.failedTest", budget: "teach.failedBudget", workbench_unavailable: "teach.failedSetup" }[job.error] || "teach.failed")} <button className="textlink" onClick={() => setJob(null)}>{t("teach.retry")}</button></p>}
+    {job && !kept && ["failed", "cancelled"].includes(job.stage) && <p className="teach-failed" role="alert">{job.stage === "cancelled" ? t("teach.cancelled") : job.error === "cost_limit" ? t("teach.failedCostLimit", { usd: job.detail || "" }) : String(job.error || "").startsWith("provider.") ? errorText(t, job.error, {}) : t({ not_published: "teach.failedTest", budget: "teach.failedBudget", workbench_unavailable: "teach.failedSetup" }[job.error] || "teach.failed")} <button className="textlink" onClick={() => setJob(null)}>{t("teach.retry")}</button></p>}
     {error && <p className="teach-failed" role="alert">{error}</p>}
 
     {(ctx.references?.length > 0 || ctx.recommendations?.length > 0) && <details className="teach-more"><summary>{t("teach.cards", { references: ctx.references.length })}</summary>

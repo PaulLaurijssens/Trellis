@@ -1,4 +1,5 @@
 import { getPerson, handleUnauthorized } from "./session";
+import { httpError, networkError } from "./errors";
 
 const BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 // The logged-in person (from the session cookie). Routes keep the person in their path; the API
@@ -10,19 +11,12 @@ async function req(path, opts = {}) {
   try {
     res = await fetch(BASE + path, { credentials: "include", ...opts });
   } catch {
-    throw new Error("Geen verbinding met de backend. Draait die op " + BASE + "?");
+    throw networkError(BASE);
   }
   if (!res.ok) {
-    let detail = "Er ging iets mis (HTTP " + res.status + ")", info = null;
-    try {
-      const j = await res.json();
-      if (typeof j.detail === "string") detail = j.detail;
-      else if (j.detail?.message) { detail = j.detail.message; info = j.detail; }   // e.g. {message, paste, title} from /ingest/url
-      else if (j.detail) detail = JSON.stringify(j.detail);
-    } catch {}
-    const err = new Error(detail);
-    err.status = res.status;
-    err.info = info;
+    let data = null;
+    try { data = await res.json(); } catch {}
+    const err = httpError(res.status, data);
     handleUnauthorized(err);
     throw err;
   }

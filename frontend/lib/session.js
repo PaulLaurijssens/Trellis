@@ -1,6 +1,8 @@
 "use client";
 // Who is logged in. The API decides from its cookie; this module only remembers the answer so the
 // request helpers can build URLs, and it tells the app whether to show setup, login or the app.
+import { httpError, networkError } from "./errors";
+
 const BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 let person = null;
 const listeners = new Set();
@@ -17,11 +19,14 @@ function set(next) {
 }
 
 async function call(path, body, method = "POST") {
-  const res = await fetch(BASE + path, { method: body === undefined ? method : method, credentials: "include",
-    headers: body === undefined ? undefined : { "Content-Type": "application/json" }, body: body === undefined ? undefined : JSON.stringify(body) });
+  let res;
+  try {
+    res = await fetch(BASE + path, { method, credentials: "include",
+      headers: body === undefined ? undefined : { "Content-Type": "application/json" }, body: body === undefined ? undefined : JSON.stringify(body) });
+  } catch { throw networkError(BASE); }
   let data = null;
   try { data = await res.json(); } catch {}
-  if (!res.ok) { const err = new Error((data && data.detail) || "HTTP " + res.status); err.status = res.status; throw err; }
+  if (!res.ok) throw httpError(res.status, data);
   return data;
 }
 
@@ -33,6 +38,9 @@ export const session = {
   me: () => call("/auth/me", undefined, "GET"),
   settings: () => call("/auth/settings", undefined, "GET"),
   saveSettings: (body) => call("/auth/settings", body, "PUT"),
+  // Three tiny model calls with the given key(s). Works without a session while setup is needed.
+  checkProvider: (body) => call("/auth/check-provider", body),
+  health: () => call("/health", undefined, "GET"),
 };
 
 // A 401 anywhere means the session ended (expired cookie, server restart with a new secret): back to login.
