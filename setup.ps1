@@ -829,9 +829,15 @@ function Step-DownloadTest {
     Stop-Download $kind
 }
 
-# Copies everything in From (hidden files too) into To.
+# Copies everything in From (hidden files too) into To, file by file: Copy-Item -Recurse puts a
+# folder inside the existing one with the same name.
 function Copy-Folder([string]$From, [string]$To) {
-    Get-ChildItem -LiteralPath $From -Force | Copy-Item -Destination $To -Recurse -Force
+    $base = (Get-Item -LiteralPath $From -Force).FullName.TrimEnd('\', '/')
+    foreach ($item in (Get-ChildItem -LiteralPath $From -Recurse -Force -File)) {
+        $dest = Join-Path $To $item.FullName.Substring($base.Length).TrimStart('\', '/')
+        $null = New-Item -ItemType Directory -Force -Path (Split-Path -Parent $dest)
+        Copy-Item -LiteralPath $item.FullName -Destination $dest -Force
+    }
 }
 
 function Step-Files {

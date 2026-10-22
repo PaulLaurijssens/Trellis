@@ -94,7 +94,7 @@ $listener.Stop()
 Yes-Test 'port free after close' (-not (Test-PortInUse $lport))
 
 # .env writing
-$example = [System.IO.File]::ReadAllText((Join-Path $root '.env.example'))
+$example = [System.IO.File]::ReadAllText((Join-Path $root '.env.example')) -replace "`r`n", "`n"   # a Windows checkout may have CRLF
 $e1 = Join-Path $T 'env1'
 $null = New-Item -ItemType Directory -Force -Path $e1
 Write-TextFile (Join-Path $e1 '.env.example') $example
@@ -151,6 +151,16 @@ Yes-Test 'sha256 upper case, star, folder, CRLF' (Test-Sha256 $f (Join-Path $T '
 Write-TextFile (Join-Path $T 'S3') "$('0' * 64)  f.zip`n"
 Yes-Test 'sha256 mismatch' (-not (Test-Sha256 $f (Join-Path $T 'S3') 'f.zip'))
 Yes-Test 'sha256 name not listed' (-not (Test-Sha256 $f (Join-Path $T 'S1') 'other.zip'))
+
+# Copy-Folder merges into folders that already exist (no deploy\deploy), hidden files included.
+$cf = Join-Path $T 'cf'
+$null = New-Item -ItemType Directory -Force -Path (Join-Path $cf 'from/deploy'), (Join-Path $cf 'to/deploy')
+Write-TextFile (Join-Path $cf 'from/deploy/nginx.conf') 'x'
+Write-TextFile (Join-Path $cf 'from/.env.example') 'y'
+Copy-Folder (Join-Path $cf 'from') (Join-Path $cf 'to')
+Yes-Test 'copy merges folders' (Test-Path -LiteralPath ([System.IO.Path]::Combine($cf, 'to', 'deploy', 'nginx.conf')))
+Yes-Test 'copy does not nest' (-not (Test-Path -LiteralPath ([System.IO.Path]::Combine($cf, 'to', 'deploy', 'deploy'))))
+Yes-Test 'copy takes hidden files' (Test-Path -LiteralPath ([System.IO.Path]::Combine($cf, 'to', '.env.example')))
 
 # The AI prompt: names the step, the command, the output, redacted, with the question.
 $script:StepNo = 8; $script:StepTotal = 11; $script:StepName = 'Test the download'
@@ -273,7 +283,7 @@ function Run-Setup([hashtable]$Fake, [string]$Folder, [switch]$Report) {
 $script:SumsUrl = $goodSums
 
 # A. Fresh install from the release bundle.
-$D = Join-Path $T 'a/Trellis'
+$D = [System.IO.Path]::Combine($T, 'a', 'Trellis')
 Run-Setup @{} $D
 Eq 'A finished' '' $script:Stopped
 $steps = @('Step 1 of 11: Welcome', 'Step 2 of 11: Windows Subsystem for Linux (WSL 2)', 'Step 3 of 11: Docker', 'Step 4 of 11: Start Docker',
