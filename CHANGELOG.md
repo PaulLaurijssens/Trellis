@@ -5,9 +5,40 @@ All notable changes to Trellis. Dates are UTC. Versions follow the git tags.
 ## [Unreleased]
 
 ### Added
+- A guided installer for Windows (`setup.ps1`) and Mac and Linux (`setup.sh`), with a one-line
+  command in the README. It checks Docker, memory, disk and the port, makes the database password,
+  downloads Trellis and starts it. Safe to run again; `--report` makes a diagnostic report with
+  secrets hidden.
+- Ready-made images on ghcr.io (`trellis-api`, `trellis-frontend`, `trellis-author`) for Intel/AMD and
+  ARM computers. `docker compose up` downloads them, so a first install no longer builds anything.
+- A release bundle (`trellis-bundle.zip` with `SHA256SUMS`) with only the files needed to run
+  Trellis, made by `scripts/make-bundle.sh` and the new release workflow.
+- The setup screen tests the key and all three models before you continue, and says what is wrong:
+  a wrong key, a key that looks like another provider's (for example an Azure key under OpenAI), a
+  model your plan does not include, no credit, a wrong endpoint or a wrong embedding size.
+- An **AI provider** card in *My profile → Settings*: the owner can change the provider, the models
+  and the key after setup, with the same test.
+- **Other** takes an endpoint and an API version, so Azure OpenAI and Microsoft Foundry work.
+  [docs/PROVIDERS.md](docs/PROVIDERS.md) has the recipes.
+- When the Gemini Pro model has no free quota, setup offers the Flash model as the mentor model.
+- `/health` shows the version and the commit.
+- Health checks for every part of Trellis. `docker compose up -d --wait` returns when the app works.
+- README: *Troubleshooting* (a page that does not load after sleep, filtered networks, build errors,
+  logs) and a note about Docker Desktop licensing. [docs/TESTING.md](docs/TESTING.md) is a checklist
+  for testers, with a bug report form on GitHub.
+- Optional build arguments `PIP_INDEX_URL` and `NPM_CONFIG_REGISTRY` to build from source through a
+  package mirror.
 - When a site will not hand over an article (paywall, bot check, a page built with JavaScript), the
   Link tab says why and asks you to paste the text right there. The link stays the source, with the
   page title filled in when the site gave one.
+
+### Changed
+- A failed model call shows a clear message in the language of the interface (key rejected, quota
+  used up, model busy, model not found, no connection, timeout) instead of "HTTP 500".
+- A busy or rate-limited provider is tried again a few times, with growing waits, before Trellis
+  gives up. A rejected key is never retried.
+- The README install section starts with the installer; the old steps are now *Manual install*.
+- The web server starts only when the API and the app are healthy.
 
 ## [0.3.0] - 2026-10-06
 
