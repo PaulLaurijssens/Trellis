@@ -206,7 +206,7 @@ def classify(exc, provider: str | None = None, model: str | None = None, stage: 
 def _code(names: set[str], status: int | None, text: str) -> str:
     if "ContextWindowExceededError" in names or "ContentPolicyViolationError" in names:
         return "provider.badRequest"
-    if names & {"Timeout", "APITimeoutError", "TimeoutException", "ReadTimeout", "ConnectTimeout", "TimeoutError"} or status in (408,):
+    if names & {"Timeout", "APITimeoutError", "TimeoutException", "ReadTimeout", "ConnectTimeout", "TimeoutError"} or status in (408, 504):
         return "provider.timeout"
     if status == 429 or "RateLimitError" in names:
         return "provider.quotaZero" if _quota_zero(text) else "provider.quota"
