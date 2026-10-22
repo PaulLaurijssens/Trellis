@@ -815,7 +815,7 @@ Never share the values of passwords or keys."
     fi
   else
     if [ "$EXISTING" = 0 ]; then
-      info "Downloading Trellis (about 1.5 GB). This can take a few minutes."
+      info "Downloading Trellis. This is a large download (1 to 3 GB) and can take a few minutes."
       if ! run_shown compose pull; then
         local kind
         kind="$(classify_error <"$LAST_LOG")"
@@ -888,7 +888,9 @@ step_done() {
   info "In the browser: choose your name and language, add your AI key, and set a password."
   say ""
   info "Good to know:"
-  info "- Start later: Trellis starts by itself when Docker Desktop runs."
+  if [ "$OS" = "mac" ]; then info "- Start later: Trellis starts by itself when Docker Desktop runs."
+  else info "- Start later: Trellis starts by itself when Docker runs."
+  fi
   info "  If it does not, run this installer again:"
   cmd "bash \"$TRELLIS_DIR/setup.sh\""
   info "- Stop Trellis:"

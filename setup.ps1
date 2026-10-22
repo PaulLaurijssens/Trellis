@@ -919,7 +919,7 @@ function Step-Start {
         if ($r.Code -ne 0) { Resolve-StartFailure $r.Output }
     } else {
         if (-not $script:Existing) {
-            Write-Info 'Downloading Trellis (about 1.5 GB). This can take a few minutes.'
+            Write-Info 'Downloading Trellis. This is a large download (1 to 3 GB) and can take a few minutes.'
             $r = Invoke-Compose @('pull') -Show
             if ($r.Code -ne 0) {
                 $kind = Get-ErrorKind $r.Output
