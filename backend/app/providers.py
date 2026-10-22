@@ -9,7 +9,7 @@ PROVIDERS = {
         "label": "Google Gemini",
         "key_env": "GEMINI_API_KEY",
         "key_url": "https://aistudio.google.com/apikey",
-        "key_hint": "Sign in with a Google account, click 'Create API key', copy it. Free tier available; lessons need a paid key.",
+        "key_hint": "Sign in with a Google account, click 'Create API key', copy it. The free tier is enough to import sources. The mentor model (Gemini Pro) and lessons need a paid key: turn on billing for the key in Google AI Studio.",
         "mentor": "gemini/gemini-3.1-pro-preview", "extract": "gemini/gemini-3.7-flash",
         "embed": "gemini/gemini-embedding-2-preview", "embed_dim": 3072,
         "voice": True, "video": True,
@@ -27,7 +27,7 @@ PROVIDERS = {
         "label": "Anthropic Claude",
         "key_env": "ANTHROPIC_API_KEY",
         "key_url": "https://console.anthropic.com/settings/keys",
-        "key_hint": "Create an account, add credit, then 'Create Key'. Claude has no embedding model: pick an embedding provider below.",
+        "key_hint": "Claude needs a second key for embeddings, from Gemini or OpenAI: pick that provider below. For Claude itself: create an account, add credit, then 'Create Key'.",
         "mentor": "anthropic/claude-sonnet-5", "extract": "anthropic/claude-haiku-4-5-20251001",
         "embed": None, "embed_dim": None,
         "voice": False, "video": False,
@@ -66,7 +66,8 @@ def custom_spec(data: dict) -> dict:
     """A preset-shaped dict from the stored (or submitted) custom values."""
     return {"label": "Other", "key_env": data.get("key_env") or None,
             "mentor": data.get("mentor_model"), "extract": data.get("extract_model"),
-            "embed": data.get("embed_model"), "embed_dim": data.get("embed_dim"), "voice": False, "video": False}
+            "embed": data.get("embed_model"), "embed_dim": data.get("embed_dim"), "voice": False, "video": False,
+            "endpoint": {"api_base": data.get("api_base") or None, "api_version": data.get("api_version") or None}}
 
 
 def spec(name, data: dict | None = None) -> dict | None:
@@ -76,10 +77,28 @@ def spec(name, data: dict | None = None) -> dict | None:
     return PROVIDERS.get(name or "")
 
 
+def valid_model_id(value) -> bool:
+    return bool(_MODEL_ID.match(str(value or "")))
+
+
+# An endpoint for "custom": https anywhere, plain http only to this machine (a local model server).
+_API_BASE = re.compile(r"^(https://[A-Za-z0-9.-]+(:\d{1,5})?(/[^\s]*)?|http://(host\.docker\.internal|localhost|127\.0\.0\.1)(:\d{1,5})?(/[^\s]*)?)$")
+_API_VERSION = re.compile(r"^[A-Za-z0-9._-]{1,40}$")
+
+
+def validate_endpoint(api_base, api_version) -> str | None:
+    """None when the optional endpoint values are usable, else a short reason for the person."""
+    if api_base and (len(api_base) > 300 or not _API_BASE.match(api_base)):
+        return "Endpoint: an https:// address (or http://localhost / http://host.docker.internal for a local server)"
+    if api_version and not _API_VERSION.match(api_version):
+        return "API version: letters, digits, dots and dashes, for example 2024-10-21"
+    return None
+
+
 def validate_custom(data: dict) -> str | None:
     """None when the custom values are usable, else a short reason for the person."""
     for field, label in (("mentor_model", "Mentor model"), ("extract_model", "Extract model"), ("embed_model", "Embedding model")):
-        if not _MODEL_ID.match(str(data.get(field) or "")):
+        if not valid_model_id(data.get(field)):
             return f"{label}: type a LiteLLM model id, for example openrouter/some-model"
     dim = data.get("embed_dim")
     if not isinstance(dim, int) or not 64 <= dim <= 8192:
@@ -87,6 +106,27 @@ def validate_custom(data: dict) -> str | None:
     key_env = data.get("key_env")
     if key_env and (not _KEY_ENV.match(key_env) or key_env.startswith(_RESERVED_ENV)):
         return "Key variable: a name like OPENROUTER_API_KEY"
+    return validate_endpoint(data.get("api_base"), data.get("api_version"))
+
+
+# Key prefixes that give away the provider. Order matters: "sk-ant-" before "sk-".
+_KEY_PREFIXES = (("sk-ant-", "anthropic"), ("AIza", "gemini"), ("sk-", "openai"))
+
+
+def key_hint(provider, key) -> dict | None:
+    """A shape check before any call: {"code", "params"} when the key looks wrong for this provider, else None.
+    Azure (Microsoft Foundry) keys are 32 hex characters or 84 characters without a known prefix."""
+    if not key:
+        return None
+    if re.search(r"\s", key):
+        return {"code": "key.hasSpaces", "params": {}}
+    if provider not in ("openai", "anthropic", "gemini", "mistral"):
+        return None
+    looks_like = next((name for prefix, name in _KEY_PREFIXES if key.startswith(prefix)), None)
+    if looks_like and looks_like != provider:
+        return {"code": "key.wrongProvider", "params": {"looks_like": looks_like}}
+    if looks_like is None and (re.fullmatch(r"[0-9a-fA-F]{32}", key) or len(key) == 84):
+        return {"code": "key.looksAzure", "params": {}}
     return None
 
 
