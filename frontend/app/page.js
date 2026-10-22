@@ -12,10 +12,11 @@ import Toasts from "../components/Toasts";
 import ReviewPanel from "../components/ReviewPanel";
 import { api } from "../lib/api";
 import { buildIndex, findNode, subtree } from "../lib/tree";
-import { LangContext, DICTS, LANGS } from "../lib/i18n";
+import { LangProvider, DICTS, LANGS } from "../lib/i18n";
 import { readTrail, visitTrail } from "../lib/learningTrail.mjs";
 import { usePlan, nextInPlan } from "../lib/curriculum";
 import { teach } from "../lib/teach";
+import { warningText } from "../lib/providerErrors.mjs";
 import Gate from "../components/Gate";
 import { session, subscribe, getPerson, getPersonInfo } from "../lib/session";
 
@@ -55,7 +56,7 @@ export default function Page() {
   if (status.unavailable) return <div className="gate-screen"><div className="gate"><h1>Trellis</h1><p className="gate-lead">The API is not reachable. Is the server running? <button className="textlink" onClick={() => location.reload()}>Retry</button></p></div></div>;
   if (!status.authenticated) {
     const setLang = (l) => { setGateLang(l); try { localStorage.setItem(LANG_KEY, l); } catch {} };
-    return <LangContext.Provider value={{ lang: gateLang, setLang }}><Gate status={status} onDone={() => session.status().then(setStatus)} /></LangContext.Provider>;
+    return <LangProvider value={{ lang: gateLang, setLang }}><Gate status={status} onDone={() => session.status().then(setStatus)} /></LangProvider>;
   }
   return <App key={status.person.id} onLogout={() => session.logout().then(() => session.status().then(setStatus))} />;
 }
@@ -310,7 +311,7 @@ function App({ onLogout }) {
       toast({ type: "ok", ttl: 8000,
               text: t("toast.committed", { created: r.created.length, linked: r.linked.length, rels: r.relations_applied.length }) });
     } catch (e) {
-      if (e.status === 404 && /source_id/i.test(e.message)) {
+      if (e.status === 404 && (e.code === "import.expired" || /source_id/i.test(e.message))) {
         toast({ type: "error", text: t("toast.sourceExpired"),
                 action: sourceRef.current?.payload ? { label: t("toast.retry"), onClick: retryAnalyze } : null });
         setReviewOpen(false);
@@ -346,7 +347,7 @@ function App({ onLogout }) {
     try {
       const res = await call(jobId);
       showCandidates(res, payload);
-      for (const w of res.meta?.warnings || []) toast({ type: "error", text: w });
+      for (const w of res.meta?.warnings || []) toast({ type: "error", text: warningText(t, w) });
       return true;
     } catch (e) {
       // A link that could not be read: no error toast, the Link tab offers a paste box instead.
@@ -401,7 +402,7 @@ function App({ onLogout }) {
       await loadChat(res.concept, navigation);
       return res;
     } catch (e) {
-      if (e.status === 404 && /source_id/i.test(e.message)) {
+      if (e.status === 404 && (e.code === "import.expired" || /source_id/i.test(e.message))) {
         toast({
           type: "error",
           text: t("toast.sourceExpired"),
@@ -582,15 +583,17 @@ function App({ onLogout }) {
     return names;
   }, [selected, graph]);
   const empty = loaded && graph.nodes.length === 0;
+  // Why Learn is off: nothing on the map yet, or nothing picked.
+  const learnHint = selected ? "" : t(empty ? "nav.learnNeedsSource" : "nav.learnPick");
   // "Volgend onderwerp" in de les volgt het leerpad. Alleen ophalen in de lesweergave; het
   // plan is gedeeld met de Leerpad-weergave en wordt server-side bewaard.
   const { plan: learningPlan } = usePlan(graph, lang, !!(selected && expanded));
   const next = useMemo(() => (selected && expanded ? nextInPlan(learningPlan, graph, selected.name) : null), [learningPlan, graph, selected, expanded]);
 
   return (
-    <LangContext.Provider value={{ lang, setLang }}>
+    <LangProvider value={{ lang, setLang }}>
     <div className={"stage redesigned" + (expanded && selected ? " is-learning" : "") + (!reviewOpen ? " has-learning-sidebar" : "") + (selected ? " has-selection" : "")}>
-      <header className="workspace-header"><Brand /><nav aria-label={t("nav.label")}><button className={!expanded ? "active" : ""} onClick={() => setExpanded(false)} aria-current={!expanded ? "page" : undefined}>{t("nav.explore")}</button><button className={expanded ? "active" : ""} disabled={!selected} onClick={() => setExpanded(true)} aria-current={expanded ? "page" : undefined}>{t("nav.learn")}</button></nav><button className="profile-trigger" onClick={() => setProfileOpen(true)}>{t("profile.title")}</button></header>
+      <header className="workspace-header"><Brand /><nav aria-label={t("nav.label")}><button className={!expanded ? "active" : ""} onClick={() => setExpanded(false)} aria-current={!expanded ? "page" : undefined}>{t("nav.explore")}</button><button className={expanded ? "active" : ""} disabled={!selected} onClick={() => setExpanded(true)} aria-current={expanded ? "page" : undefined} title={learnHint || undefined} aria-describedby={learnHint ? "learn-hint" : undefined}>{t("nav.learn")}</button>{learnHint && <span id="learn-hint" className="sr-only">{learnHint}</span>}</nav><button className="profile-trigger" onClick={() => setProfileOpen(true)}>{t("profile.title")}</button></header>
       <div className="explore-workspace" aria-hidden={expanded || undefined} inert={expanded ? "" : undefined}>
       {!reviewOpen && <div className="explore-view-switch" role="group" aria-label={t("explore.viewLabel")}><button aria-pressed={exploreView==='graph'} onClick={()=>setExploreView('graph')}>{t("explore.graph")}</button><button aria-pressed={exploreView==='path'} onClick={()=>setExploreView('path')}>{t("explore.path")}</button></div>}
       <div className="atlas-surface">
@@ -720,6 +723,6 @@ function App({ onLogout }) {
         </div>
       )}
     </div>
-    </LangContext.Provider>
+    </LangProvider>
   );
 }

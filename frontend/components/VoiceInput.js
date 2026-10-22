@@ -1,4 +1,5 @@
 "use client";
+import { httpError } from "../lib/errors";
 import {useEffect, useRef, useState} from 'react';
 import {useT} from '../lib/i18n';
 import {toWav} from '../lib/voice';
@@ -34,11 +35,11 @@ export default function VoiceInput({disabled, onText, onBusy}) {
           const timeout=setTimeout(()=>s.abort.abort(),60000);
           let response;
           try {response=await fetch((process.env.NEXT_PUBLIC_API_URL||'http://localhost:8000')+'/voice/transcribe?language='+lang,{credentials:'include',method:'POST',headers:{'Content-Type':'audio/wav'},body:wav,signal:s.abort.signal});}finally{clearTimeout(timeout);}
-          if(!response.ok)throw new Error('Transcription failed');
+          if(!response.ok){let data=null;try{data=await response.json();}catch{}const err=httpError(response.status,data);err.show=!!err.code;throw err;}
           const result=await response.json();if(current.current!==s)return;
           if(typeof result.text!=='string'||!result.text.trim())setError(en?'No speech detected. Please try again.':'Geen spraak herkend. Probeer opnieuw.');
           else callback.current(result.text.trim());
-        }catch(e){if(current.current===s)setError(en?'Could not transcribe. Please record again or type your question.':'Transcriptie mislukt. Neem opnieuw op of typ je vraag.');}
+        }catch(e){if(current.current===s)setError(e.show?e.message:en?'Could not transcribe. Please record again or type your question.':'Transcriptie mislukt. Neem opnieuw op of typ je vraag.');}
         finally{if(current.current===s){current.current=null;setPhase('idle');onBusy(false);}}
       };
       s.recorder.start();setPhase('recording');const started=Date.now();
