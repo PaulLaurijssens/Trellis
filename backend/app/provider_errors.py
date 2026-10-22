@@ -134,7 +134,10 @@ _AUTH = re.compile(r"api[ _]?key not valid|API_KEY_INVALID|invalid[ _]api[ _]key
                    r"access denied|invalid subscription key", re.I)
 _NETWORK = re.compile(r"connection (refused|reset|error|aborted)|name or service not known|nodename nor servname|"
                       r"getaddrinfo|temporary failure in name resolution|certificate|ssl|tls|no route to host|"
-                      r"network is unreachable|failed to establish|cannot connect|could not connect|connecterror", re.I)
+                      r"network is unreachable|failed to establish|cannot connect|could not connect|connecterror|"
+                      r"proxy|tunnel", re.I)
+# A bare "403 Forbidden" without a provider error body: a proxy or firewall refused the connection.
+_BLOCKED = re.compile(r"\b403 Forbidden\s*$", re.I)
 _TIMEOUT = re.compile(r"timed? ?out|timeout|deadline exceeded|DEADLINE_EXCEEDED", re.I)
 
 
@@ -238,6 +241,8 @@ def _code(names: set[str], status: int | None, text: str) -> str:
     if status is not None and status >= 500 or names & {"InternalServerError", "APIError"}:
         if _BUSY.search(text) or status in (502, 503, 529):
             return "provider.busy"
+        if _NETWORK.search(text) or _BLOCKED.search(text.strip()):
+            return "provider.network"                # LiteLLM wraps "Connection error." as an InternalServerError
         return "provider.unknown"
     return "provider.unknown"
 

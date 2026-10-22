@@ -56,6 +56,13 @@ class ClassifyTests(unittest.TestCase):
                                               response=response(429, {"retry-after": "7"})), model="openai/gpt-5.5-mini")
         self.assertEqual((err.code, err.retry_after), ("provider.quota", 7))
 
+    def test_wrapped_connection_error_and_proxy_block_are_network(self):
+        # Seen end to end behind a filtering proxy: LiteLLM reports both as an InternalServerError.
+        exc = litellm.InternalServerError("InternalServerError: OpenAIException - Connection error.", "openai", "gpt-5.5-mini")
+        self.assertEqual(classify(exc, model="openai/gpt-5.5-mini").code, "provider.network")
+        exc = litellm.InternalServerError("InternalServerError: Azure_aiException - 403 Forbidden", "azure_ai", "gpt-4o")
+        self.assertEqual(classify(exc, model="azure_ai/gpt-4o").code, "provider.network")
+
     def test_openai_invalid_key(self):
         exc = litellm.AuthenticationError("OpenAIException - Error code: 401 - {'error': {'message': 'Incorrect API key provided: "
                                           + OPENAI_KEY + ".', 'type': 'invalid_request_error', 'code': 'invalid_api_key'}}", "openai", "gpt-5.5")
