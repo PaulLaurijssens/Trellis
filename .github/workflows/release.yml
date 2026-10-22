@@ -1,0 +1,120 @@
+name: release
+# A tag v1.2.3 publishes the three images to ghcr.io (linux/amd64 + linux/arm64), tagged 1.2.3 and
+# latest, then a GitHub release with trellis-bundle.zip, setup.sh, setup.ps1 and SHA256SUMS.
+# A tag with a dash (v1.2.3-rc.1) is a pre-release: no "latest" image tag, release marked pre-release.
+# The first time: make the three packages public (see CONTRIBUTING.md, "Making a release").
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version without the v, for example 0.4.0. Empty = the tag this run started from."
+        required: false
+
+permissions:
+  contents: write
+  packages: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  REGISTRY: ghcr.io/paullaurijssens
+
+jobs:
+  version:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+      prerelease: ${{ steps.v.outputs.prerelease }}
+    steps:
+      - id: v
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
+        run: |
+          v="${INPUT_VERSION:-}"
+          if [ -z "$v" ] && [ "$GITHUB_REF_TYPE" = tag ]; then v="$GITHUB_REF_NAME"; fi
+          v="${v#v}"
+          if ! printf '%s' "$v" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$'; then
+            echo "::error::No valid version. Push a tag like v0.4.0, or give the version input."; exit 1
+          fi
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+          case "$v" in *-*) echo "prerelease=true" ;; *) echo "prerelease=false" ;; esac >> "$GITHUB_OUTPUT"
+
+  images:
+    needs: version
+    runs-on: ubuntu-latest
+    timeout-minutes: 120              # arm64 builds run under emulation
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - svc: api
+            context: backend
+          - svc: frontend
+            context: frontend
+          - svc: author
+            context: author
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - id: tags
+        env:
+          VERSION: ${{ needs.version.outputs.version }}
+          PRERELEASE: ${{ needs.version.outputs.prerelease }}
+        run: |
+          image="$REGISTRY/trellis-${{ matrix.svc }}"
+          {
+            echo "tags<<EOF"
+            echo "$image:$VERSION"
+            [ "$PRERELEASE" = true ] || echo "$image:latest"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+      - uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.context }}/Dockerfile.prod
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.tags.outputs.tags }}
+          build-args: |
+            TRELLIS_VERSION=${{ needs.version.outputs.version }}
+            TRELLIS_COMMIT=${{ github.sha }}
+            NEXT_PUBLIC_API_URL=/api
+          cache-from: type=gha,scope=${{ matrix.svc }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.svc }}
+
+  bundle:
+    needs: [version, images]          # publish the release only when its images exist
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - run: scripts/make-bundle.sh --version "${{ needs.version.outputs.version }}" --out dist
+      - name: bundled compose.yaml is valid
+        run: |
+          mkdir -p /tmp/check && cd /tmp/check && unzip -q "$GITHUB_WORKSPACE/dist/trellis-bundle.zip"
+          printf 'NEO4J_PASSWORD=ci-only-password-1234567890\n' > trellis/.env
+          docker compose -f trellis/compose.yaml config --quiet
+      - name: create or update the GitHub release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ needs.version.outputs.version }}
+          PRERELEASE: ${{ needs.version.outputs.prerelease }}
+        run: |
+          tag="v$VERSION"
+          files="dist/trellis-bundle.zip dist/setup.sh dist/setup.ps1 dist/SHA256SUMS"
+          if gh release view "$tag" >/dev/null 2>&1; then
+            gh release upload "$tag" $files --clobber
+          else
+            flags=""
+            [ "$PRERELEASE" = true ] && flags="--prerelease"
+            gh release create "$tag" $files --target "$GITHUB_SHA" --title "Trellis $VERSION" --generate-notes $flags
+          fi
