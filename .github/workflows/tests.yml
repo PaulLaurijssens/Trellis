@@ -39,7 +39,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: scripts/make-bundle.sh --version 0.0.0-ci --out dist
+      - run: scripts/make-bundle.sh --out dist
       - name: the zip has every file the installer needs
         run: |
           unzip -Z1 dist/trellis-bundle.zip | sort > /tmp/files
@@ -53,7 +53,8 @@ jobs:
         run: |
           mkdir -p /tmp/b && cd /tmp/b && unzip -q "$GITHUB_WORKSPACE/dist/trellis-bundle.zip"
           if grep -nE '^[[:space:]]+(build|context|dockerfile):' trellis/compose.yaml; then exit 1; fi
-          grep -q 'trellis-api:${TRELLIS_VERSION:-0.0.0-ci}' trellis/compose.yaml
+          # shellcheck disable=SC2016  # the literal text in the file
+          grep -qF 'trellis-api:${TRELLIS_VERSION:-latest}' trellis/compose.yaml
           printf 'NEO4J_PASSWORD=ci-only-password-1234567890\n' > trellis/.env
           docker compose -f trellis/compose.yaml config --quiet
           docker compose -f trellis/compose.yaml config --images

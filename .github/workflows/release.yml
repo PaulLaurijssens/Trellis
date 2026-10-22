@@ -97,7 +97,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - run: scripts/make-bundle.sh --version "${{ needs.version.outputs.version }}" --out dist
+      - run: scripts/make-bundle.sh --out dist
       - name: bundled compose.yaml is valid
         run: |
           mkdir -p /tmp/check && cd /tmp/check && unzip -q "$GITHUB_WORKSPACE/dist/trellis-bundle.zip"
@@ -110,11 +110,11 @@ jobs:
           PRERELEASE: ${{ needs.version.outputs.prerelease }}
         run: |
           tag="v$VERSION"
-          files="dist/trellis-bundle.zip dist/setup.sh dist/setup.ps1 dist/SHA256SUMS"
+          files=(dist/trellis-bundle.zip dist/setup.sh dist/setup.ps1 dist/SHA256SUMS)
           if gh release view "$tag" >/dev/null 2>&1; then
-            gh release upload "$tag" $files --clobber
+            gh release upload "$tag" "${files[@]}" --clobber
           else
-            flags=""
-            [ "$PRERELEASE" = true ] && flags="--prerelease"
-            gh release create "$tag" $files --target "$GITHUB_SHA" --title "Trellis $VERSION" --generate-notes $flags
+            flags=()
+            [ "$PRERELEASE" = true ] && flags=(--prerelease)
+            gh release create "$tag" "${files[@]}" --target "$GITHUB_SHA" --title "Trellis $VERSION" --generate-notes "${flags[@]}"
           fi

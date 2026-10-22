@@ -1,23 +1,20 @@
 #!/usr/bin/env bash
 # Build the release bundle: trellis-bundle.zip (top folder trellis/) + SHA256SUMS.
-#   scripts/make-bundle.sh [--version 0.4.0] [--out dist] [--allow-missing-installer]
+#   scripts/make-bundle.sh [--out dist] [--allow-missing-installer]
 # The bundle runs the ready-made images from ghcr.io, so its compose.yaml has no build sections.
-# With --version, the bundle's default image tag is that version instead of "latest".
+# The image tag stays ${TRELLIS_VERSION:-latest}: the installer and .env pick the version.
 # The release workflow runs this; run it locally to test a bundle before a tag.
 set -euo pipefail
 
-VERSION=""
 OUT="dist"
 ALLOW_MISSING=0
 while [ $# -gt 0 ]; do
   case "$1" in
-    --version) VERSION="${2:?--version needs a value}"; shift 2 ;;
     --out) OUT="${2:?--out needs a folder}"; shift 2 ;;
     --allow-missing-installer) ALLOW_MISSING=1; shift ;;
     *) echo "unknown option: $1" >&2; exit 2 ;;
   esac
 done
-VERSION="${VERSION#v}"
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 mkdir -p "$OUT"
@@ -45,9 +42,6 @@ awk '
 if grep -qE '^[[:space:]]+(build|context|dockerfile):' "$B/compose.yaml"; then
   echo "make-bundle: a build section is left in compose.yaml" >&2; exit 1
 fi
-if [ -n "$VERSION" ]; then
-  sed -i.bak "s/\${TRELLIS_VERSION:-latest}/\${TRELLIS_VERSION:-$VERSION}/g" "$B/compose.yaml" && rm -f "$B/compose.yaml.bak"
-fi
 
 cp "$ROOT/.env.example" "$ROOT/README.md" "$ROOT/LICENSE" "$B/"
 cp "$ROOT/deploy/nginx.conf" "$B/deploy/"
@@ -56,6 +50,7 @@ touch "$B/backups/.gitkeep"
 cp "$ROOT/scripts/restore.sh" "$B/scripts/"
 cp "$ROOT/docs/VPS.md" "$ROOT/docs/PROVIDERS.md" "$B/docs/"     # the README links to them
 
+rm -f "$OUT/trellis-bundle.zip" "$OUT/setup.sh" "$OUT/setup.ps1" "$OUT/SHA256SUMS"
 for f in setup.sh setup.ps1; do
   if src="$(find_installer "$f")"; then
     cp "$src" "$B/$f"
@@ -69,11 +64,10 @@ done
 chmod 0755 "$B/scripts/restore.sh"
 [ -f "$B/setup.sh" ] && chmod 0755 "$B/setup.sh"
 
-rm -f "$OUT/trellis-bundle.zip"
 (cd "$STAGE" && zip -qrX "$OUT/trellis-bundle.zip" trellis)
 
-(cd "$OUT" && files="trellis-bundle.zip"; for f in setup.sh setup.ps1; do [ -f "$f" ] && files="$files $f"; done
- if command -v sha256sum >/dev/null; then sha256sum $files; else shasum -a 256 $files; fi > SHA256SUMS)
+(cd "$OUT" && files=(trellis-bundle.zip); for f in setup.sh setup.ps1; do [ -f "$f" ] && files+=("$f"); done
+ if command -v sha256sum >/dev/null; then sha256sum "${files[@]}"; else shasum -a 256 "${files[@]}"; fi > SHA256SUMS)
 
-echo "make-bundle: $OUT/trellis-bundle.zip${VERSION:+ (default version $VERSION)}"
+echo "make-bundle: $OUT/trellis-bundle.zip"
 cat "$OUT/SHA256SUMS"
