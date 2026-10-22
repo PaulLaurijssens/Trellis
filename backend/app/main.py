@@ -5,7 +5,9 @@ import os
 
 from fastapi import Body, Depends, FastAPI, File, Form, HTTPException, Query, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
+from .provider_errors import ProviderError
 from . import graph, extract, mentor, chat, memory, jobs, transcript, journey, learn as learning, auth, settings, llm, backup, migrate, sources, guide
 from .teach import api as teach_api
 
@@ -29,6 +31,18 @@ app.middleware("http")(auth.middleware)
 app.include_router(auth.router)
 app.include_router(teach_api.public)
 app.include_router(teach_api.router)
+
+
+@app.exception_handler(ProviderError)
+async def provider_error(request: Request, exc: ProviderError):
+    """A failed model call: a code the frontend translates, never a 401 (that would log the user out)."""
+    log.warning("model call failed: %s", exc)
+    headers = {"Retry-After": str(exc.retry_after)} if exc.retry_after else None
+    return JSONResponse({"detail": exc.to_dict()}, status_code=exc.status, headers=headers)
+
+
+def _expired_source():
+    return HTTPException(404, {"code": "import.expired", "params": {}, "message": "This analysis has expired. Run it again."})
 
 
 async def _consolidation_loop():
@@ -300,7 +314,7 @@ def ingest_status(job_id: str):
     """Voortgang van een lopende analyse: {phase, done, total, message}."""
     st = jobs.get(job_id)
     if st is None:
-        raise HTTPException(404, "Onbekende job")
+        raise HTTPException(404, "Unknown job")
     return st
 
 
@@ -325,7 +339,7 @@ def learn(body: Learn, me: str = Me):
                               me, body.source_id,
                               body.mentions, body.candidate_relations)
     except KeyError:
-        raise HTTPException(404, "Onbekende source_id; draai de ingest opnieuw")
+        raise _expired_source()
 
 
 @app.post("/candidates/commit")
@@ -336,7 +350,7 @@ def commit_candidates(body: CommitCandidates, me: str = Me):
         return learning.commit_candidates(body.source_id, body.selected, body.link_existing,
                                           body.relations, me)
     except KeyError:
-        raise HTTPException(404, "Onbekende source_id; draai de ingest opnieuw")
+        raise _expired_source()
 
 
 @app.post("/concept/{name}/learned")
@@ -446,7 +460,8 @@ def rebuild_memory(person_id: str = Own):
 def health():
     """Public, no personal data: for the deploy asserts, uptime checks and the setup screen."""
     from .teach import flags
-    return {"ok": True, "setup_needed": auth.setup_needed(), "configured": settings.configured(), "teach_mode": flags.mode()}
+    return {"ok": True, "setup_needed": auth.setup_needed(), "configured": settings.configured(), "teach_mode": flags.mode(),
+            "version": os.getenv("TRELLIS_VERSION") or "dev", "commit": os.getenv("TRELLIS_COMMIT") or ""}
 
 
 # ---- Backups (owner only). Online: the app keeps running. ----
@@ -655,6 +670,8 @@ async def transcribe_voice(request: Request, language: Literal['en', 'nl'] = 'en
         raise HTTPException(422, str(e))
     try:
         return {'text': await voice.transcribe(bytes(data), language)}
+    except ProviderError:
+        raise
     except Exception:
         log.warning('Voice transcription failed')
         raise HTTPException(503, 'Transcription unavailable. Please retry.')
@@ -676,5 +693,7 @@ async def curriculum_proposal(body: CurriculumRequest):
     links=[{'source':str(e.get('source','')),'target':str(e.get('target','')),'type':str(e.get('type',''))} for e in body.links if e.get('source') in ids and e.get('target') in ids]
     if not nodes:return {'groups':[],'conflicts':[],'coverage':0}
     try:return await curriculum.propose(nodes,links,body.language)
+    except ProviderError:
+        raise
     except Exception:
         raise HTTPException(503,'Could not organize the learning roadmap. Please retry.')

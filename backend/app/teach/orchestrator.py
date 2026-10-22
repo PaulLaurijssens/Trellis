@@ -10,6 +10,7 @@ import time
 
 from .. import graph, llm, memory_model, settings
 from . import artifacts, issues, lessons, model, objectives, skill, worker, workspace
+from ..provider_errors import STATUS, ProviderError
 
 log = logging.getLogger("uvicorn.error")
 MAX_STEPS = int(os.getenv("TEACH_MAX_STEPS", "40"))
@@ -453,7 +454,9 @@ class Job:
         except Exception as exc:
             log.warning("teach job %s failed: %s", self.job_id, exc)
             known = str(exc) if str(exc) in ("workbench_unavailable", "topic_not_found", "not_published") else "generation_failed"
-            if known == "generation_failed" and self.draft is None and not self.published and self.topic:
+            if isinstance(exc, ProviderError):
+                known = exc.code                   # e.g. provider.quotaZero: the frontend names the reason
+            if known in ("generation_failed",) + tuple(STATUS) and self.draft is None and not self.published and self.topic:
                 self._rescue()                     # e.g. the model API failed half-way: keep what was written
             if self.published:
                 self._finish("ready", detail="", lesson_id=self.published["lesson_id"], lesson_version_id=self.published["version_id"])

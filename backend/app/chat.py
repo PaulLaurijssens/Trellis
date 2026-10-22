@@ -82,12 +82,14 @@ def build_system_prompt(concept_id: str, person_id: str, level: int,
 
 
 def _reply(system: str, messages: list[dict]) -> str:
-    resp = litellm.completion(
-        model=llm.MENTOR_MODEL,
+    model = llm.MENTOR_MODEL
+    resp = llm.call_model(lambda: litellm.completion(
+        model=model,
         messages=[{"role": "system", "content": system}] +
                  [{"role": m["role"], "content": illustrations.message_context(m)} for m in messages],
         temperature=0.4,
-    )
+        **llm.endpoint(model),
+    ), model, "mentor")
     return resp.choices[0].message.content
 
 
