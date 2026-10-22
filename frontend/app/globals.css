@@ -1533,3 +1533,31 @@ button.chip:hover:not(:disabled) { border-color: rgba(84, 169, 255, 0.45); color
 .link-paste { display: flex; flex-direction: column; gap: 10px; margin-top: 4px; }
 .link-paste p { margin: 0; line-height: 1.5; }
 .link-paste .paste { min-height: 160px; }
+/* Model provider: the connection test (setup and Settings), the AI provider card, About. */
+.sr-only { position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0; }
+.hint.error { color: var(--danger); }
+.provider-test { display: grid; gap: 10px; justify-items: start; }
+.provider-test .btn { min-height: 44px; }
+.provider-test .provider-suggest { white-space: normal; text-align: left; line-height: 1.4; padding: 8px 14px; }
+.provider-checks { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; width: 100%; font-size: 14px; line-height: 1.45; color: var(--text-3); }
+.provider-checks li { display: grid; grid-template-columns: 18px 1fr; gap: 8px; align-items: baseline; }
+.provider-checks b { font-weight: 600; color: var(--text-2); }
+.provider-checks code { font-family: var(--font-mono); font-size: 13px; color: var(--text-dim); overflow-wrap: anywhere; }
+.provider-checks .mark { font-weight: 700; text-align: center; }
+.provider-checks li.ok .mark { color: var(--learned); }
+.provider-checks li.warn .mark { color: var(--warn); }
+.provider-checks li.fail .mark { color: var(--danger); }
+.provider-ok { margin: 0; font-size: 14px; color: var(--learned-soft); }
+.provider-warn { margin: 0; padding: 8px 12px; border-radius: 10px; border: 1px solid rgba(229, 166, 74, 0.35); background: rgba(229, 166, 74, 0.08); color: var(--text-1); font-size: 14px; line-height: 1.5; }
+.provider-card .provider-facts { display: grid; grid-template-columns: max-content 1fr; gap: 6px 14px; margin: 10px 0 4px; font-size: 15px; }
+.provider-card .provider-facts dt { color: var(--text-dim); }
+.provider-card .provider-facts dd { margin: 0; color: var(--text-1); min-width: 0; overflow-wrap: anywhere; }
+.provider-card .provider-facts code { font-family: var(--font-mono); font-size: 14px; }
+.provider-card .provider-edit { display: grid; gap: 14px; margin-top: 12px; }
+.provider-card .provider-edit .gate-field select, .provider-card .provider-edit .gate-field input { width: 100%; }
+.provider-card .row { flex-wrap: wrap; }
+.about-card code { font-family: var(--font-mono); font-size: 14px; color: var(--text-dim); }
+.about-card .row { margin: 10px 0 6px; }
+@media (max-width: 560px) { .provider-card .provider-facts { grid-template-columns: 1fr; gap: 2px; } .provider-card .provider-facts dd { margin-bottom: 6px; } }
+.provider-checks .provider-detail { display: block; margin-top: 2px; font-size: 13px; color: var(--text-dim); overflow-wrap: anywhere; }
+.provider-card .row .btn { width: auto; flex: 0 0 auto; }
