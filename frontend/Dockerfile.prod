@@ -9,8 +9,10 @@ ARG NODE_VERSION=22.23.2
 FROM node:${NODE_VERSION}-bookworm-slim AS build
 WORKDIR /app
 
+# Optional package mirror for networks that block or filter registry.npmjs.org. Empty = the normal registry.
+ARG NPM_CONFIG_REGISTRY=
 COPY package.json package-lock.json ./
-RUN npm ci
+RUN [ -n "$NPM_CONFIG_REGISTRY" ] || unset NPM_CONFIG_REGISTRY; npm ci
 
 COPY . .
 ARG NEXT_PUBLIC_API_URL=/api
@@ -36,6 +38,16 @@ COPY --from=build --chown=10003:10003 /app/next.config.js ./next.config.js
 
 RUN groupadd -g 10003 trellis && useradd -u 10003 -g 10003 -m -s /usr/sbin/nologin trellis
 USER 10003:10003
+
+# Version and commit, set by the release workflow; a local build says "dev".
+ARG TRELLIS_VERSION=dev
+ARG TRELLIS_COMMIT=
+ENV TRELLIS_VERSION=${TRELLIS_VERSION} \
+    TRELLIS_COMMIT=${TRELLIS_COMMIT}
+LABEL org.opencontainers.image.source="https://github.com/PaulLaurijssens/Trellis" \
+      org.opencontainers.image.title="trellis-frontend" \
+      org.opencontainers.image.version="${TRELLIS_VERSION}" \
+      org.opencontainers.image.revision="${TRELLIS_COMMIT}"
 
 EXPOSE 3000
 CMD ["npm", "run", "start"]

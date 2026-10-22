@@ -15,8 +15,10 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
+# Optional package mirror for networks that block or filter pypi.org. Empty = the normal index.
+ARG PIP_INDEX_URL=
 COPY requirements.lock.txt ./
-RUN pip install --no-cache-dir -r requirements.lock.txt
+RUN [ -n "$PIP_INDEX_URL" ] || unset PIP_INDEX_URL; pip install --no-cache-dir -r requirements.lock.txt
 
 # --chown om dezelfde reden als in het frontend-image: COPY erft de rechten van de
 # build-context, en zonder dit kan de non-root user zijn eigen broncode niet lezen.
@@ -24,6 +26,17 @@ COPY --chown=10002:10002 app ./app
 
 RUN groupadd -g 10002 trellis && useradd -u 10002 -g 10002 -m -s /usr/sbin/nologin trellis
 USER 10002:10002
+
+# Version and commit for GET /health. Set by the release workflow; a local build says "dev".
+# Late in the file so a new version does not rebuild the layers above.
+ARG TRELLIS_VERSION=dev
+ARG TRELLIS_COMMIT=
+ENV TRELLIS_VERSION=${TRELLIS_VERSION} \
+    TRELLIS_COMMIT=${TRELLIS_COMMIT}
+LABEL org.opencontainers.image.source="https://github.com/PaulLaurijssens/Trellis" \
+      org.opencontainers.image.title="trellis-api" \
+      org.opencontainers.image.version="${TRELLIS_VERSION}" \
+      org.opencontainers.image.revision="${TRELLIS_COMMIT}"
 
 EXPOSE 8000
 # Eén worker: dit is een persoonlijke app op een gedeelde box. Meer workers = meer geheugen
