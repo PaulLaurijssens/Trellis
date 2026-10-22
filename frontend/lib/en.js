@@ -674,6 +674,7 @@ const en = {
   "gate.checkOk": "works",
   "gate.allOk": "All three models answered. You can go on.",
   "gate.busyOnly": "The model is busy. Test again later, or continue now.",
+  "gate.details": "What the provider said",
   "gate.continueAnyway": "Continue anyway",
   "gate.checkFailed": "The test could not run. {reason}",
   "gate.useSuggest": "Use {model} as the mentor for now (simpler answers; you can switch later in Settings)",

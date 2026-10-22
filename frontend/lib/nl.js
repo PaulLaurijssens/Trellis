@@ -687,6 +687,7 @@ const nl = {
   "gate.checkOk": "werkt",
   "gate.allOk": "Alle drie de modellen gaven antwoord. Je kunt verder.",
   "gate.busyOnly": "Het model is druk. Test later opnieuw, of ga nu verder.",
+  "gate.details": "Wat de provider zei",
   "gate.continueAnyway": "Toch verdergaan",
   "gate.checkFailed": "De test kon niet draaien. {reason}",
   "gate.useSuggest": "Gebruik voorlopig {model} als mentor (eenvoudigere antwoorden; je kunt later wisselen in Instellingen)",

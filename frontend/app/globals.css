@@ -1559,5 +1559,6 @@ button.chip:hover:not(:disabled) { border-color: rgba(84, 169, 255, 0.45); color
 .about-card code { font-family: var(--font-mono); font-size: 14px; color: var(--text-dim); }
 .about-card .row { margin: 10px 0 6px; }
 @media (max-width: 560px) { .provider-card .provider-facts { grid-template-columns: 1fr; gap: 2px; } .provider-card .provider-facts dd { margin-bottom: 6px; } }
-.provider-checks .provider-detail { display: block; margin-top: 2px; font-size: 13px; color: var(--text-dim); overflow-wrap: anywhere; }
+.provider-checks .provider-detail { display: block; margin-top: 2px; font-size: 13px; color: var(--text-dim); overflow-wrap: anywhere; white-space: pre-wrap; }
+.provider-checks .provider-detail summary { cursor: pointer; color: var(--text-3); }
 .provider-card .row .btn { width: auto; flex: 0 0 auto; }

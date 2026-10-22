@@ -105,7 +105,7 @@ export function ProviderTest({ check, onTest, disabled, provider, embedProvider,
         <span><b>{t({ extract: "gate.extractModel", mentor: "gate.mentorModel", embed: "gate.embedModel" }[c.name] || c.name)}</b>
           {c.model && <> <code>{c.model}</code></>}
           {": "}{c.ok ? t("gate.checkOk") : errorText(t, c.code, { provider: c.name === "embed" ? embedProvider || provider : provider !== CUSTOM ? provider : null, model: c.model, ...(c.params || {}) }, { check: true, fallback: c.message })}
-          {!c.ok && c.params?.detail && <small className="provider-detail">{c.params.detail}</small>}</span>
+          {!c.ok && c.params?.detail && <details className="provider-detail"><summary>{t("gate.details")}</summary>{c.params.detail}</details>}</span>
       </li>;
     })}</ul>}
     {verdict.state === "ok" && <p className="provider-ok" role="status">{t("gate.allOk")}</p>}
