@@ -60,3 +60,25 @@ jobs:
           docker compose -f trellis/compose.yaml config --images
       - name: SHA256SUMS matches the files
         run: cd dist && sha256sum -c SHA256SUMS
+  installer:
+    name: guided installer (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - name: shellcheck
+        if: runner.os == 'Linux'
+        run: shellcheck -x setup.sh scripts/test-setup.sh
+      - name: setup.sh (fake docker)
+        if: runner.os == 'Linux'
+        run: bash scripts/test-setup.sh
+      - name: setup.ps1 (PowerShell 7)
+        shell: pwsh
+        run: ./scripts/test-setup.ps1
+      - name: setup.ps1 (Windows PowerShell 5.1)
+        if: runner.os == 'Windows'
+        shell: powershell
+        run: ./scripts/test-setup.ps1
