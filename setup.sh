@@ -145,15 +145,15 @@ classify_error() {
   local t
   t="$(tr '[:upper:]' '[:lower:]')"
   case "$t" in
-    *x509*|*certificate*|*"tls handshake"*|*"tls:"*|*proxyconnect*|*"proxy error"*|*"proxy authentication"*|*"ssl "*|*"ssl_"*|*"ssl:"*)
+    *x509*|*certificate*|*"tls handshake"*|*"tls:"*|*proxyconnect*|*"proxy error"*|*"proxy authentication"*|*"ssl "*|*"ssl_"*|*"ssl:"*|*"ssl/tls"*|*"trust relationship"*)
       echo tls ;;
-    *"no such host"*|*"name resolution"*|*"server misbehaving"*|*"could not resolve"*|*"name or service not known"*|*"nodename nor servname"*)
+    *"no such host"*|*"name resolution"*|*"server misbehaving"*|*"could not resolve"*|*"name or service not known"*|*"nodename nor servname"*|*"remote name could not be resolved"*)
       echo dns ;;
-    *"manifest unknown"*|*"name unknown"*|*denied*|*unauthorized*|*"not found"*|*"error: 404"*)
+    *"manifest unknown"*|*"name unknown"*|*denied*|*unauthorized*|*"not found"*|*"error: 404"*|*"(404)"*)
       echo missing ;;
     *toomanyrequests*|*"rate limit"*|*"too many requests"*)
       echo ratelimit ;;
-    *"network is unreachable"*|*"i/o timeout"*|*"connection refused"*|*"connection reset"*|*"deadline exceeded"*|*timeout*|*"timed out"*|*"dial tcp"*|*"no route to host"*|*"failed to connect"*)
+    *"network is unreachable"*|*"i/o timeout"*|*"connection refused"*|*"connection reset"*|*"deadline exceeded"*|*timeout*|*"timed out"*|*"dial tcp"*|*"no route to host"*|*"failed to connect"*|*"unable to connect"*)
       echo offline ;;
     *) echo unknown ;;
   esac
