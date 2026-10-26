@@ -5,10 +5,11 @@ import os
 
 from fastapi import Body, Depends, FastAPI, File, Form, HTTPException, Query, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 from pydantic import BaseModel
 from .provider_errors import ProviderError
 from . import graph, extract, mentor, chat, memory, jobs, transcript, journey, learn as learning, auth, settings, llm, backup, migrate, sources, guide
+from . import memory_export, memory_import, tokens, mcp_server
 from .teach import api as teach_api
 
 # Identity comes from the session cookie (auth.py). `Me` replaces every person_id default; a route
@@ -26,11 +27,13 @@ app = FastAPI(title="Mentor")
 # list is for local dev only. It was "*": with that, a sandboxed lesson frame (opaque origin) could
 # have READ any /api response if its CSP ever failed. Now the browser refuses that by itself.
 CORS_ORIGINS = [o.strip() for o in os.getenv("CORS_ORIGINS", "http://localhost:3000,http://localhost:3001").split(",") if o.strip()]
-app.add_middleware(CORSMiddleware, allow_origins=CORS_ORIGINS, allow_methods=["*"], allow_headers=["*"])
+app.add_middleware(CORSMiddleware, allow_origins=CORS_ORIGINS, allow_methods=["*"], allow_headers=["*"],
+                   expose_headers=["Content-Disposition"])
 app.middleware("http")(auth.middleware)
 app.include_router(auth.router)
 app.include_router(teach_api.public)
 app.include_router(teach_api.router)
+app.include_router(mcp_server.router)
 
 
 @app.exception_handler(ProviderError)
@@ -55,7 +58,21 @@ async def _consolidation_loop():
                 log.info("Geconsolideerd: %d sessie(s)", done)
         except Exception as e:
             log.warning("Consolidatieronde mislukt: %s", e)
+        await asyncio.to_thread(_embed_missing)
         await asyncio.sleep(CONSOLIDATE_EVERY)
+
+
+def _embed_missing():
+    """Imported concepts arrive without an embedding (embeddings are model specific). Fill them in with
+    this install's model, so later sources find them as similar concepts instead of adding duplicates."""
+    if not settings.configured():
+        return
+    try:
+        done = memory_import.embed_missing()
+        if done:
+            log.info("Embedded %d imported concept(s)", done)
+    except Exception as e:
+        log.warning("Embedding imported concepts failed (will retry): %s", e)
 
 
 @app.on_event("startup")
@@ -454,6 +471,62 @@ def rebuild_memory(person_id: str = Own):
         return memory.rebuild(person_id)
     except memory.ConsolidationError as exc:
         raise HTTPException(409, str(exc))
+
+
+# ---- Your data: export, import, connections for other AIs ----
+
+@app.get("/memory/{person_id}/export")
+def export_memory(person_id: str = Own):
+    try:
+        blob = memory_export.zip_bytes(memory_export.build(person_id))
+    except KeyError:
+        raise HTTPException(404, "Person not found")
+    return Response(blob, media_type="application/zip",
+                    headers={"Content-Disposition": f'attachment; filename="{memory_export.filename()}"',
+                             "Cache-Control": "no-store"})
+
+
+@app.post("/memory/{person_id}/import")
+async def import_memory(request: Request, mode: Literal["preview", "apply"] = "preview", person_id: str = Own):
+    data = bytearray()
+    async for chunk in request.stream():
+        data.extend(chunk)
+        if len(data) > memory_import.MAX_BYTES:
+            raise HTTPException(413, "The file is larger than 24 MB.")
+    try:
+        doc = memory_import.read(bytes(data))
+        if mode == "preview":
+            return await asyncio.to_thread(memory_import.preview, doc, person_id)
+        result = await asyncio.to_thread(memory_import.apply, doc, person_id)
+    except memory_import.ImportProblem as exc:
+        raise HTTPException(400, str(exc))
+    asyncio.create_task(asyncio.to_thread(_embed_missing))
+    return result
+
+
+class ConnectionCreate(BaseModel):
+    name: str
+    scopes: list[str] = ["memory:read"]
+
+
+@app.get("/memory/{person_id}/connections")
+def list_connections(person_id: str = Own):
+    return {"connections": tokens.listing(person_id), "scopes": tokens.SCOPES}
+
+
+@app.post("/memory/{person_id}/connections")
+def create_connection(body: ConnectionCreate, person_id: str = Own):
+    try:
+        return tokens.create(person_id, body.name, body.scopes)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
+
+
+@app.delete("/memory/{person_id}/connections/{token_id}")
+def revoke_connection(token_id: str, person_id: str = Own):
+    if not tokens.revoke(person_id, token_id):
+        raise HTTPException(404, "Connection not found")
+    return {"revoked": True}
 
 
 @app.get("/health")

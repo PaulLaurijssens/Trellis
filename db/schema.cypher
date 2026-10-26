@@ -66,3 +66,9 @@ CREATE CONSTRAINT reference_id IF NOT EXISTS FOR (r:Reference) REQUIRE r.id IS U
 // (:Lesson)-[:HAS_VERSION]->(:LessonVersion)   // version = immutable; files on the artifact volume
 // (:LessonRun)-[:OF_VERSION]->(:LessonVersion) // a run never changes version
 // (:ExerciseAttempt)-[:IN_RUN]->(:LessonRun)   // layer 1 for exercises, like :ChatMessage for chat
+
+// ---- Personal access tokens for other AIs (MCP). Only the SHA-256 hash of a token is stored ----
+CREATE CONSTRAINT access_token_id IF NOT EXISTS FOR (t:AccessToken) REQUIRE t.id IS UNIQUE;
+CREATE INDEX access_token_hash IF NOT EXISTS FOR (t:AccessToken) ON (t.hash);
+// (:AccessToken {id, person_id, name, hint, hash, scopes[], created_at, last_used_at, revoked_at})
+// (Person)-[:HAS_TOKEN]->(AccessToken)

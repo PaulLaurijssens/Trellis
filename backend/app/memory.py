@@ -224,13 +224,17 @@ def _patch_understands(person_id: str, concept_name: str, patch: dict) -> dict |
     manual = set(state.get("manual_fields", []))
     removed = list(state.get("removed", []))
 
+    restored = set()
     for field in graph.STATE_LISTS:
         if field in patch:
             wanted = [str(x).strip() for x in (patch[field] or []) if str(x).strip()]
             gone = [x for x in state.get(field, []) if _norm(x) not in {_norm(w) for w in wanted}]
             removed += gone
+            # Putting back an item the learner removed earlier (Undo) lifts its tombstone.
+            restored |= {_norm(w) for w in wanted if _norm(w) not in {_norm(x) for x in state.get(field, [])}}
             new_state[field] = wanted
             manual.add(field)
+    removed = [r for r in removed if _norm(r) not in restored]
     for field in graph.STATE_SCALARS:
         if field in patch:
             new_state[field] = patch[field]
@@ -247,10 +251,12 @@ def _patch_understands(person_id: str, concept_name: str, patch: dict) -> dict |
             for text in new_state[field]:
                 if (field,_norm(text)) not in existing:
                     doc["legacy"].append({"id":memory_model.key("manual",concept["id"],field,_norm(text)),"kind":field,"text":text,"state":"active","origin":"learner","date":graph._now(),"evidence_ids":[]})
-    # Keep list removals as durable corrections on identifiable observations.
+    # Keep list removals as durable corrections on identifiable observations; a restored one loses its correction.
     for observation in state.get("observations",[]):
         if norm_text_removed(observation["text"],new_state["removed"]):
             doc["corrections"][observation["id"]]={"state":"superseded","resolved_at":graph._now()}
+        elif _norm(observation["text"]) in restored and doc["corrections"].get(observation["id"],{}).get("state")=="superseded":
+            del doc["corrections"][observation["id"]]
     graph.write_understands(person_id, concept["id"], new_state)
     return graph.understands_state(person_id, concept["id"])
 
@@ -260,13 +266,16 @@ def _patch_profile(person_id: str, patch: dict) -> dict:
     manual = set(profile.get("manual_fields", []))
     removed = list(profile.get("removed", []))
 
+    restored = set()
     for field in graph.PROFILE_LISTS:
         if field in patch:
             wanted = [str(x).strip() for x in (patch[field] or []) if str(x).strip()]
             gone = [x for x in profile.get(field, []) if _norm(x) not in {_norm(w) for w in wanted}]
             removed += gone
+            restored |= {_norm(w) for w in wanted if _norm(w) not in {_norm(x) for x in profile.get(field, [])}}
             profile[field] = wanted
             manual.add(field)
+    removed = [r for r in removed if _norm(r) not in restored]
     if "notes" in patch:
         profile["notes"] = patch["notes"] or ""
         manual.add("notes") if patch["notes"] else manual.discard("notes")
@@ -302,7 +311,13 @@ def correct_observation(person_id, concept_name, observation_id, state):
         doc=current["memory_v2"]
         doc["corrections"][observation_id]={"state":state,"resolved_at":graph._now(),"resolution_evidence_ids":[]}
         observation=next(o for o in current["observations"] if o["id"]==observation_id)
-        if state=="active":doc["baseline"]["removed"]=[x for x in doc["baseline"].get("removed",[]) if _norm(x)!=_norm(observation["text"])]
+        if state=="active":
+            doc["baseline"]["removed"]=[x for x in doc["baseline"].get("removed",[]) if _norm(x)!=_norm(observation["text"])]
+            # Only pin 'active' when a conversation resolved it; a learner's own earlier correction is simply undone,
+            # so later evidence can still resolve it.
+            without=deepcopy(doc);without["corrections"].pop(observation_id,None)
+            if next(o for o in memory_model.project(without)["observations"] if o["id"]==observation_id)["state"]=="active":
+                doc["corrections"].pop(observation_id,None)
         graph.write_understands(person_id,concept["id"],memory_model.project(doc))
         return graph.understands_state(person_id,concept["id"])
     return graph.memory_transaction(person_id,commit)

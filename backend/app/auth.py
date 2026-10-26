@@ -127,6 +127,10 @@ async def middleware(request: Request, call_next):
     path = request.url.path
     if request.method == "OPTIONS" or any(path == p.rstrip("/") or path.startswith(p) for p in OPEN_PATHS):
         return await call_next(request)
+    if path == "/mcp":
+        # Other AIs: a personal access token, checked by mcp_server. The session cookie never counts here.
+        request.state.person_id = None
+        return await call_next(request)
     if not request.state.person_id:
         return Response(json.dumps({"detail": "Please log in"}), status_code=401, media_type="application/json")
     return await call_next(request)
