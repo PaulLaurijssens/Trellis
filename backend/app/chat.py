@@ -23,11 +23,14 @@ How you teach:
 {language_rule}"""
 
 def detect_language(text: str) -> str | None:
-    """Language of a message ('nl', 'en', ...) or None when it cannot be told. See languages.py."""
+    """Language of a message ('en', ...) or None when it cannot be told. See languages.py."""
     return languages.detect(text)
 
 
-def language_rule(reply_lang: str, ui_lang: str) -> str:
+def language_rule(reply_lang: str | None, ui_lang: str) -> str:
+    if reply_lang is None:
+        return (f"- Answer in the language of the learner's last message, whatever language that is."
+                f"\n- When you cannot tell which language that is, answer in {languages.name(ui_lang)}.")
     rule = f"- Answer in {languages.name(reply_lang)}: the language of the learner's last message."
     if reply_lang != ui_lang:
         rule += f"\n- This person's preferred language is {languages.name(ui_lang)}; use it only when the language of a message cannot be told."
@@ -40,7 +43,7 @@ def build_system_prompt(concept_id: str, person_id: str, level: int,
                         last_user_message: str | None = None, extra_context: str = "") -> str:
     ctx = graph.concept_prompt_context(concept_id)
     ui_lang = graph.ui_language(person_id)
-    reply_lang = detect_language(last_user_message or "") or ui_lang
+    reply_lang = detect_language(last_user_message or "") if last_user_message else ui_lang
     parts = [DIDACTIEK.format(audience=LEVELS[level], language_rule=language_rule(reply_lang, ui_lang))]
 
     parts.append(f"\n## Concept\n{ctx.get('name')}: {ctx.get('definition') or '(no definition yet)'}")

@@ -207,8 +207,6 @@ def youtube_id(url):
     return video_id
 
 
-def fetch_error(error, language='en'):
+def fetch_error(error):
     blocked = type(error).__name__ in ('RequestBlocked', 'IpBlocked')
-    if language == 'nl':
-        return ('YouTube blokkeert het automatisch ophalen van dit transcript. ' if blocked else 'Het transcript kon niet automatisch worden opgehaald. ') + 'Open de video op YouTube, kies Transcript tonen en kopieer de tekst. Gebruik hieronder Transcript plakken; tijdcodes mogen blijven staan.'
     return ('YouTube is blocking automatic transcript retrieval. ' if blocked else 'The transcript could not be retrieved automatically. ') + 'Open the video on YouTube, choose Show transcript and copy the text. Use Paste transcript below; timestamps can stay in place.'

@@ -43,14 +43,14 @@ export default function ProfileMenu({ onProfile, onRebuild, rebuilding }) {
               <>
                 <button role="menuitem" onClick={() => { setOpen(false); onProfile(); }}>{t("menu.profile")}</button>
                 <button role="menuitem" onClick={() => setConfirm(true)}>{t("menu.rebuild")}</button>
-                <div className="menu-lang" role="group" aria-label={t("menu.language")}>
+                {LANGS.length > 1 && <div className="menu-lang" role="group" aria-label={t("menu.language")}>
                   <span>{t("menu.language")}</span>
                   <div className="seg sm">
                     {LANGS.map(([code, label]) => (
                       <button key={code} className={code === lang ? "on" : ""} onClick={() => setLang(code)} title={label}>{code.toUpperCase()}</button>
                     ))}
                   </div>
-                </div>
+                </div>}
               </>
             )}
           </div>

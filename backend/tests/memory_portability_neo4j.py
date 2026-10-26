@@ -174,8 +174,39 @@ def main():
 
     grown()
     undo()
+    shared_map(doc)
     print("PASS: export, import into an empty install, rebuild, re-import is a no-op, second learner gets own ids, "
-          "a newer export adds later messages, Undo restores removed items.")
+          "a newer export adds later messages, Undo restores removed items, the shared map is protected.")
+
+
+def shared_map(doc):
+    """A learner's file cannot rewire concepts that are already on the shared map, cannot plant a
+    javascript: link, and cannot borrow another learner's conversation as evidence."""
+    graph.run("CREATE (:Person {id:'mallory', name:'M', ui_language:'en'})")
+    names = [c["name"] for c in doc["map"]["concepts"]][:2]
+    bad = {"format": doc["format"], "version": doc["version"],
+           "map": {"concepts": [{"id": "x1", "name": names[0]}, {"id": "x2", "name": names[1]},
+                                {"id": "x3", "name": "Junk concept"}],
+                   "relations": [{"from": "x3", "to": "x1", "type": "PREREQUISITE_OF"},
+                                 {"from": "x1", "to": "x2", "type": "RELATED_TO", "reason": "rewired"},
+                                 {"from": "x2", "to": "x1", "type": "PART_OF"}],
+                   "sources": [{"id": "src-js", "type": "link", "title": "click", "url": "javascript:alert(1)",
+                                "mentions": [{"concept": names[0], "context": "planted"}]}]}}
+    before = graph.run("MATCH (a:Concept)-[r]->(b:Concept) WHERE a.name IN $n AND b.name IN $n RETURN count(r) AS n", n=names)[0]["n"]
+    seen = memory_import.preview(memory_import.validate(json.loads(json.dumps(bad))), "mallory")
+    assert seen["counts"]["relations"] == 1, seen
+    assert any("already on this map" in w for w in seen["warnings"]), seen["warnings"]
+    memory_import.apply(memory_import.validate(json.loads(json.dumps(bad))), "mallory")
+    after = graph.run("MATCH (a:Concept)-[r]->(b:Concept) WHERE a.name IN $n AND b.name IN $n RETURN count(r) AS n", n=names)[0]["n"]
+    assert after == before, (before, after)
+    assert graph.run("MATCH (:Concept {name:'Junk concept'})-[:PREREQUISITE_OF]->(:Concept {name:$n}) RETURN count(*) AS n", n=names[0])[0]["n"] == 1
+    assert graph.run("MATCH (s:Source {id:'src-js'}) RETURN s.url AS url")[0]["url"] is None
+    # The new source is this file's own, so its mention of an existing concept is allowed; a mention on
+    # an existing source is not (covered by the planner rule), and nothing became clickable.
+    victim = graph.run("MATCH (s:ChatSession)-[:HAS_MESSAGE]->(:ChatMessage) WHERE s.person_id <> 'mallory' "
+                       "RETURN s.id AS sid, s.person_id AS pid LIMIT 1")[0]
+    assert graph.session_messages(victim["sid"], "mallory") == []
+    assert graph.session_messages(victim["sid"], victim["pid"])
 
 
 def fresh(pid):

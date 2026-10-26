@@ -14,7 +14,7 @@ from urllib.parse import urlparse
 
 from fastapi import APIRouter, Request, Response
 
-from . import graph, journey, personal_context, tokens
+from . import graph, journey, languages, personal_context, tokens
 
 router = APIRouter()
 VERSIONS = ("2025-11-25", "2025-06-18", "2025-03-26", "2024-11-05")
@@ -195,7 +195,7 @@ def get_learner_profile(pid):
     data = {"language": lang, "chosen_teaching_approaches": p.get("teaching_preferences") or [],
             "works_well": p.get("works_well") or [], "works_poorly": p.get("works_poorly") or [],
             "preferences": p.get("preferences") or [], "notes": p.get("notes") or ""}
-    parts = [f"Preferred language: {graph.LANGUAGE_NAMES_EN.get(lang, lang)}"]
+    parts = [f"Preferred language: {languages.name(lang)}"]
     for key, label in (("chosen_teaching_approaches", "Chose"), ("works_well", "Works well"),
                        ("works_poorly", "Does not work"), ("preferences", "Preferences")):
         if data[key]:
@@ -363,16 +363,18 @@ def _json(body, status=200):
 
 
 def _origin_allowed(request: Request) -> bool:
-    """Spec: refuse a browser page from another site (DNS rebinding). Clients outside a browser send no
-    Origin. nginx passes Host without its port, so host names are compared, not host:port."""
+    """Spec: refuse a browser page from another site. Clients outside a browser send no Origin.
+
+    The Host header is not trusted: under DNS rebinding a hostile page reaches this server under its own
+    name, so Origin and Host match. Allowed are pages on this computer (localhost, for tools such as
+    the MCP Inspector) and the origins in MCP_ALLOWED_ORIGINS."""
     origin = request.headers.get("origin")
     if not origin:
         return True
     allowed = {o.strip().rstrip("/") for o in os.getenv("MCP_ALLOWED_ORIGINS", "").split(",") if o.strip()}
     if origin.rstrip("/") in allowed:
         return True
-    host = (request.headers.get("x-forwarded-host") or request.headers.get("host") or "").split(",")[0].strip()
-    return bool(host) and urlparse(origin).hostname == urlparse("//" + host).hostname
+    return urlparse(origin).hostname in ("localhost", "127.0.0.1", "::1")
 
 
 def _limited(token_id) -> bool:

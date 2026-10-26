@@ -60,7 +60,7 @@ export function Setup({ status, onDone }) {
     <>
       <h1>{t("gate.setupTitle")}</h1><p className="gate-lead">{t("gate.setupLead")}</p>
       <Field label={t("gate.name")} hint={t("gate.nameHint")}><input autoFocus maxLength={80} value={name} onChange={(e) => setName(e.target.value)} /></Field>
-      <Field label={t("gate.language")} hint={t("gate.languageHint")}><div className="seg">{LANGS.map(([code, label]) => <button type="button" key={code} className={code === lang ? "on" : ""} onClick={() => setLang(code)}>{label}</button>)}</div></Field>
+      {LANGS.length > 1 && <Field label={t("gate.language")} hint={t("gate.languageHint")}><div className="seg">{LANGS.map(([code, label]) => <button type="button" key={code} className={code === lang ? "on" : ""} onClick={() => setLang(code)}>{label}</button>)}</div></Field>}
       <button className="btn primary" disabled={!name.trim()} onClick={() => setStep(1)}>{t("gate.next")}</button>
     </>,
     <>

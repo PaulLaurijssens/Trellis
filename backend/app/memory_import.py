@@ -10,18 +10,29 @@ install gets a new id, and every reference to it in the ledgers is rewritten.
 """
 import io
 import json
+import threading
 import uuid
 import zipfile
 import hashlib
 from copy import deepcopy
+from urllib.parse import urlparse
 
 from . import graph, memory_model
 from .memory_export import FORMAT, VERSION
 
 MAX_BYTES = 24 * 1024 * 1024          # nginx accepts 25 MB (deploy/nginx.conf)
-MAX_JSON = 120 * 1024 * 1024          # uncompressed memory.json; guards against zip bombs
-LIMITS = {"concepts": 20000, "relations": 100000, "sources": 20000, "conversations": 20000,
-          "messages": 300000, "exercises": 100000, "understanding": 20000, "goals": 2000, "examples": 20000}
+MAX_JSON = 32 * 1024 * 1024           # uncompressed memory.json; guards against zip bombs
+# Parsed JSON takes far more memory than its text: refuse a file with an absurd number of objects and
+# lists before parsing it. A real memory of a few years has tens of thousands.
+MAX_STRUCTURES = 1_500_000
+LIMITS = {"concepts": 10000, "relations": 50000, "sources": 5000, "conversations": 10000,
+          "messages": 150000, "exercises": 50000, "understanding": 10000, "goals": 1000, "examples": 10000}
+# Conversations that were not yet processed into memory are processed after the import with the
+# install's AI key. Above this number the rest is imported as history only, so one file cannot run up
+# the owner's bill.
+MAX_PENDING = 50
+TEXT = {"name": 200, "definition": 4000, "domain": 200, "alias": 120, "title": 300, "url": 2000}
+_busy = threading.Lock()                 # one import at a time: parsing and planning are memory-heavy
 RANK = graph.STATUS_RANK
 
 
@@ -30,6 +41,17 @@ class ImportProblem(ValueError):
 
 
 # ---- reading the file -------------------------------------------------------------------------------
+
+def handle(data: bytes, mode: str, pid: str) -> dict:
+    """Read, then preview or apply. Runs in a worker thread; a second import waits for none, it is refused."""
+    if not _busy.acquire(blocking=False):
+        raise ImportProblem("Another import is running. Try again in a minute.")
+    try:
+        doc = read(data)
+        return preview(doc, pid) if mode == "preview" else apply(doc, pid)
+    finally:
+        _busy.release()
+
 
 def read(data: bytes) -> dict:
     if len(data) > MAX_BYTES:
@@ -46,6 +68,8 @@ def read(data: bytes) -> dict:
             raise ImportProblem("This zip has no memory.json. Choose a file exported by Trellis.")
         except zipfile.BadZipFile:
             raise ImportProblem("This zip file is damaged.")
+    if len(raw) > MAX_JSON or raw.count(b"{") + raw.count(b"[") > MAX_STRUCTURES:
+        raise ImportProblem("This memory file is too large to import.")
     try:
         doc = json.loads(raw.decode("utf-8-sig"))
     except (UnicodeDecodeError, ValueError):
@@ -85,6 +109,8 @@ def validate(doc) -> dict:
     for c in checks["concepts"]:
         if not isinstance(c.get("id"), str) or not isinstance(c.get("name"), str) or not c["name"].strip():
             raise ImportProblem("Every concept needs an id and a name.")
+        if len(c["name"].strip()) > TEXT["name"]:
+            raise ImportProblem(f"A concept name is longer than {TEXT['name']} characters.")
         key = c["name"].strip().casefold()
         if key in names:
             raise ImportProblem(f"The concept '{c['name']}' appears twice.")
@@ -185,7 +211,8 @@ def plan(doc: dict, pid: str) -> dict:
         warnings.append("Some conversations refer to a concept that is not in the file; they were left out.")
     session_ids, new_sessions, skipped_sessions = remap("ChatSession", conversations)
     # A newer export of a conversation this learner already has here: add the messages that came later.
-    mine = [s for s in conversations if s not in new_sessions]
+    new_keys = {id(s) for s in new_sessions}
+    mine = [s for s in conversations if id(s) not in new_keys]
     grown = {}
     if mine:
         rows = graph.run("""MATCH (s:ChatSession {person_id:$pid}) WHERE s.id IN $ids
@@ -201,9 +228,16 @@ def plan(doc: dict, pid: str) -> dict:
             extra = [incoming[q] for q in sorted(incoming) if q not in have]
             if extra and max(incoming) > max(have, default=-1) and set(have) <= set(incoming):
                 grown[s["id"]] = {**s, "messages": extra}
-    pending = sum(not s.get("consolidated") for s in new_sessions)
+    pending = [s for s in new_sessions if not s.get("consolidated")]
+    if len(pending) > MAX_PENDING:
+        # The most recent ones are processed; older ones are kept as history only.
+        pending.sort(key=lambda s: str(s.get("last_activity") or s.get("started_at") or ""), reverse=True)
+        history = {id(s) for s in pending[MAX_PENDING:]}
+        new_sessions = [{**s, "consolidated": True} if id(s) in history else s for s in new_sessions]
+        warnings.append(f"{len(pending) - MAX_PENDING} older conversation(s) were never processed into memory; they are imported as history only.")
+        pending = pending[:MAX_PENDING]
     if pending:
-        warnings.append(f"{pending} conversation(s) were not yet processed into memory. Trellis will process them with your AI provider after the import.")
+        warnings.append(f"{len(pending)} conversation(s) were not yet processed into memory. Trellis will process them with your AI provider after the import.")
     attempts = list(_list(doc, "exercises"))
     attempt_ids, new_attempts, skipped_attempts = remap("ExerciseAttempt", attempts)
     goal_ids, new_goals, skipped_goals = remap("LearningGoal", list(_list(doc, "goals")))
@@ -217,17 +251,29 @@ def plan(doc: dict, pid: str) -> dict:
         if current:
             incoming = _complete(remap_ledger(u["ledger"], session_ids, attempt_ids))
             merged += _visible(merge_ledgers(current["memory_v2"], incoming, set(grown))) != _visible(current["memory_v2"])
-    relations = [r for r in _list(doc, "map", "relations")
-                 if r.get("type") in graph.VALID_RELS and r.get("from") in concept_ids and r.get("to") in concept_ids
-                 and concept_ids[r["from"]] != concept_ids[r["to"]]]
-    dropped = len(_list(doc, "map", "relations")) - len(relations)
+    # The map is shared by every learner on this install: a file may connect its own new concepts, but
+    # never rewire concepts that are already here.
+    created = {c["id"] for c in new_concepts}
+    usable = [r for r in _list(doc, "map", "relations")
+              if r.get("type") in graph.VALID_RELS and r.get("from") in concept_ids and r.get("to") in concept_ids
+              and concept_ids[r["from"]] != concept_ids[r["to"]]]
+    relations = [r for r in usable if concept_ids[r["from"]] in created or concept_ids[r["to"]] in created]
+    kept = {id(r) for r in relations}
+    dropped = len(_list(doc, "map", "relations")) - len(usable)
     if dropped:
         warnings.append(f"{dropped} relation(s) of an unknown type or to a missing concept were left out.")
+    between = [{"a": concept_ids[r["from"]], "b": concept_ids[r["to"]], "type": r["type"]} for r in usable if id(r) not in kept]
+    if between:
+        missing = graph.run("""UNWIND $rows AS row MATCH (a:Concept {id:row.a}), (b:Concept {id:row.b})
+            WHERE NOT EXISTS { MATCH (a)-[r]->(b) WHERE type(r) = row.type } RETURN count(*) AS n""", rows=between)[0]["n"]
+        if missing:
+            warnings.append(f"{missing} link(s) between concepts that are already on this map were left out: the map is shared, "
+                            "so a file never changes how existing concepts connect.")
     return {"doc": doc, "pid": pid, "concept_ids": concept_ids, "concept_names": concept_names, "name_to_id": name_to_id,
             "new_concepts": new_concepts, "matched_concepts": matched, "relations": relations,
             "session_ids": session_ids, "new_sessions": new_sessions, "attempt_ids": attempt_ids, "new_attempts": new_attempts,
             "goal_ids": goal_ids, "new_goals": new_goals, "understanding": understanding, "warnings": warnings,
-            "grown_sessions": grown,
+            "grown_sessions": grown, "created": created,
             "counts": {"concepts_new": len(new_concepts), "concepts_matched": len(matched), "relations": len(relations),
                        "sources": len(_list(doc, "map", "sources")),
                        "conversations_new": len(new_sessions), "conversations_skipped": skipped_sessions - len(grown),
@@ -386,7 +432,8 @@ def _write_concepts(p):
     # every learner to every 'learned' concept. New concepts start as 'queued' at most; the importer's own
     # understanding raises them below (_raise_status), exactly as their own clicks would.
     for c in p["new_concepts"]:
-        aliases = list({a.strip().casefold(): a.strip() for a in (c.get("aliases") or []) if isinstance(a, str) and a.strip()}.values())
+        aliases = list({a.strip().casefold(): a.strip() for a in (c.get("aliases") or []) if isinstance(a, str) and a.strip()
+                        and len(a.strip()) <= TEXT["alias"]}.values())[:10]
         status = "queued" if c.get("status") in ("queued", "learning", "learned") else "suggested"
         graph.run("""
             CREATE (c:Concept {id:$id, name:$name, definition:$definition, domain:$domain, status:$status,
@@ -397,12 +444,23 @@ def _write_concepts(p):
               AND NOT EXISTS { MATCH (o:Concept) WHERE o <> c AND (toLower(o.name)=toLower(alias)
                                OR any(a IN coalesce(o.aliases,[]) WHERE toLower(a)=toLower(alias))) }
             SET c.aliases = c.aliases + alias""",
-                  id=c["id"], name=c["name"].strip(), definition=c.get("definition") or "", domain=c.get("domain") or "",
+                  id=c["id"], name=c["name"].strip(), definition=_text(c.get("definition"), "definition"), domain=_text(c.get("domain"), "domain"),
                   status=status, created=c.get("created_at"), now=graph._now(), aliases=aliases)
     for c in _list(p["doc"], "map", "concepts"):
         if c["name"] in p["matched_concepts"] and (c.get("definition") or "").strip():
             graph.run("MATCH (c:Concept {id:$id}) WHERE trim(coalesce(c.definition,''))='' SET c.definition=$definition",
-                      id=p["concept_ids"][c["id"]], definition=c["definition"])
+                      id=p["concept_ids"][c["id"]], definition=_text(c["definition"], "definition"))
+
+
+def _text(value, kind):
+    return value.strip()[:TEXT[kind]] if isinstance(value, str) else ""
+
+
+def _url(value):
+    """Only web links: a javascript: or data: link in a file must never become a clickable source."""
+    if not isinstance(value, str) or len(value) > TEXT["url"]:
+        return None
+    return value if urlparse(value.strip()).scheme in ("http", "https") else None
 
 
 def _raise_status(cid, status):
@@ -421,17 +479,21 @@ def _write_map(p):
     for s in _list(p["doc"], "map", "sources"):
         if not isinstance(s.get("id"), str):
             continue
+        url = _url(s.get("url"))
         found = graph.run("""OPTIONAL MATCH (a:Source {id:$id}) OPTIONAL MATCH (b:Source) WHERE $url IS NOT NULL AND b.url = $url
-                             RETURN coalesce(a.id, b.id) AS id LIMIT 1""", id=s["id"], url=s.get("url"))
+                             RETURN coalesce(a.id, b.id) AS id LIMIT 1""", id=s["id"], url=url)
         sid = found[0]["id"] if found and found[0]["id"] else None
-        if not sid:
+        new_source = not sid
+        if new_source:
             sid = s["id"]
             graph.run("CREATE (:Source {id:$id, type:$type, title:$title, url:$url, ingested_at:coalesce($at,$now)})",
-                      id=sid, type=s.get("type") or "text", title=s.get("title") or "", url=s.get("url"), at=s.get("ingested_at"), now=graph._now())
+                      id=sid, type=_text(s.get("type"), "domain") or "text", title=_text(s.get("title"), "title"), url=url,
+                      at=s.get("ingested_at"), now=graph._now())
         source_ids[s["id"]] = sid
         for m in s.get("mentions") or []:
             cid = p["name_to_id"].get(m.get("concept")) if isinstance(m, dict) else None
-            if not cid:
+            # Mentions only for what this file brought: never new quotes on a shared source and concept.
+            if not cid or not (new_source or cid in p["created"]):
                 continue
             graph.run("""MATCH (c:Concept {id:$cid}), (s:Source {id:$sid}) MERGE (c)-[m:MENTIONED_IN]->(s)
                 ON CREATE SET m.context=$context, m.importance=$importance, m.mentions=$mentions, m.start_sec=$start""",
@@ -556,13 +618,14 @@ def _write_journey(p):
                       gid=gid, sid=p["source_ids"][g["source_id"]])
         has_active = has_active or make_active
     examples = 0
+    session_concepts = {s["id"]: s["concept"] for s in _list(p["doc"], "conversations")}
     for e in _list(p["doc"], "examples"):
         sid = p["session_ids"].get(e.get("session_id"))
         seq = e.get("seq")
         if not sid or not isinstance(seq, int):
             continue
         eid = hashlib.sha256(f"{pid}:{sid}:{seq}".encode()).hexdigest()[:32]     # same id as journey.save_example
-        concept = next((s["concept"] for s in _list(p["doc"], "conversations") if s["id"] == e.get("session_id")), e.get("concept"))
+        concept = session_concepts.get(e.get("session_id"), e.get("concept"))
         cid = p["name_to_id"].get(concept)
         if not cid:
             continue

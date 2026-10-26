@@ -402,6 +402,8 @@ const en = {
   "profile.notes": "Notes",
   "profile.save": "Save",
   "profile.language": "Language of the interface and the mentor",
+  "profile.languageAdd": "Trellis comes in English. The mentor already answers in the language you write in. To have the screens, lessons and memory in your language too, you can add it in a few minutes with an AI coding agent.",
+  "profile.languageHow": "How to add your language",
   "profile.languageHint": "the mentor replies in the language of your message; your memory is written in this language",
   "profile.states": "Understanding per concept",
   "profile.concepts": "{n} concept(s)",

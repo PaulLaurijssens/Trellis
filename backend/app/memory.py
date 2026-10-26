@@ -185,10 +185,12 @@ def rebuild(person_id):
         for state in states:
             doc=state["memory_v2"]
             for sid,entry in doc["sessions"].items():
-                messages={m["seq"]:m for m in graph.session_messages(sid)}
+                # Only this learner's own conversations count, and an empty quote proves nothing.
+                messages={m["seq"]:m for m in graph.session_messages(sid,person_id)}
                 for evidence in entry["evidence"]:
                     message=messages.get(evidence["seq"])
-                    if not message or message["role"]!="user" or evidence["quote"] not in message["content"]:
+                    quote=evidence.get("quote")
+                    if not message or message["role"]!="user" or not isinstance(quote,str) or not quote.strip() or quote not in message["content"]:
                         raise ConsolidationError("Evidence source missing; rebuild left memory unchanged.")
                 count+=1
             for rid,entry in doc.get("runs",{}).items():

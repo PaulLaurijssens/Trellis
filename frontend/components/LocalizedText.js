@@ -7,7 +7,7 @@ let timer;
 const base = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 function flush() {
   const entries = [...pending.values()]; pending.clear();
-  for (const language of ["en", "nl"]) {
+  for (const language of new Set(entries.map(e => e.language))) {
     const remaining = entries.filter(e => e.language === language);
     while (remaining.length) {
       const batch = []; let size = 0;

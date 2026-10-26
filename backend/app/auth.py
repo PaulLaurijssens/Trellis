@@ -17,12 +17,11 @@ import re
 import secrets
 import time
 import unicodedata
-from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from pydantic import BaseModel, Field
 
-from . import graph, providers, settings
+from . import graph, languages, providers, settings
 
 router = APIRouter(prefix="/auth")
 COOKIE = "trellis_session"
@@ -140,7 +139,7 @@ async def middleware(request: Request, call_next):
 
 class Setup(BaseModel):
     name: str = Field(min_length=1, max_length=80)
-    language: Literal["en", "nl"] = "en"
+    language: languages.Code = "en"
     password: str = Field(min_length=8, max_length=200)
     provider: str | None = None
     mentor_key: str | None = Field(None, max_length=400)

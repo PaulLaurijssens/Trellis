@@ -12,7 +12,7 @@ import StudyGuide from "./StudyGuide";
 import LessonStage from "./LessonStage";
 import { teach as teachApi } from "../lib/teach";
 import LearningTrail from "./LearningTrail";
-import { fmtTs, momentLink } from "../lib/time";
+import { fmtTs, momentLink, safeUrl } from "../lib/time";
 import { useT } from "../lib/i18n";
 
 const ExpandIcon = () => (
@@ -42,8 +42,8 @@ function Actions({ concept, level, busy, onExplain, onMarkLearned }) {
   );
 }
 
-// Tijdcode als "Spring naar 47:12": YouTube linkt naar url + t=<sec>s,
-// een andere bron met url naar die url, zonder url alleen als tekst.
+// Timestamp as "Jump to 47:12": YouTube links to url + t=<sec>s, another source with a url to that
+// url, a source without a url shows text only.
 function Moment({ url, sec }) {
   const { t } = useT();
   const label = t("panel.jumpTo", { ts: fmtTs(sec) });
@@ -64,7 +64,7 @@ export function Sources({ mentions, onAsk, busy }) {
             <i />
             <div style={{ minWidth: 0, flex: 1 }}>
               <div className="source-head">
-                <b>{m.url && !list.length ? <a href={m.url} target="_blank" rel="noopener noreferrer">{m.source} ↗</a> : m.source}</b>
+                <b>{safeUrl(m.url) && !list.length ? <a href={safeUrl(m.url)} target="_blank" rel="noopener noreferrer">{m.source} ↗</a> : m.source}</b>
                 {m.type && <span className="type">{m.type}</span>}
               </div>
               {m.context && <p><LocalizedText>{m.context}</LocalizedText></p>}
@@ -73,7 +73,7 @@ export function Sources({ mentions, onAsk, busy }) {
                 <ul className="moments">
                   {list.map((x, j) => (
                     <li key={j}>
-                      {x.start_sec != null ? <Moment url={m.url} sec={x.start_sec} /> : (m.url && <a className="ts" href={m.url} target="_blank" rel="noopener noreferrer">{t("panel.source")} ↗</a>)}
+                      {x.start_sec != null ? <Moment url={m.url} sec={x.start_sec} /> : (safeUrl(m.url) && <a className="ts" href={safeUrl(m.url)} target="_blank" rel="noopener noreferrer">{t("panel.source")} ↗</a>)}
                       {x.provenance === "ai_video_analysis" && <span className="hint">{t("video.approximate")}</span>}
                       {x.quote && <span className="q">“{x.quote}”</span>}
                     </li>

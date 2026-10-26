@@ -8,7 +8,7 @@ from datetime import datetime, timedelta, timezone
 import uuid
 
 import logging
-from .. import graph, llm, memory, memory_model
+from .. import graph, languages, llm, memory, memory_model
 from . import artifacts, model
 
 log = logging.getLogger("uvicorn.error")
@@ -271,7 +271,7 @@ def record_attempt(person_id, run_id, activity_id, response, params, hint_usage,
 
 
 def _assess_rubric(person_id, activity, response):
-    language = graph.LANGUAGE_NAMES_EN[graph.ui_language(person_id)]
+    language = languages.name(graph.ui_language(person_id))
     try:
         raw = llm.complete_json(RUBRIC_SYSTEM, _json({"prompt": activity.get("prompt") or activity["title"],
                                 "rubric": activity["check"]["rubric"], "learner_answer": response[:2000], "language": language}),

@@ -73,7 +73,7 @@ export default function Profile({ person, onClose, onChanged, onOpenConcept, amb
           </div>
           <div id="profile-content" role="tabpanel" aria-labelledby={"profile-tab-"+tab}>
           {tab === "settings" && <div className="profile-settings">
-            <div className="card"><h4>{t("profile.language")}</h4><p className="hint">{t("profile.languageSafe")}</p><div className="seg">{LANGS.map(([code,label])=><button key={code} aria-pressed={code===lang} className={code===lang?"on":""} disabled={busy} onClick={async()=>{setBusy(true);try{await setLang(code);}catch(e){setMsg({text:e.message,err:true});}finally{setBusy(false);}}}>{label}</button>)}</div></div>
+            <div className="card"><h4>{t("profile.language")}</h4>{LANGS.length < 2 ? <p className="hint">{t("profile.languageAdd")} <a href="https://github.com/PaulLaurijssens/Trellis#add-your-language" target="_blank" rel="noreferrer">{t("profile.languageHow")}</a></p> : <><p className="hint">{t("profile.languageSafe")}</p><div className="seg">{LANGS.map(([code,label])=><button key={code} aria-pressed={code===lang} className={code===lang?"on":""} disabled={busy} onClick={async()=>{setBusy(true);try{await setLang(code);}catch(e){setMsg({text:e.message,err:true});}finally{setBusy(false);}}}>{label}</button>)}</div></>}</div>
             {account && <div className="card account-card"><h4>{t("profile.account")}</h4><p className="hint">{t("profile.accountHint", { name: account.name })}</p><button className="btn ghost" onClick={onLogout}>{t("menu.logout")}</button></div>}
             {account?.is_admin && <AIProvider />}
             {account?.is_admin && <Backups />}

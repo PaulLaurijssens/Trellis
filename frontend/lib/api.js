@@ -108,7 +108,7 @@ export const api = {
   analyzeUrl: (url, jobId) => req("/ingest/url", json({ url, job_id: jobId })),
   podcastEpisodes: (feed_url) => req("/ingest/podcast/episodes", json({ feed_url })),
   analyzePodcast: (episode, jobId) => req("/ingest/podcast", json({ ...episode, job_id: jobId })),
-  analyzeYoutube: (url, jobId, language) => req("/ingest/youtube", json({ url, job_id: jobId, ui_language: language, languages: language === "nl" ? ["nl", "en"] : ["en", "nl"] })),
+  analyzeYoutube: (url, jobId, language) => req("/ingest/youtube", json({ url, job_id: jobId, ui_language: language, languages: language === "en" ? ["en"] : [language, "en"] })),
   ingestStatus: (jobId) => req("/ingest/status/" + encodeURIComponent(jobId)),
   ingestTopic: (topic, depth) => req("/ingest/topic", json({ topic, depth })),
   commitCandidates: (body) => req("/candidates/commit", json(body)),

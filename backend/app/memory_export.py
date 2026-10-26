@@ -179,17 +179,6 @@ WORDS = {
            "preferences": "Preferences", "chosen": "Teaching approaches I chose", "notes": "Notes",
            "conversations": "Conversations", "learner": "Me", "mentor": "Mentor", "edited": "edited by me",
            "resolved": "solved", "superseded": "dismissed", "active": "open"},
-    "nl": {"definition": "Definitie", "prerequisites": "Eerst nodig", "leads_to": "Leidt naar", "related": "Verwant",
-           "part_of": "Onderdeel van", "mine": "Mijn begrip", "stand": "Waar ik sta", "intent": "Leerintentie",
-           "self": "Mijn eigen inschatting (geen bewijs)", "summary": "Samenvatting", "attention": "Vraagt aandacht",
-           "shown": "Wat ik heb laten zien", "discussed": "Besproken", "earlier": "Eerdere observaties",
-           "sources": "Bronnen", "struggles": "Moeilijkheid", "misconceptions": "Misvatting",
-           "demonstrated": "laten zien", "needs_practice": "meer oefenen", "assisted": "met hulp",
-           "conversation": "gesprek", "exercise": "oefening", "none": "Nog niets.",
-           "profile": "Hoe ik leer", "works_well": "Werkt goed", "works_poorly": "Werkt minder goed",
-           "preferences": "Voorkeuren", "chosen": "Gekozen manieren van uitleggen", "notes": "Notities",
-           "conversations": "Gesprekken", "learner": "Ik", "mentor": "Mentor", "edited": "door mij aangepast",
-           "resolved": "opgelost", "superseded": "weggezet", "active": "open"},
 }
 
 
@@ -311,7 +300,7 @@ Counts: {counts}
 
 def zip_bytes(doc: dict) -> bytes:
     lang = doc["person"].get("ui_language") if doc["person"].get("ui_language") in WORDS else "en"
-    w = WORDS[lang]
+    w = WORDS.get(lang, WORDS["en"])
     concepts = doc["map"]["concepts"]
     slugs = _slugs(concepts)
     by_concept = {}

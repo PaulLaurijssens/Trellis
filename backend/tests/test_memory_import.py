@@ -20,6 +20,32 @@ def session(evidence_seq, summary="s"):
 
 
 @unittest.skipIf(memory_import is None, "needs the backend packages")
+class ImportLimitTests(unittest.TestCase):
+    def test_a_small_zip_that_unpacks_to_millions_of_objects_is_refused_before_parsing(self):
+        import io, zipfile
+        body = b'{"format":"trellis-learning-memory","version":1,"examples":[' + b",".join([b"{}"] * 2_000_000) + b"]}"
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
+            z.writestr("memory.json", body)
+        self.assertLess(len(buf.getvalue()), 200_000)
+        with self.assertRaisesRegex(memory_import.ImportProblem, "too large"):
+            memory_import.read(buf.getvalue())
+
+    def test_only_web_links_are_kept(self):
+        self.assertEqual(memory_import._url("https://example.com/x"), "https://example.com/x")
+        for bad in ("javascript:alert(1)", "data:text/html,x", " JAVASCRIPT:alert(1)", None, 5, "https://x/" + "a" * 3000):
+            self.assertIsNone(memory_import._url(bad))
+
+    def test_one_import_at_a_time(self):
+        self.assertTrue(memory_import._busy.acquire(blocking=False))
+        try:
+            with self.assertRaisesRegex(memory_import.ImportProblem, "Another import"):
+                memory_import.handle(b"{}", "preview", "p")
+        finally:
+            memory_import._busy.release()
+
+
+@unittest.skipIf(memory_import is None, "needs the backend packages")
 class ImportMergeTests(unittest.TestCase):
     def test_validate_refuses_other_files_and_newer_versions(self):
         for bad in ({}, {"format": "other"}, {"format": "trellis-learning-memory"}):

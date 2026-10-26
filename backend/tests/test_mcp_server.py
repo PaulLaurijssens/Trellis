@@ -74,6 +74,7 @@ class McpProtocolTests(unittest.TestCase):
         self.assertTrue(mcp_server._origin_allowed(req(None, "localhost")))
         self.assertTrue(mcp_server._origin_allowed(req("http://localhost:8080", "localhost")))      # nginx drops the port
         self.assertFalse(mcp_server._origin_allowed(req("https://evil.example", "localhost")))
+        self.assertFalse(mcp_server._origin_allowed(req("http://evil.example", "evil.example")))   # DNS rebinding
         with patch.dict("os.environ", {"MCP_ALLOWED_ORIGINS": "https://evil.example"}):
             self.assertTrue(mcp_server._origin_allowed(req("https://evil.example", "localhost")))
 

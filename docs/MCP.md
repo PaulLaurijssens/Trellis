@@ -126,7 +126,11 @@ proof of understanding; a self-assessment or a discussed topic does not.
 - Authentication: `Authorization: Bearer <key>`. A missing or revoked key gets 401 with
   `WWW-Authenticate: Bearer`. The browser session cookie is never accepted on `/mcp`, and access keys
   are refused everywhere else.
-- Browser pages from another site are refused (Origin check). Allow extra origins with
-  `MCP_ALLOWED_ORIGINS=https://a.example,https://b.example`.
+- Browser pages are refused unless they run on this computer (`localhost`), so a hostile site cannot
+  reach the server through DNS rebinding. Allow other origins with
+  `MCP_ALLOWED_ORIGINS=https://a.example,https://b.example`. Clients outside a browser send no
+  Origin and are not affected.
+- Restoring an older backup also restores the access keys as they were then, including keys you
+  revoked later. Revoke them again in *Your data* after a restore.
 - Rate limit: 120 calls per minute per key.
 - Tested with the official MCP Python SDK: `backend/tests/mcp_client_check.py`.

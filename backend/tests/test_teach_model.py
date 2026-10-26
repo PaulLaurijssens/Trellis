@@ -38,8 +38,7 @@ class ObjectiveTests(unittest.TestCase):
 
     def test_template_draft_is_valid_without_a_model(self):
         for intent in m.INTENTS:
-            for lang in ("en", "nl"):
-                self.assertTrue(m.fallback_objective("Attention", {"intent": intent}, lang)["observable_outcomes"])
+            self.assertTrue(m.fallback_objective("Attention", {"intent": intent}, "en")["observable_outcomes"])
 
 
 class ManifestTests(unittest.TestCase):
@@ -50,7 +49,7 @@ class ManifestTests(unittest.TestCase):
 
     def test_rejects_duplicate_ids_unknown_checkers_and_missing_keys(self):
         bad = manifest(); bad["activities"][1]["id"] = "a1"
-        for broken in (bad, manifest(language="de"),
+        for broken in (bad, manifest(language="Deutsch"),
                        manifest(activities=[{"id": "a", "type": "quiz", "title": "Q", "check": {"kind": "python"}}]),
                        manifest(activities=[{"id": "a", "type": "quiz", "title": "Q", "check": {"kind": "choice"}}])):
             with self.assertRaises(ValueError):

@@ -1,7 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import en from "../lib/en.js";
-import nl from "../lib/nl.js";
 import { PROVIDER_CODES, STAGES, errorText, warningText, keyHintText, checkVerdict, providerBody, formReady, applySuggestion, settingsToForm, reportUrl, uaSummary, fmtWait } from "../lib/providerErrors.mjs";
 
 const tFor = (dict) => (key, vars) => {
@@ -9,29 +8,23 @@ const tFor = (dict) => (key, vars) => {
   if (vars) for (const [k, v] of Object.entries(vars)) s = s.replaceAll("{" + k + "}", String(v ?? ""));
   return s;
 };
-const tEn = tFor(en), tNl = tFor(nl);
+const tEn = tFor(en);
 const PROVIDERS = {
   gemini: { label: "Google Gemini", key_env: "GEMINI_API_KEY", mentor: "gemini/pro", extract: "gemini/flash", embed: "gemini/emb", embed_dim: 3072 },
   anthropic: { label: "Anthropic Claude", key_env: "ANTHROPIC_API_KEY", mentor: "anthropic/sonnet", extract: "anthropic/haiku", embed: null, embed_dim: null },
   ollama: { label: "Ollama", key_env: null, mentor: "ollama/a", extract: "ollama/b", embed: "ollama/e", embed_dim: 768 },
 };
 
-test("every provider code, stage and key hint has English and Dutch text", () => {
+test("every provider code, stage and key hint has text", () => {
   const keys = [...PROVIDER_CODES, "provider.quotaRetry", "provider.auth.check", ...STAGES.map((s) => "stage." + s),
     "key.looksAzure", "key.wrongProvider", "key.hasSpaces", "key.embedField", "error.network", "error.http", "provider.embedDimSizes",
     "extract.partsSkipped", "extract.noText", "extract.segmentFailed", "extract.embedFailed", "extract.confirmFailed", "extract.relationsFailed",
     "import.expired", "check.tooMany"];
-  for (const k of keys) { assert.ok(en[k], "en " + k); assert.ok(nl[k], "nl " + k); }
-});
-test("en and nl have the same keys for the new strings", () => {
-  const prefixes = ["provider.", "stage.", "key.", "gate.", "ai.", "about.", "wait.", "error.", "nav.learn", "extract.", "import.", "check."];
-  const pick = (d) => Object.keys(d).filter((k) => prefixes.some((p) => k.startsWith(p))).sort();
-  assert.deepEqual(pick(nl), pick(en));
+  for (const k of keys) assert.ok(en[k], "en " + k);
 });
 test("provider errors are translated with provider, stage and wait time", () => {
   const msg = errorText(tEn, "provider.auth", { provider: "openai", stage: "extract" });
   assert.match(msg, /Your OpenAI key was refused/); assert.match(msg, /while finding concepts/);
-  assert.match(errorText(tNl, "provider.busy", {}), /druk/);
   assert.match(errorText(tEn, "provider.quota", { retry_after: 120 }), /try again in 2 minutes/i);
   assert.match(errorText(tEn, "provider.quota", { retry_after: 20 }), /20 seconds/);
   assert.match(errorText(tEn, "provider.notFound", { model: "azure/gpt-4o" }), /azure\/gpt-4o/);
@@ -50,16 +43,15 @@ test("unknown codes fall back to the backend sentence, then to the generic provi
   assert.equal(errorText(tEn, "provider.somethingNew", {}), en["provider.unknown"]);
   assert.equal(errorText(tEn, "other.code", {}), "other.code");
   assert.equal(fmtWait(tEn, 0), "1 second");
-  assert.equal(fmtWait(tNl, 600), "10 minuten");
+  assert.equal(fmtWait(tEn, 600), "10 minutes");
 });
 test("warnings: strings stay, objects are translated, reasons are codes", () => {
-  assert.equal(warningText(tEn, "Geen tekst gevonden."), "Geen tekst gevonden.");
+  assert.equal(warningText(tEn, "No text found."), "No text found.");
   const w = { code: "extract.partsSkipped", params: { skipped: 1, total: 3, parts: "2", reason: "provider.auth" } };
   const text = warningText(tEn, w);
   assert.match(text, /^1 of 3 parts were skipped \(part 2\)\. Your model provider key was refused/);
   assert.equal(warningText(tEn, { code: "extract.relationsFailed", params: { reason: null } }), "The links between concepts could not be made.");
   assert.equal(warningText(tEn, { code: "extract.noText", params: {} }), en["extract.noText"]);
-  assert.match(warningText(tNl, w), /1 van 3 delen overgeslagen/);
   assert.equal(warningText(tEn, { code: "x.new", message: "msg" }), "msg");
   assert.equal(warningText(tEn, null), "");
 });

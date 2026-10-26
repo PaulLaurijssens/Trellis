@@ -9,7 +9,7 @@ from fastapi.responses import JSONResponse, Response
 from pydantic import BaseModel
 from .provider_errors import ProviderError
 from . import graph, extract, mentor, chat, memory, jobs, transcript, journey, learn as learning, auth, settings, llm, backup, migrate, sources, guide
-from . import memory_export, memory_import, tokens, mcp_server
+from . import memory_export, memory_import, tokens, mcp_server, languages
 from .teach import api as teach_api
 
 # Identity comes from the session cookie (auth.py). `Me` replaces every person_id default; a route
@@ -103,8 +103,8 @@ class IngestText(BaseModel):
 
 class IngestYoutube(BaseModel):
     url: str
-    languages: list[str] = ["en", "nl"]
-    ui_language: Literal["en", "nl"] = "en"
+    ui_language: languages.Code = "en"     # before `languages`, which would shadow the module here
+    languages: list[str] = ["en"]
     job_id: str | None = None
 
 
@@ -148,7 +148,7 @@ class ProfilePatch(BaseModel):
     works_poorly: list[str] | None = None
     preferences: list[str] | None = None
     notes: str | None = None
-    ui_language: str | None = None      # "nl" | "en": taal van UI, uitleg en geheugen
+    ui_language: languages.Code | None = None   # language of the screens, explanations and memory
 
 
 class StatePatch(BaseModel):
@@ -206,7 +206,7 @@ def ingest_youtube(body: IngestYoutube, me: str = Me):
             return staged
         except Exception:
             log.warning("Direct YouTube video analysis unavailable")
-            message = ("Captions and direct video analysis are unavailable. " if body.ui_language == "en" else "Ondertiteling en directe videoanalyse zijn niet beschikbaar. ") + transcript.fetch_error(e, body.ui_language)
+            message = "Captions and direct video analysis are unavailable. " + transcript.fetch_error(e)
             jobs.update(body.job_id, "error", 0, 0, message)
             raise HTTPException(503, message)
     segments = transcript.from_youtube(fetched)
@@ -247,7 +247,7 @@ async def ingest_file(file: UploadFile = File(...), title: str = Form(""), job_i
             text, source_type, name = out["text"], "paper", title.strip() or out["title"] or (file.filename or "PDF")
         elif kind == "audio":
             jobs.update(job_id, "fetch", 0, 0, "Transcribing the audio… (a long episode takes a few minutes)")
-            text = await asyncio.to_thread(sources.audio_transcript, data, file.content_type, file.filename or "", graph.LANGUAGE_NAMES_EN[language])
+            text = await asyncio.to_thread(sources.audio_transcript, data, file.content_type, file.filename or "", languages.name(language))
             source_type, name = "podcast", title.strip() or (file.filename or "Audio").rsplit(".", 1)[0]
         else:
             if len(data) > sources.MAX_TEXT_BYTES:
@@ -288,7 +288,7 @@ async def ingest_podcast(body: PodcastEpisode, me: str = Me):
     language = graph.ui_language(me)
     jobs.update(body.job_id, "fetch", 0, 0, "Downloading and transcribing the episode… (a few minutes)")
     try:
-        text = await asyncio.to_thread(sources.podcast_transcript, body.audio_url.strip(), graph.LANGUAGE_NAMES_EN[language])
+        text = await asyncio.to_thread(sources.podcast_transcript, body.audio_url.strip(), languages.name(language))
     except sources.SourceError as exc:
         jobs.update(body.job_id, "error", 0, 0, str(exc))
         raise _source_error(exc)
@@ -494,12 +494,11 @@ async def import_memory(request: Request, mode: Literal["preview", "apply"] = "p
         if len(data) > memory_import.MAX_BYTES:
             raise HTTPException(413, "The file is larger than 24 MB.")
     try:
-        doc = memory_import.read(bytes(data))
-        if mode == "preview":
-            return await asyncio.to_thread(memory_import.preview, doc, person_id)
-        result = await asyncio.to_thread(memory_import.apply, doc, person_id)
+        result = await asyncio.to_thread(memory_import.handle, bytes(data), mode, person_id)
     except memory_import.ImportProblem as exc:
         raise HTTPException(400, str(exc))
+    if mode == "preview":
+        return result
     asyncio.create_task(asyncio.to_thread(_embed_missing))
     return result
 
@@ -711,7 +710,7 @@ def delete_helpful_example(example_id: str, person_id: str = Own):
 
 
 class TranslationRequest(BaseModel):
-    language: Literal['en', 'nl']
+    language: languages.Code
     texts: list[str]
 
 
@@ -728,7 +727,7 @@ def translate_content(body: TranslationRequest):
 
 
 @app.post('/voice/transcribe')
-async def transcribe_voice(request: Request, language: Literal['en', 'nl'] = 'en'):
+async def transcribe_voice(request: Request, language: languages.Code = 'en'):
     from . import voice
     if request.headers.get('content-type', '').split(';')[0] != 'audio/wav':
         raise HTTPException(415, 'Expected WAV audio')
@@ -753,7 +752,7 @@ async def transcribe_voice(request: Request, language: Literal['en', 'nl'] = 'en
 class CurriculumRequest(BaseModel):
     nodes: list[dict]
     links: list[dict]
-    language: Literal['en', 'nl'] = 'en'
+    language: languages.Code = 'en'
 
 
 @app.post('/curriculum')

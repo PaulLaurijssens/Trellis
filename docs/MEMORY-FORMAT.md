@@ -22,7 +22,7 @@ trellis-memory-2026-10-26.zip
   conversations/<slug>.md  your conversations with the mentor, per concept
 ```
 
-The Markdown is written in your interface language (English or Dutch). The JSON is the source of
+The Markdown headings are in English. The JSON is the source of
 truth; the Markdown is a readable copy of it.
 
 ## The three memory layers
@@ -114,17 +114,18 @@ Importing is a merge, never a replacement, and importing the same file twice cha
 | What | How it is matched | What happens |
 |---|---|---|
 | Concepts | name or alias, case-insensitive | Found: that concept is used; its definition is filled only if empty. New: created. The concept's status is never copied from the file's map; it follows your own memory, the same as when you change it in Trellis. |
-| Relations | concept pair and type | Added if missing. Unknown types are skipped. |
-| Sources | id, then url | Added if missing; links to concepts merged. |
-| Conversations | id | New: added. Same conversation with more messages in the file: the later messages are added. Different content for the same message: the version here is kept (with a warning). |
+| Relations | concept pair and type | Added if missing and at least one of the two concepts is new. The map is shared by every learner on the install, so a file never changes how existing concepts connect. Unknown types are skipped. |
+| Sources | id, then url | Added if missing; only `http` and `https` links are kept. Mentions are added for a new source or a new concept, never between an existing source and an existing concept. |
+| Conversations | id | New: added. Conversations not yet processed into memory are processed after the import with your AI provider, at most 50; older ones are kept as history only. Same conversation with more messages in the file: the later messages are added. Different content for the same message: the version here is kept (with a warning). |
 | Exercises | id | New: added. |
 | Understanding | concept | New: written as in the file. Existing: the two ledgers are merged (sessions, runs, corrections and earlier observations by id; lists unioned; items you removed stay removed; the newer intent and self-assessment win). Your learning status follows the merged memory. |
 | Profile | | Lists unioned, items you removed stay removed; notes from the file only if yours are empty. |
 | Goals, examples | id | New: added. An imported goal becomes active only if you have no active goal. |
 
 Ids that belong to another learner on the install get a new id, so two learners can import the same
-file without touching each other's memory. Limits: 24 MB upload, 120 MB unpacked, and per-list limits
-(for example 20,000 concepts, 300,000 messages).
+file without touching each other's memory. Limits: 24 MB upload, 32 MB unpacked, 1.5 million JSON
+objects and lists, and per-list limits (for example 10,000 concepts, 150,000 messages). One import
+runs at a time; a second one is asked to try again.
 
 ## Versioning
 

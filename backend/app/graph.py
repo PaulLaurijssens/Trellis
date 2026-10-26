@@ -404,12 +404,14 @@ def add_message(session_id: str, role: str, content: str, illustration=None) -> 
     return rows[0]["seq"] if rows else 0
 
 
-def session_messages(session_id: str) -> list[dict]:
+def session_messages(session_id: str, person_id: str | None = None) -> list[dict]:
+    """Messages of one conversation in order. With person_id: only when that person owns it."""
     rows = run("""
-        MATCH (:ChatSession {id:$sid})-[:HAS_MESSAGE]->(m:ChatMessage)
+        MATCH (s:ChatSession {id:$sid})-[:HAS_MESSAGE]->(m:ChatMessage)
+        WHERE $pid IS NULL OR s.person_id = $pid
         RETURN m.seq AS seq, m.role AS role, m.content AS content, m.ts AS ts, m.illustration AS illustration
         ORDER BY m.seq
-    """, sid=session_id)
+    """, sid=session_id, pid=person_id)
     from .illustrations import validate
     for row in rows:
         try:
@@ -562,11 +564,11 @@ def all_understands(person_id: str) -> list[dict]:
 
 from . import languages as _languages
 LANGUAGES = {code: entry["native"] for code, entry in _languages.LANGUAGES.items()}     # code -> native name (UI)
-LANGUAGE_NAMES_EN = {code: entry["name"] for code, entry in _languages.LANGUAGES.items()}   # code -> English name (prompts)
 
 
 def ui_language(person_id: str) -> str:
-    """Voorkeurstaal van de persoon (UI en geheugen). Standaard Nederlands."""
+    """The person's language (screens, explanations, memory). English unless they chose another one
+    that this install has; a language that was removed falls back to English."""
     rows = run("MERGE (p:Person {id:$pid}) RETURN p.ui_language AS lang", pid=person_id)
     lang = (rows[0]["lang"] if rows else None) or "en"
     return lang if lang in LANGUAGES else "en"

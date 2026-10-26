@@ -112,7 +112,8 @@ No installer? See *Manual install* below: it does the same in four commands.
 
 The first visit shows a three-step setup screen:
 
-1. **Your name and language.** English and Dutch today; more can be added (see *Languages*).
+1. **Your name.** Trellis is in English; you can add your own language (see
+   [Add your language](#add-your-language)).
 2. **Your AI model.** Trellis talks to a model provider with **your own key**, and you pay that
    provider directly; Trellis itself costs nothing. Pick one:
 
@@ -383,11 +384,42 @@ docker compose exec api python -m app.reset_password
 
 It asks for the new password and prints which account it changed.
 
-## Languages
+## Add your language
 
-The interface and the mentor speak English and Dutch. The mentor answers in the language you write
-in. Adding a language is two files: an entry in `backend/app/languages.py` and a dictionary
-`frontend/lib/<code>.js` (copy `en.js` and translate the values). Pull requests welcome.
+Trellis comes in English. The mentor already answers in the language you write in, whatever it is.
+To get the screens, lessons, study guides and memory in your own language as well, let an AI coding
+agent (Claude Code, Cursor, Codex, ...) add it. It takes a few minutes and some tokens.
+
+You need a source checkout, because the ready-made images contain English only:
+
+```bash
+# Get the source and open it in your coding agent
+git clone https://github.com/PaulLaurijssens/Trellis.git
+cd Trellis
+```
+
+Give the agent this prompt, with your language filled in:
+
+```text
+Add <LANGUAGE> to Trellis as a user interface and content language, with code <CODE> (ISO 639-1, for example de, fr, pt-BR).
+
+1. backend/app/languages.py: add "<CODE>": {"name": "<English name>", "native": "<name in the language itself>"} to LANGUAGES. Optionally add a STOPWORDS set of about 40 short, unmistakable function words for this language that are not English words.
+2. frontend/lib/<CODE>.js: copy frontend/lib/en.js and translate every value into <LANGUAGE>. Keep every key and every {placeholder} exactly as they are. Keep product and model names (Trellis, Neo4j, OpenAI, Gemini, Claude, Ollama) untranslated. Use the informal, friendly tone of the English text.
+3. frontend/lib/languages.js: import the new dictionary and add { code: "<CODE>", native: "<name in the language itself>", dict: <variable> } to LANGUAGES.
+4. Run: cd frontend && node --test tests/*.test.mjs. The languages test must pass (no unknown keys, same placeholders as English). Fix any failure.
+5. Do not change anything else.
+```
+
+Then rebuild and start Trellis, and pick the language in *My profile → Settings*:
+
+```bash
+# Build from your changed source and start
+docker compose up -d --build --wait
+```
+
+After an update (`git pull`), new English texts show in English until you ask the agent again to
+*"translate the keys that are in frontend/lib/en.js but missing in frontend/lib/<CODE>.js"*.
+Made a good one? A pull request is welcome.
 
 ## How it works, in one paragraph
 
