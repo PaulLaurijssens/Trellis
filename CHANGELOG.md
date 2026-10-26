@@ -4,6 +4,8 @@ All notable changes to Trellis. Dates are UTC. Versions follow the git tags.
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-10-26
+
 ### Added
 - **Your learning memory, portable.** *My profile → Your data* downloads your whole learning memory
   as one zip (JSON plus Markdown that opens in Obsidian) and imports such a file into any Trellis,
@@ -134,6 +136,7 @@ before anything enters the map; a mentor with a replayable learning memory; inte
 run in a sandbox after a test on a phone-sized screen; a setup screen for your own model key; nightly
 backups and restore; installable as an app on a phone.
 
+[0.4.0]: https://github.com/PaulLaurijssens/Trellis/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/PaulLaurijssens/Trellis/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/PaulLaurijssens/Trellis/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/PaulLaurijssens/Trellis/releases/tag/v0.1.0
