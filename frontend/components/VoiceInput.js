@@ -5,7 +5,7 @@ import {useT} from '../lib/i18n';
 import {toWav} from '../lib/voice';
 
 export default function VoiceInput({disabled, onText, onBusy}) {
-  const {t}=useT();
+  const {t,lang}=useT();
   const [phase,setPhase]=useState('idle'),[error,setError]=useState(''),[seconds,setSeconds]=useState(0);
   const current=useRef(null), callback=useRef(onText); callback.current=onText;
   const stopTracks=s=>s.stream?.getTracks().forEach(track=>track.stop());

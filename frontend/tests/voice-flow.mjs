@@ -1,4 +1,5 @@
-// Isolated UI regression for unified search and the learning sidebar.
+// Voice input: record in a real browser, transcription is appended without sending, edit, cancel, phone.
+import {CORS,fallback} from './mock-api.mjs';
 import assert from 'node:assert/strict';
 const {chromium}=await import(process.env.MENTOR_PLAYWRIGHT_MODULE||'playwright');
 const browser=await chromium.launch({headless:true,args:['--use-fake-ui-for-media-stream','--use-fake-device-for-media-stream'],...(process.env.MENTOR_BROWSER_PATH?{executablePath:process.env.MENTOR_BROWSER_PATH}:{})});
@@ -9,7 +10,7 @@ try {
  const nodes=[{id:'v',name:'Vectors',status:'learning'},{id:'a',name:'Attention',status:'queued'},{id:'r',name:'Robotics',status:'queued'}];
  await page.route('http://localhost:8000/**',async route=>{
   const path=decodeURIComponent(new URL(route.request().url()).pathname);
-  if(route.request().method()==='OPTIONS'){await route.fulfill({status:204,headers:{'Access-Control-Allow-Origin':'*','Access-Control-Allow-Headers':'content-type'}});return;}
+  if(route.request().method()==='OPTIONS'){await route.fulfill({status:204,headers:{...CORS,'Access-Control-Allow-Headers':'content-type'}});return;}
   let data;
   if(path==='/voice/transcribe'){assert.equal(route.request().headers()['content-type'],'audio/wav');data={text:'What is a neural network?'};}
   else if(path==='/graph')data={nodes,edges:[{source:'v',target:'a',type:'PREREQUISITE_OF'}]};
@@ -20,8 +21,8 @@ try {
   else if(path.startsWith('/concept/'))data={...nodes.find(n=>n.name===path.slice(9)),definition:'A useful topic with connections.',mentions:[{source:'Fixture source',context:'Stored source context'}]};
   else if(path.startsWith('/chat/'))data={session_id:null,messages:[],state:{},suggestions:[]};
   else if(path==='/translations')data={texts:JSON.parse(route.request().postData()).texts};
-  else throw Error('Unexpected request '+path);
-  await route.fulfill({status:200,contentType:'application/json',headers:{'Access-Control-Allow-Origin':'*'},body:JSON.stringify(data)});
+  else if((data=fallback(path,JSON.parse(route.request().postData()||'{}')))===undefined) throw Error('Unexpected request '+path);
+  await route.fulfill({status:200,contentType:'application/json',headers:{...CORS},body:JSON.stringify(data)});
  });
  await page.goto('http://localhost:3000');
  await page.locator('.cmd-row input').fill('Vectors');
@@ -41,6 +42,6 @@ try {
  assert.equal(await input.inputValue(),'Edited question');
  await page.setViewportSize({width:390,height:844});
  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
- await page.screenshot({path:'/private/tmp/voice-input-mobile.png',fullPage:true});
+ 
  assert.deepEqual(errors,[]);console.log('PASS: real browser recording/WAV conversion, transcription appended without sending, edit, cancel, mobile.');
 }finally{await browser.close();}

@@ -141,7 +141,7 @@ try{
    await dialog.getByRole("button",{name:"Revoke Claude Desktop"}).click();
    await Promise.all([page.waitForResponse(r=>r.request().method()==="DELETE"),dialog.getByRole("button",{name:"Yes, revoke"}).click()]);
    await dialog.getByText(/Key revoked/).waitFor();
-   await page.screenshot({path:(process.env.MENTOR_SHOTS||"/tmp")+"/memory-data.png",fullPage:true});
+   if(process.env.MENTOR_SHOTS)await page.screenshot({path:process.env.MENTOR_SHOTS+"/memory-data.png",fullPage:true});
   }
   assert.deepEqual(errors,[]);
   await page.close();

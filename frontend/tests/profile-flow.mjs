@@ -1,10 +1,12 @@
+// My profile: settings, How I learn (preferences with error and retry), memory, Your data, phone width.
+import {shot} from './mock-api.mjs';
 import assert from 'node:assert/strict';
 const {chromium}=await import(process.env.MENTOR_PLAYWRIGHT_MODULE||'playwright');
 const browser=await chromium.launch({headless:true,executablePath:process.env.MENTOR_BROWSER_PATH});
 try{
  const page=await browser.newPage({viewport:{width:1450,height:1000}}),errors=[];
  page.on('pageerror',e=>errors.push(e.message));
- await page.addInitScript(()=>localStorage.setItem('trellis.lang','nl'));
+ await page.addInitScript(()=>localStorage.setItem('trellis.lang','xx'));   // stale: a language this install does not have
  let language='en',motion=true,failOnce=true;
  const profile={works_well:['Code examples with a very long observation that should wrap within the panel rather than overlapping neighboring content.'],works_poorly:['Abstract analogies'],preferences:['Concise explanations'],teaching_preferences:[],notes:''};
  await page.route('http://localhost:8000/**',async route=>{
@@ -34,6 +36,9 @@ try{
  const dialog=page.getByRole('dialog',{name:'My profile'});
  await dialog.getByRole('tab',{name:'Settings',exact:true}).waitFor();
  assert.equal(await dialog.locator('.mentor-preferences').count(),0);
+ // One language installed: no picker, a pointer to adding your own instead.
+ await dialog.getByRole('link',{name:'How to add your language',exact:true}).waitFor();
+ assert.equal(await page.locator('.menu-lang').count(),0);
  await dialog.getByRole('checkbox',{name:'Ambient motion',exact:true}).uncheck();
  await page.waitForFunction(()=>!document.querySelector('.motion-setting input').checked);
  await dialog.getByRole('tab',{name:'How I learn',exact:true}).click();
@@ -54,11 +59,11 @@ try{
  await page.setViewportSize({width:390,height:844});
  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
  assert.equal(await dialog.evaluate(el=>el.scrollWidth<=el.clientWidth),true);
- await page.screenshot({path:'/private/tmp/profile-teaching-mobile.png',fullPage:true,animations:'disabled'});
+ await shot(page,'profile-teaching-mobile.png',{fullPage:true,animations:'disabled'});
  await dialog.getByRole('tab',{name:'Settings',exact:true}).click();
  await page.setViewportSize({width:1450,height:1000});
- await page.screenshot({path:'/private/tmp/profile-settings.png',fullPage:true,animations:'disabled'});
+ await shot(page,'profile-settings.png',{fullPage:true,animations:'disabled'});
  assert.equal(await page.evaluate(()=>localStorage.getItem('trellis.lang')),'en');
  assert.deepEqual(errors,[]);
- console.log('PASS: focused settings, tabs, preference error/retry, custom pills, distinct observations, preserved Dutch memory, server language over stale local cache, and mobile containment.');
+ console.log('PASS: focused settings, tabs, preference error/retry, custom pills, distinct observations, memory in another language preserved, add-your-language hint, server language over a stale local value, and mobile containment.');
 }finally{await browser.close();}

@@ -1,4 +1,5 @@
 // Phase 2 UI integration, all API responses intercepted.
+import {shot} from './mock-api.mjs';
 import assert from "node:assert/strict";
 const {chromium}=await import(process.env.MENTOR_PLAYWRIGHT_MODULE||"playwright");
 const browser=await chromium.launch({headless:true,...(process.env.MENTOR_BROWSER_PATH?{executablePath:process.env.MENTOR_BROWSER_PATH}:{})});
@@ -53,7 +54,7 @@ try {
  await Promise.all([page.waitForResponse(r=>r.url().endsWith("/observations/difficulty")),memory.getByRole("button",{name:"Relevant again",exact:true}).click()]);
  assert.equal(state.observations[0].state,"active");
  await page.locator(".chat-log").evaluate(el=>el.scrollTop=0);
- await page.screenshot({path:"/private/tmp/phase2-memory.png",fullPage:true});
+ await shot(page,'phase2-memory.png',{fullPage:true});
  assert.deepEqual(errors,[]);
  console.log("PASS: memory failure/retry, self-assessment, intent, quoted evidence, resolution history and reactivation; no browser errors.");
 }finally{await browser.close();}

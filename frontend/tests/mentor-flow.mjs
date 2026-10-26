@@ -1,6 +1,7 @@
 // Optional browser integration check. Uses a running frontend and intercepts ALL
 // backend requests: never calls Neo4j, model providers, or personal data.
 // MENTOR_PLAYWRIGHT_MODULE may point to a temporary Playwright installation.
+import {CORS,fallback,shot} from './mock-api.mjs';
 import assert from "node:assert/strict";
 const { chromium } = await import(process.env.MENTOR_PLAYWRIGHT_MODULE || "playwright");
 const browser = await chromium.launch({ headless: true, ...(process.env.MENTOR_BROWSER_PATH ? { executablePath: process.env.MENTOR_BROWSER_PATH } : {}) });
@@ -30,7 +31,7 @@ try {
   await page.route("http://localhost:8000/**", async (route) => {
     const req = route.request();
     if (req.method() === "OPTIONS") {
-      await route.fulfill({ status: 204, headers: { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "content-type", "Access-Control-Allow-Methods": "GET, POST, PATCH, OPTIONS" } });
+      await route.fulfill({ status: 204, headers: {...CORS, "Access-Control-Allow-Headers": "content-type", "Access-Control-Allow-Methods": "GET, POST, PATCH, OPTIONS" } });
       return;
     }
     const path = decodeURIComponent(new URL(req.url()).pathname);
@@ -65,15 +66,15 @@ try {
         }
       }
       if (status === 200) data = { id, state: s.state, concept: s.name };
-    } else throw new Error("Unexpected fixture request " + path);
-    await route.fulfill({ status, contentType: "application/json", headers: { "Access-Control-Allow-Origin": "*" }, body: JSON.stringify(data) });
+    } else if((data=fallback(path,JSON.parse(route.request().postData()||'{}')))===undefined) throw Error("Unexpected fixture request " + path);
+    await route.fulfill({ status, contentType: "application/json", headers: {...CORS }, body: JSON.stringify(data) });
   });
-  await page.goto(process.env.MENTOR_TEST_URL || "http://127.0.0.1:3100");
+  await page.goto(process.env.MENTOR_TEST_URL || "http://localhost:3000");
   page.setDefaultTimeout(12000);
   await page.getByRole("heading", { name: "Why does attention use dot products?", exact: true }).waitFor();
   await page.locator(".teaching-figure").waitFor();
   await page.locator(".chat-log").evaluate(el => el.scrollTop=0);
-  await page.screenshot({ path: (process.env.MENTOR_SHOT_DIR || "/private/tmp") + "/redesign-learn.png", fullPage:true, animations:"disabled" });
+  await shot(page,'redesign-learn.png',{fullPage:true, animations:"disabled" });
   const card = (name) => page.locator(".conversation-suggestion").filter({ has: page.locator("strong", { hasText: name }) });
   assert.equal(await page.locator(".conversation-suggestion:visible").count(), 1);
   await page.getByText(/More paths/).click();
@@ -97,7 +98,7 @@ try {
   await page.locator(".concept-preview").waitFor();
   assert.equal(await page.locator(".learning-route").getByRole("button",{name:/Multi-head attention/}).count(),0,"PART_OF is not a prerequisite");
   await page.getByRole("button",{name:"Fit",exact:true}).click();
-  await page.screenshot({path:(process.env.MENTOR_SHOT_DIR || "/private/tmp")+"/redesign-explore.png",fullPage:true,animations:"disabled"});
+  await shot(page,'redesign-explore.png',{fullPage:true,animations:"disabled"});
   const camera = await page.locator(".atlas-layer > svg").getAttribute("viewBox");
   await page.getByRole("button",{name:/Continue learning/}).click();
   await page.getByRole("navigation",{name:"Workspace"}).getByRole("button",{name:"Explore",exact:true}).click();
@@ -125,11 +126,7 @@ try {
   await page.locator(".lesson-context").waitFor({state:"visible"});
   await page.getByRole("button",{name:"In context",exact:true}).click();
   await page.locator(".chat-log").evaluate(el=>el.scrollTop=0);
-  await page.screenshot({path:(process.env.MENTOR_SHOT_DIR || "/private/tmp")+"/redesign-mobile.png",fullPage:true,animations:"disabled"});
-  await page.locator(".profile-trigger").click();
-  await page.getByRole("button",{name:"Nederlands",exact:true}).click();
-  await page.locator(".profile-head .x").click();
-  await page.getByRole("button",{name:"Laat dit visueel zien",exact:true}).waitFor();
+  await shot(page,'redesign-mobile.png',{fullPage:true,animations:"disabled"});
   // Empty graph remains navigable before the learner imports real content.
   nodes.splice(0); edges.splice(0);
   await page.evaluate(()=>sessionStorage.removeItem("trellis.learningTrail.paul"));

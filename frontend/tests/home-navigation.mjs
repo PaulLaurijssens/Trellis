@@ -1,4 +1,5 @@
 // Isolated UI regression for unified search and the learning sidebar.
+import {CORS,fallback,shot} from './mock-api.mjs';
 import assert from 'node:assert/strict';
 const {chromium}=await import(process.env.MENTOR_PLAYWRIGHT_MODULE||'playwright');
 const browser=await chromium.launch({headless:true,...(process.env.MENTOR_BROWSER_PATH?{executablePath:process.env.MENTOR_BROWSER_PATH}:{})});
@@ -9,7 +10,7 @@ try {
  const nodes=[{id:'v',name:'Vectors',status:'learning'},{id:'a',name:'Attention',status:'queued'},{id:'r',name:'Robotics',status:'queued'}];
  await page.route('http://localhost:8000/**',async route=>{
   const path=decodeURIComponent(new URL(route.request().url()).pathname);
-  if(route.request().method()==='OPTIONS'){await route.fulfill({status:204,headers:{'Access-Control-Allow-Origin':'*','Access-Control-Allow-Headers':'content-type'}});return;}
+  if(route.request().method()==='OPTIONS'){await route.fulfill({status:204,headers:{...CORS,'Access-Control-Allow-Headers':'content-type'}});return;}
   let data;
   if(path==='/graph')data={nodes,edges:[{source:'v',target:'a',type:'PREREQUISITE_OF'}]};
   else if(path==='/levels')data={1:'First steps',2:'Foundations',3:'Practical',4:'Technical',5:'Advanced'};
@@ -19,8 +20,8 @@ try {
   else if(path.startsWith('/concept/'))data={...nodes.find(n=>n.name===path.slice(9)),definition:'A useful topic with connections.',mentions:[{source:'Fixture source',context:'Stored source context'}]};
   else if(path.startsWith('/chat/'))data={session_id:null,messages:[],state:{},suggestions:[]};
   else if(path==='/translations')data={texts:JSON.parse(route.request().postData()).texts};
-  else throw Error('Unexpected request '+path);
-  await route.fulfill({status:200,contentType:'application/json',headers:{'Access-Control-Allow-Origin':'*'},body:JSON.stringify(data)});
+  else if((data=fallback(path,JSON.parse(route.request().postData()||'{}')))===undefined) throw Error('Unexpected request '+path);
+  await route.fulfill({status:200,contentType:'application/json',headers:{...CORS},body:JSON.stringify(data)});
  });
  await page.goto('http://localhost:3000');
  const rail=page.getByRole('complementary',{name:'Your learning space'});
@@ -70,12 +71,12 @@ try {
  await search.click();await page.keyboard.press('ArrowDown');
  assert.equal(await page.evaluate(()=>document.activeElement.classList.contains('cmd-item')),true);
  await page.keyboard.press('Escape');
- await page.screenshot({path:'/private/tmp/home-navigation-desktop.png',fullPage:true,animations:"disabled"});
+ await shot(page,'home-navigation-desktop.png',{fullPage:true,animations:"disabled"});
  await page.setViewportSize({width:390,height:844});
  await rail.getByRole('button',{name:'Another topic ↗',exact:true}).click();
  await page.locator('#knowledge-navigation').waitFor();
  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
- await page.screenshot({path:'/private/tmp/home-navigation-mobile.png',fullPage:true,animations:"disabled"});
+ await shot(page,'home-navigation-mobile.png',{fullPage:true,animations:"disabled"});
  assert.deepEqual(errors,[]);
  console.log('PASS: unified topic/cluster search, selected/recent deduplication, persistent sidebar, pointer panning without border, outside/Escape dismissal, add-form dismissal, keyboard navigation and mobile.');
 }finally{await browser.close();}
