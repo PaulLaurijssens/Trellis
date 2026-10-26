@@ -447,12 +447,17 @@ docker compose -f compose.dev.yaml exec backend python -m unittest discover -s t
 cd backend && pip install -r requirements.lock.txt && python -m unittest discover -s tests   # the same, without Docker
 python3 -m unittest discover -s backend/tests -p "test_teach_*.py"                        # quick checks, no packages needed
 docker compose -f compose.dev.yaml exec backend python tests/e2e_kept_lesson.py           # see the "kept lesson" screen, no AI tokens
+cd frontend && node --test tests/*.test.mjs                                               # frontend unit tests
+cd frontend && node tests/run-browser.mjs        # browser flows (Playwright) against the dev app on :3000, API mocked
 ```
 
-None of the backend tests need a running database. The end-to-end lesson test (real Chromium, phone
-size) and the layout-regression test live in `author/tests/`. GitHub runs the quick checks, all
-backend tests, a full `docker compose` start that waits for every health check, and a check of the
-release bundle on every push. Testing a release by hand: [docs/TESTING.md](docs/TESTING.md). See
+The `test_*.py` unit tests need no database. The `*_neo4j.py` scripts do, and wipe it: run them only
+against a test database with `TRELLIS_TEST_WIPE=yes`. The end-to-end lesson test (real Chromium,
+phone size) and the layout-regression test live in `author/tests/`. GitHub runs the quick checks,
+all backend tests, the database scripts against a fresh Neo4j, the official MCP client against the
+MCP server, the frontend unit tests, the production build, every browser flow, a full
+`docker compose` start that waits for every health check, and a check of the release bundle on every
+push. Testing a release by hand: [docs/TESTING.md](docs/TESTING.md). See
 [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Security

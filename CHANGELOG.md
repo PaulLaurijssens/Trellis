@@ -47,7 +47,16 @@ All notable changes to Trellis. Dates are UTC. Versions follow the git tags.
   Link tab says why and asks you to paste the text right there. The link stays the source, with the
   page title filled in when the site gave one.
 
+- **Add your language.** Trellis ships in English; the README has a prompt that lets an AI coding
+  agent add your language (screens, lessons and memory) in a few minutes. The mentor already answers
+  in the language you write in.
+- GitHub now also runs the database tests against a fresh Neo4j, the official MCP client against the
+  MCP server, the frontend unit tests, the production build and every browser flow.
+
 ### Changed
+- Trellis is English only out of the box: the Dutch interface is no longer included, and the code,
+  comments and messages are English. A learner whose language was Dutch sees English until Dutch is
+  added back as described in *Add your language*.
 - A failed model call shows a clear message in the language of the interface (key rejected, quota
   used up, model busy, model not found, no connection, timeout) instead of "HTTP 500".
 - A busy or rate-limited provider is tried again a few times, with growing waits, before Trellis
@@ -58,7 +67,17 @@ All notable changes to Trellis. Dates are UTC. Versions follow the git tags.
 - The Learn view shows the same memory panel as the Memory tab, with radio buttons instead of drop-down
   menus for your intent and assessment.
 
+### Security
+- Importing a memory file is safer on an install with several learners: a file can no longer change
+  how existing concepts on the shared map connect, plant links that are not web links, or borrow
+  another learner's conversation as evidence. Very large or deeply nested files are refused before
+  they are read, one import runs at a time, and at most 50 unprocessed conversations are sent to your
+  AI provider.
+- The MCP server refuses browser pages from other sites even under DNS rebinding.
+
 ### Fixed
+- Voice input and the learning roadmap had Dutch texts built in next to the English ones.
+- The browser tests work again (they predated login).
 - Putting back an item you removed from your memory (a discussed topic, a profile observation) now
   works; before, a removed item stayed blocked for good.
 
