@@ -9,9 +9,14 @@ try{
  const profile={works_well:['Code examples with a very long observation that should wrap within the panel rather than overlapping neighboring content.'],works_poorly:['Abstract analogies'],preferences:['Concise explanations'],teaching_preferences:[],notes:''};
  await page.route('http://localhost:8000/**',async route=>{
   const req=route.request(),path=new URL(req.url()).pathname,body=req.postData()?JSON.parse(req.postData()):{};
-  if(req.method()==='OPTIONS'){await route.fulfill({status:204,headers:{'Access-Control-Allow-Origin':'*','Access-Control-Allow-Headers':'content-type','Access-Control-Allow-Methods':'GET,PATCH,POST'}});return;}
+  if(req.method()==='OPTIONS'){await route.fulfill({status:204,headers:{'Access-Control-Allow-Origin':'http://localhost:3000','Access-Control-Allow-Credentials':'true','Access-Control-Allow-Headers':'content-type','Access-Control-Allow-Methods':'GET,PATCH,POST,DELETE'}});return;}
   let data={},status=200;
-  if(path==='/graph')data={nodes:[],edges:[]};
+  // Signed in (the app checks the session first); nothing else from Settings is under test here.
+  if(path==='/auth/status')data={setup_needed:false,authenticated:true,person:{id:'paul',name:'Paul',language:'en',is_admin:false},profiles:[],configured:true};
+  else if(path==='/health')data={ok:true,version:'test'};
+  else if(path==='/auth/settings')data={provider:'gemini',lesson_cost_limit:0};
+  else if(path.startsWith('/teach/'))data={enabled:false,cached:0,cost_limit:0,estimated_usd:0,lessons:0,total:0,price_per_mtok:{input:0,output:0}};
+  else if(path==='/graph')data={nodes:[],edges:[]};
   else if(path==='/levels')data={};
   else if(path==='/journey/paul')data={goals:[],review:[],sources:[]};
   else if(path==='/journey/paul/examples')data=[];
@@ -19,18 +24,19 @@ try{
    if(body.teaching_preferences && failOnce){failOnce=false;status=503;data={detail:'Please retry saving your preference.'};}
    else{if(body.ui_language)language=body.ui_language;if(typeof body.ambient_motion==='boolean')motion=body.ambient_motion;for(const k of Object.keys(profile))if(k in body)profile[k]=body[k];data={...profile,ui_language:language,ambient_motion:motion};}
   }else if(path==='/memory/paul')data={learning_profile:profile,ui_language:language,ambient_motion:motion,concepts:[{concept:'Vectors',summary:'Een eerdere Nederlandse samenvatting.',concept_status:'learning',covered:[],struggles:[],misconceptions:[],quiz_correct:0,quiz_wrong:0}]};
+  else if(path==='/memory/paul/connections')data={connections:[],scopes:{}};
   else if(path==='/translations')data={texts:body.texts};
   else throw Error(path);
-  await route.fulfill({status,contentType:'application/json',headers:{'Access-Control-Allow-Origin':'*'},body:JSON.stringify(data)});
+  await route.fulfill({status,contentType:'application/json',headers:{'Access-Control-Allow-Origin':'http://localhost:3000','Access-Control-Allow-Credentials':'true'},body:JSON.stringify(data)});
  });
  await page.goto('http://localhost:3000');
- await page.getByRole('button',{name:'My profile',exact:true}).click();
+ await page.getByRole('button',{name:'My profile'}).first().click();
  const dialog=page.getByRole('dialog',{name:'My profile'});
  await dialog.getByRole('tab',{name:'Settings',exact:true}).waitFor();
  assert.equal(await dialog.locator('.mentor-preferences').count(),0);
  await dialog.getByRole('checkbox',{name:'Ambient motion',exact:true}).uncheck();
  await page.waitForFunction(()=>!document.querySelector('.motion-setting input').checked);
- await dialog.getByRole('tab',{name:'Teaching preferences',exact:true}).click();
+ await dialog.getByRole('tab',{name:'How I learn',exact:true}).click();
  const code=dialog.getByRole('button',{name:'Code examples',exact:true});
  await code.click();await dialog.getByText('Please retry saving your preference.',{exact:true}).waitFor();
  assert.equal(await code.getAttribute('aria-pressed'),'false');
@@ -42,8 +48,9 @@ try{
  assert.equal(await dialog.locator('.observed').count(),3);
  await dialog.getByRole('tab',{name:'Memory',exact:true}).click();
  await dialog.getByText('Een eerdere Nederlandse samenvatting.',{exact:true}).waitFor();
+ await dialog.getByRole('tab',{name:'Your data',exact:true}).click();
  await dialog.getByRole('button',{name:'Rebuild memory',exact:true}).waitFor();
- await dialog.getByRole('tab',{name:'Teaching preferences',exact:true}).click();
+ await dialog.getByRole('tab',{name:'How I learn',exact:true}).click();
  await page.setViewportSize({width:390,height:844});
  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
  assert.equal(await dialog.evaluate(el=>el.scrollWidth<=el.clientWidth),true);

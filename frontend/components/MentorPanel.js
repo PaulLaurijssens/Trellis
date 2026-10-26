@@ -3,7 +3,7 @@ import LocalizedText from "./LocalizedText";
 import { useEffect, useRef, useState } from "react";
 import { GoalCard, HelpfulExamples } from "./LearningDirection";
 import LevelPills from "./LevelPills";
-import MemoryBlock from "./MemoryBlock";
+import MemoryDetail from "./MemoryDetail";
 import MiniTree from "./MiniTree";
 import Progress from "./Progress";
 import Chat, { render as renderMarkdown } from "./Chat";
@@ -137,7 +137,7 @@ export default function MentorPanel({
     <LearningTrail trail={trail} onReturn={onReturn} />
     <div className="lesson-eyebrow"><span className={"status-dot " + concept.status} />{concept.name}<label className="depth-select">{t("learn.depth")}<select value={level} disabled={busy.chat || busy.explain} onChange={(e) => onLevel(Number(e.target.value))}>{[1,2,3,4,5].map((n) => <option key={n} value={n}>{t("depth." + n)}</option>)}</select></label></div>
     <h1>{question}</h1>
-    <details className="memory-recap"><summary><span><LocalizedText>{recap}</LocalizedText></span><b>{t("learn.viewMemory")}</b></summary><MemoryBlock state={state} onRemove={onRemoveMemory} onObservation={onObservation} onPosition={onPosition} /></details>
+    <details className="memory-recap"><summary><span><LocalizedText>{recap}</LocalizedText></span><b>{t("learn.viewMemory")}</b></summary><MemoryDetail compact key={concept.name} name={concept.name} state={state} onPatch={onRemoveMemory} onObservation={onObservation} onPosition={onPosition} /></details>
     {(!chat?.messages?.length || withDock) && !lesson && <p className="lesson-definition"><LocalizedText>{concept.definition}</LocalizedText></p>}
     {withDock && teachEnabled && conceptId && !lesson && <LessonDock conceptId={conceptId} conceptName={concept.name} group={group} lang={lang}
       onOpen={(l) => { setLesson(l); setPane("lesson"); setView("lesson"); }} onReference={openReference} onExploreTopic={onExploreTopic} />}
@@ -178,7 +178,7 @@ export default function MentorPanel({
       <GoalCard goal={goal} onOpen={onSelect} onUpdate={onGoalUpdate} busy={journeyBusy} />
       <HelpfulExamples examples={examples} onEdit={onEditExample} onDelete={onDeleteExample} busy={journeyBusy} />
       {mentions.length > 0 && <details><summary>{t("panel.sources")} · {mentions.length}</summary><Sources mentions={mentions} onAsk={onSend} busy={busy.chat || busy.explain || busy.ending} /></details>}
-      <details><summary>{t("learn.notes")}</summary><MemoryBlock state={state} onRemove={onRemoveMemory} onObservation={onObservation} onPosition={onPosition} /></details>
+      <details><summary>{t("learn.notes")}</summary><MemoryDetail compact key={concept.name} name={concept.name} state={state} onPatch={onRemoveMemory} onObservation={onObservation} onPosition={onPosition} /></details>
       <details><summary>{t("learn.conceptDetails")}</summary><p><LocalizedText>{concept.definition}</LocalizedText></p><Actions concept={concept} level={level} busy={busy} onExplain={onExplain} onMarkLearned={onMarkLearned} /></details>
       {trail?.length > 1 && <button className="textlink context-return" onClick={() => onReturn(trail.length - 2)}>← {t("trail.return", { name: trail[trail.length - 2] })}</button>}
       {/* Gespreksopties staan hier en niet meer onder het invoerveld: daar staat nu

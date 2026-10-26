@@ -23,6 +23,31 @@ async function req(path, opts = {}) {
   return res.json();
 }
 
+// A file download (the memory export): same error handling as req, but the body is a Blob.
+async function download(path) {
+  let res;
+  try {
+    res = await fetch(BASE + path, { credentials: "include" });
+  } catch {
+    throw networkError(BASE);
+  }
+  if (!res.ok) {
+    let data = null;
+    try { data = await res.json(); } catch {}
+    const err = httpError(res.status, data);
+    handleUnauthorized(err);
+    throw err;
+  }
+  const name = /filename="([^"]+)"/.exec(res.headers.get("Content-Disposition") || "")?.[1] || "trellis-memory.zip";
+  return { blob: await res.blob(), name };
+}
+
+// The address another AI connects to: the API base plus /mcp, made absolute for the browser's host.
+export function mcpUrl() {
+  const base = /^https?:/.test(BASE) ? BASE : (typeof window === "undefined" ? "" : window.location.origin) + BASE;
+  return base.replace(/\/$/, "") + "/mcp";
+}
+
 const json = (body) => ({
   method: "POST",
   headers: { "Content-Type": "application/json" },
@@ -56,6 +81,12 @@ export const api = {
   correctObservation: (name, id, state) => req("/memory/" + me() + "/concept/" + encodeURIComponent(name) + "/observations/" + id, { ...json({ state }), method: "PATCH" }),
   setLearningPosition: (name, body) => req("/memory/" + me() + "/concept/" + encodeURIComponent(name) + "/position", { ...json(body), method: "PATCH" }),
   rebuildMemory: () => req("/memory/rebuild/" + me(), { method: "POST" }),
+  exportMemory: () => download("/memory/" + me() + "/export"),
+  // Raw file as the body (zip or JSON); preview changes nothing, apply merges.
+  importMemory: (file, mode) => req("/memory/" + me() + "/import?mode=" + mode, { method: "POST", headers: { "Content-Type": "application/octet-stream" }, body: file }),
+  connections: () => req("/memory/" + me() + "/connections"),
+  createConnection: (name, scopes) => req("/memory/" + me() + "/connections", json({ name, scopes })),
+  revokeConnection: (id) => req("/memory/" + me() + "/connections/" + encodeURIComponent(id), { method: "DELETE" }),
   backups: () => req("/admin/backups"),
   createBackup: () => req("/admin/backups", { method: "POST" }),
   verifyBackup: (stamp) => req("/admin/backups/" + encodeURIComponent(stamp) + "/verify", { method: "POST" }),

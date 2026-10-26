@@ -172,8 +172,10 @@ function App({ onLogout }) {
   // Dismiss disclosure menus on outside pointer/focus or Escape; keep ancestor
   // disclosures open while interacting with nested content.
   useEffect(()=>{
-    const dismiss=e=>document.querySelectorAll("details[open]").forEach(el=>{if(!el.contains(e.target))el.open=false;});
-    const escape=e=>{if(e.key==="Escape")document.querySelectorAll("details[open]").forEach(el=>{el.open=false;});};
+    // Sections inside a memory panel are content, not menus: they stay as the learner left them.
+    const menus=()=>[...document.querySelectorAll("details[open]")].filter(el=>!el.closest(".memory-detail"));
+    const dismiss=e=>menus().forEach(el=>{if(!el.contains(e.target))el.open=false;});
+    const escape=e=>{if(e.key==="Escape"&&!e.defaultPrevented)menus().forEach(el=>{el.open=false;});};
     document.addEventListener("click",dismiss,true);document.addEventListener("keydown",escape);
     return()=>{document.removeEventListener("click",dismiss,true);document.removeEventListener("keydown",escape);};
   },[]);
@@ -494,14 +496,33 @@ function App({ onLogout }) {
       if (navigation === navigationRef.current) setChat((c) => ({ ...c, state }));
     } catch (e) {
       fail(e);
+      throw e;           // the memory panel keeps its old value and offers no Undo
     }
   };
 
   const updateLearningMemory = async (action) => {
     if(!selected)return;
     const navigation=navigationRef.current;
-    try { const state=await action(selected.name); await refreshGraph(); const detail=await api.concept(selected.name); if(navigation===navigationRef.current){setChat(c=>({...c,state}));setSelected(detail);} }
+    let state;
+    try { state=await action(selected.name); }
+    catch(e){fail(e);throw e;}       // the memory panel keeps its old value
+    if(navigation===navigationRef.current)setChat(c=>({...c,state}));
+    // Saved; the map colour and the concept's status follow. A failure here is not a failed save.
+    try { await refreshGraph(); const detail=await api.concept(selected.name); if(navigation===navigationRef.current)setSelected(detail); }
     catch(e){fail(e);}
+  };
+
+  // Memory changed from My profile (a correction, an import, a rebuild): the map colours follow the
+  // learner's status, and an open Learn view for that concept reloads its memory.
+  const memoryChanged = async (name) => {
+    const navigation = navigationRef.current;
+    try {
+      await refreshGraph();
+      if (selected && (!name || name === selected.name)) {
+        const detail = await api.concept(selected.name);
+        if (navigation === navigationRef.current) { setSelected(detail); await loadChat(selected.name, navigation); }
+      }
+    } catch (e) { fail(e); }
   };
 
   const markLearned = async (name) => {
@@ -714,11 +735,15 @@ function App({ onLogout }) {
               load: () => api.memory(),
               patch: (body) => api.patchProfile(body),
               rebuild: () => api.rebuildMemory(),
+              position: (name, body) => api.setLearningPosition(name, body),
+              observation: (name, id, state) => api.correctObservation(name, id, state),
+              patchConcept: (name, body) => api.patchConceptMemory(name, body),
             }}
             account={getPersonInfo()}
             onLogout={onLogout}
             onClose={() => setProfileOpen(false)}
-            onRebuilt={() => selected && loadChat(selected.name)}
+            onOpenConcept={(name) => openConcept(name, { learn: true })}
+            onChanged={memoryChanged}
           />
         </div>
       )}
