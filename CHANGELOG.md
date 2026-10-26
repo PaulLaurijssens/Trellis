@@ -5,6 +5,21 @@ All notable changes to Trellis. Dates are UTC. Versions follow the git tags.
 ## [Unreleased]
 
 ### Added
+- **Your learning memory, portable.** *My profile → Your data* downloads your whole learning memory
+  as one zip (JSON plus Markdown that opens in Obsidian) and imports such a file into any Trellis,
+  with a preview first. Importing merges, keeps your corrections, refuses a file whose evidence does
+  not match its conversations, and changes nothing the second time. Format:
+  [docs/MEMORY-FORMAT.md](docs/MEMORY-FORMAT.md) with a JSON Schema.
+- **Connect an AI (MCP).** A read-only MCP server at `/api/mcp` lets Claude Code, Claude Desktop,
+  Cursor, VS Code or your own agent read your concepts, understanding, evidence, learning profile
+  and focus. Access keys are per assistant, shown once, revocable, and conversations are shared only
+  when you allow it. [docs/MCP.md](docs/MCP.md).
+- A new **Memory** tab: every concept with search, filters (learning now, understood, needs
+  attention, planned) and sorting, and one place to correct a concept's memory: where you stand,
+  the summary (now editable), open difficulties, evidence, what was discussed (with Undo).
+  It works on a phone (list, then detail) and with the keyboard.
+- **How I learn** replaces *Teaching preferences*: your choices, what Trellis noticed (removable with
+  Undo) and your notes, without a colour legend to decode.
 - A guided installer for Windows (`setup.ps1`) and Mac and Linux (`setup.sh`), with a one-line
   command in the README. It checks Docker, memory, disk and the port, makes the database password,
   downloads Trellis and starts it. Safe to run again; `--report` makes a diagnostic report with
@@ -39,6 +54,13 @@ All notable changes to Trellis. Dates are UTC. Versions follow the git tags.
   gives up. A rejected key is never retried.
 - The README install section starts with the installer; the old steps are now *Manual install*.
 - The web server starts only when the API and the app are healthy.
+- *Rebuild memory* moved to *My profile → Your data*, with an explanation of what it does.
+- The Learn view shows the same memory panel as the Memory tab, with radio buttons instead of drop-down
+  menus for your intent and assessment.
+
+### Fixed
+- Putting back an item you removed from your memory (a discussed topic, a profile observation) now
+  works; before, a removed item stayed blocked for good.
 
 ## [0.3.0] - 2026-10-06
 

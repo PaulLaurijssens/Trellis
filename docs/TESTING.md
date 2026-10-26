@@ -73,7 +73,19 @@ chose, and must not show the key.
 - [ ] Run the installer a second time. It says Trellis is installed and running, and changes nothing.
 - [ ] Run the installer with `--report` (Windows: `-Report`). The report has no password or key.
 
-### 7. Optional: a filtered network
+### 7. Your memory: export, import, connect an AI
+
+- [ ] After a few conversations, open *My profile → Memory*. Search, filter and open a concept. Correct
+      something (your assessment, the summary, a difficulty) and check that the Learn view shows it.
+- [ ] *Your data → Download memory*. Open the zip: `README.md` explains it, `concepts/` opens as an
+      Obsidian vault, `memory.json` has no password or API key.
+- [ ] *Import memory* with the same file: the preview says everything is already there.
+- [ ] On a second install (or a second learner), import the file: the preview lists what is new;
+      after *Import*, the Memory tab shows the concepts and the mentor knows what you discussed.
+- [ ] *Connect an AI*: create a key, add it to Claude Code or another MCP client (docs/MCP.md) and ask
+      "what do I understand about <a concept>?". Revoke the key: the client gets refused.
+
+### 8. Optional: a filtered network
 
 - [ ] On an office, school or VPN network: does the installer download Trellis? If not, is the
       message clear about what to check?

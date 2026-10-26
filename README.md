@@ -9,7 +9,9 @@ where you struggled, so a concept comes back for a quick check when it is due.
 
 **Your data and memory are yours.** Everything is stored on your own computer or server, and you use
 your own AI key. For each answer, Trellis sends what the mentor needs to the AI provider you choose;
-with a local model, nothing leaves your machine.
+with a local model, nothing leaves your machine. You can download your whole learning memory as one
+file, bring it into another Trellis, and let other AI assistants read it through MCP
+([Your learning memory](#your-learning-memory-take-it-anywhere)).
 
 > Status: **alpha**, a personal project made public. It works for its author every day; expect rough
 > edges. Issues and pull requests are welcome. License: AGPL-3.0 (free to use, self-host and change;
@@ -305,6 +307,23 @@ front of it. Two good ways, both described in [docs/VPS.md](docs/VPS.md):
 - **A rented server + Caddy** (a domain name, reachable from anywhere).
 
 Once you open Trellis over HTTPS on a phone, use "Add to Home Screen": it installs as an app.
+
+## Your learning memory: take it anywhere
+
+Trellis remembers your learning in three layers: what happened (every conversation and checked
+exercise), what you understand per concept (with quotes from your own messages as evidence), and how
+you learn. You can see and correct all of it in *My profile → Memory*, and it is yours to take along:
+
+- **Download it.** *My profile → Your data → Download memory* gives one zip file: JSON that other
+  tools can read, and Markdown pages that open as an Obsidian vault. The format is open and
+  documented in [docs/MEMORY-FORMAT.md](docs/MEMORY-FORMAT.md).
+- **Bring it into another Trellis.** *Import memory* shows what will change and merges it with what
+  is there. Nothing is overwritten, and importing twice changes nothing.
+- **Let another AI read it.** Create an access key under *Connect an AI*, and Claude Code, Claude
+  Desktop, Cursor, VS Code or your own agent can read your learning memory through MCP (read only;
+  revoke the key any time). Setup in [docs/MCP.md](docs/MCP.md).
+
+The export is a personal copy, not a backup of the whole install: for that, see *Backups* below.
 
 ## Backups
 
