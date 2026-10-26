@@ -1,14 +1,14 @@
 """Read-only curriculum proposal covering every concept; never writes graph edges.
 
-Het plan wordt bewaard (één :CurriculumPlan per taal) en daarna bijgewerkt in plaats van
-opnieuw gemaakt. Een volledig plan kost een LLM-call van ongeveer 30 s; dat gebeurde eerst
-bij elke graafwijziging en na elke herstart. Nu:
-  - zelfde graaf                  -> bewaard plan, geen LLM;
-  - alleen concepten weg          -> uit hun groep gehaald, geen LLM;
-  - nieuwe concepten              -> alleen DIE worden ingedeeld (kleine, snelle call);
-  - geen plan of heel veel nieuw  -> volledig opnieuw.
-Gewijzigde definities of relaties verplaatsen niets; de conflicten worden wel altijd
-opnieuw berekend uit de huidige relaties.
+The plan is stored (one :CurriculumPlan per language) and then updated instead of made
+again. A full plan costs an LLM call of about 30 s; that used to happen on every graph
+change and after every restart. Now:
+  - same graph                   -> stored plan, no LLM;
+  - only concepts removed        -> taken out of their group, no LLM;
+  - new concepts                 -> only THOSE are placed (a small, fast call);
+  - no plan or very many new     -> a full new plan.
+Changed definitions or relations move nothing; the conflicts are always recomputed from
+the current relations.
 """
 import asyncio
 import hashlib
@@ -23,7 +23,7 @@ PLACE_SYSTEM = '''You maintain an existing learning curriculum. Place ONLY the n
 
 
 def _too_many(new_count, total):
-    """Boven deze grens is bijwerken minder zinnig dan opnieuw indelen."""
+    """Above this limit, updating makes less sense than a new plan."""
     return new_count > max(30, total // 2)
 
 
@@ -51,7 +51,7 @@ def _save(language, key, groups):
 
 
 def _clean_group(g, ids, seen):
-    """Eén groep uit LLM-output valideren: alleen bekende, nog niet geplaatste IDs."""
+    """Validates one group from LLM output: only known, not yet placed IDs."""
     if not isinstance(g, dict) or not isinstance(g.get('ids'), list):
         return None
     stage = g.get('stage')
@@ -71,7 +71,7 @@ def _clean_group(g, ids, seen):
 def _place_missing(groups, missing, language):
     if not missing:
         return
-    title = 'Needs placement' if language == 'en' else 'Nog in te delen'
+    title = 'Needs placement'
     for g in groups:
         if g['title'] == title:
             g['ids'].extend(sorted(missing))
@@ -95,7 +95,7 @@ async def _full(snapshot, ids, language):
 
 async def _incremental(stored_groups, nodes, links, ids, language):
     known = {cid for g in stored_groups for cid in g.get('ids', [])}
-    # Weg is weg: uit de groepen halen, lege groepen verdwijnen. Geen LLM nodig.
+    # Gone is gone: take them out of the groups, empty groups disappear. No LLM needed.
     groups = []
     for g in stored_groups:
         members = [cid for cid in g.get('ids', []) if cid in ids]

@@ -1,6 +1,6 @@
-// De mini-kennisboom wordt uit /graph afgeleid: die call levert al elke node
-// met status en elke relatie met type, dus er is geen extra endpoint nodig.
-// force-graph vervangt link.source/target door node-objecten; daarom idOf().
+// The mini knowledge tree is derived from /graph: that call already returns every node
+// with its status and every relation with its type, so no extra endpoint is needed.
+// force-graph replaces link.source/target with node objects; hence idOf().
 const idOf = (x) => (x && typeof x === "object" ? x.id : x);
 
 export function buildIndex(graph) {
@@ -28,8 +28,8 @@ const sortNodes = (a, b) => (b.degree || 0) - (a.degree || 0) || a.name.localeCo
 const nodesOf = (index, map, id, max = 8) =>
   (map.get(id) || []).map((i) => index.byId.get(i)).filter(Boolean).sort(sortNodes).slice(0, max);
 
-// Subboom rond een node: voorkennis (naar beneden), waar het naartoe leidt
-// (naar boven) en losse verwanten. `depth` = hoe diep de voorkennis gaat.
+// Subtree around a node: prerequisites (down), what it leads to (up) and loose
+// relatives. `depth` = how deep the prerequisites go.
 export function subtree(index, node, depth = 1) {
   if (!node) return null;
   const seen = new Set([node.id]);

@@ -6,9 +6,8 @@ import { useT } from "../lib/i18n";
 import ConversationSuggestions from "./ConversationSuggestions";
 import TeachingIllustration from "./TeachingIllustration";
 
-// De mentor gebruikt codeblokken; die moeten als code leesbaar zijn en niet
-// als lopende tekst met backticks erin.
-// Inline: `code` en **vet**; meer markdown doet de mentor niet.
+// The mentor uses code blocks; they must read as code, not as running text with
+// backticks in it. Inline: `code` and **bold**.
 function inline(text) {
   return text.split(/(`[^`]+`|\*\*[^*]+\*\*|\*[^*\s][^*]*\*)/g).map((seg, i) => {
     if (seg.startsWith("`")) return <code key={i}>{seg.slice(1, -1)}</code>;
@@ -59,9 +58,9 @@ export default function Chat({
 
   const logRef = useRef(null);
   const nearBottom = useRef(true);
-  // Na een nieuw antwoord begin je bovenaan DAT antwoord, niet onderaan het gesprek: anders
-  // moet je eerst terugscrollen om het te lezen. Terwijl de mentor nadenkt blijft je eigen
-  // vraag met de denk-indicator onderaan in beeld.
+  // After a new answer you start at the top of THAT answer, not at the bottom of the
+  // conversation: otherwise you first have to scroll back to read it. While the mentor
+  // thinks, your own question with the thinking indicator stays in view at the bottom.
   useEffect(() => {
     const log = logRef.current;
     if (!log || !messages.length) return;
@@ -71,7 +70,7 @@ export default function Chat({
       return;
     }
     const el = log.querySelector(`[data-seq="${last.seq}"]`);
-    // 48px: onder de vervaging die .chat-log bovenaan heeft (mask-image, 44px).
+    // 48px: below the fade that .chat-log has at the top (mask-image, 44px).
     if (el) log.scrollTo({ top: log.scrollTop + el.getBoundingClientRect().top - log.getBoundingClientRect().top - 48, behavior: "auto" });
   }, [messages.length, busy]);
   useEffect(() => { nearBottom.current = true; setText(""); }, [concept]);
@@ -110,8 +109,8 @@ export default function Chat({
         {messages.length === 0 && !busy && (emptyState || <section className="lesson-start"><h2>{t("lesson.startTitle")}</h2><p>{t("lesson.startHint")}</p><button className="btn primary" onClick={onExplain}>{t("lesson.start")}</button></section>)}
         {messages.map((m) => (
           <div key={m.seq} data-seq={m.seq} className={"msg " + m.role}>{m.role === "assistant" ? <LocalizedText block render={render}>{m.content}</LocalizedText> : render(m.content)}{m.role === "assistant" && <><TeachingIllustration illustration={m.illustration} />{onSaveExample && (() => {
-            // Feedback voor de mentor: bewaarde voorbeelden gaan mee in de prompt als je later
-            // bij dit onderwerp terugkomt (journey.prompt_context, max. 3 per onderwerp).
+            // Feedback for the mentor: saved examples go into the prompt when you come back
+            // to this topic later (journey.prompt_context, at most 3 per topic).
             const saved = examples.some(e=>e.session_id===chat?.session_id && e.seq===m.seq);
             return <div className="helpful-row">
               <button className={"helpful-save" + (saved ? " saved" : "")} title={t("journey.helpedHint")} disabled={saved || exampleBusy || !chat?.session_id} onClick={()=>onSaveExample(m.seq)}>{saved ? t("journey.exampleSaved") : <><span aria-hidden="true">👍</span> {t("journey.helped")}</>}</button>

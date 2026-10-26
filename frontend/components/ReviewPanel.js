@@ -9,8 +9,8 @@ const Stars = ({ n }) => <span className="stars" aria-label={n + "/5"}>{"★".re
 function Item({ node, depth, selected, linked, open, highlight, toggle, toggleLink, toggleOpen, onHover, chunksTotal, existingByName, t }) {
   const c = node.cand;
   const first = (c.mentions || []).find((m) => m.quote || m.start_sec != null) || null;
-  // Alleen selecteerbare nakomelingen tellen mee (bestaande concepten hebben
-  // geen checkbox maar een koppelknop).
+  // Only selectable descendants count (existing concepts have a link button instead of
+  // a checkbox).
   const kids = descendants(node).filter((k) => !existingByName.has(k));
   const kidsChecked = kids.filter((k) => selected.has(k)).length;
   const selfChecked = selected.has(c.name);
@@ -63,8 +63,8 @@ function Item({ node, depth, selected, linked, open, highlight, toggle, toggleLi
   );
 }
 
-// Review van een analyse: boom van kandidaten met selectie, bestaande
-// concepten koppelbaar, onderaan "Voeg toe aan mijn kaart".
+// Review of an analysis: a tree of candidates to select, existing concepts can be
+// linked, "Add to my map" at the bottom.
 export default function ReviewPanel({ analysis, highlight, busy, onCommit, onHoverExisting, onClose }) {
   const { t } = useT();
   const [selected, setSelected] = useState(new Set());

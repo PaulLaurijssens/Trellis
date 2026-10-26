@@ -2,21 +2,21 @@
 
 import { useEffect } from "react";
 
-/* Registreert de service worker. Client component, want dit hoort bij de browser.
- * Een service worker vereist een secure context: https, of localhost. Op de VPS komt
- * die https van Tailscale (tailscale serve), niet van een publieke reverse proxy. */
+/* Registers the service worker. A client component, because this belongs to the browser.
+ * A service worker needs a secure context: https, or localhost. On a server, that https
+ * can come from Tailscale (tailscale serve) instead of a public reverse proxy. */
 export default function PwaRegister() {
   useEffect(() => {
     if (!("serviceWorker" in navigator)) return;
-    // Alleen in productie. In `next dev` hebben /_next/static-bestanden geen hash in de naam,
-    // en de cache-first regel van sw.js serveerde dan oude JS op nieuwe HTML (hydratiefout).
+    // Production only. In `next dev`, /_next/static files have no hash in their name, and the
+    // cache-first rule of sw.js then served old JS with new HTML (a hydration error).
     if (process.env.NODE_ENV !== "production") {
       navigator.serviceWorker.getRegistrations().then((regs) => regs.forEach((r) => r.unregister())).catch(() => {});
       return;
     }
     const register = () => {
       navigator.serviceWorker.register("/sw.js", { scope: "/" }).catch(() => {
-        /* stil: een mislukte registratie mag de app nooit breken */
+        /* silent: a failed registration must never break the app */
       });
     };
     if (document.readyState === "complete") register();

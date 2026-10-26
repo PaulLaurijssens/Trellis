@@ -76,14 +76,14 @@ function App({ onLogout }) {
   const [legendOpen, setLegendOpen] = useState(false);
   const [graph, setGraph] = useState({ nodes: [], links: [] });
   const [loaded, setLoaded] = useState(false);
-  const [analysis, setAnalysis] = useState(null);  // laatste analyse: {source_id, title, candidates, relations, meta}
+  const [analysis, setAnalysis] = useState(null);  // latest analysis: {source_id, title, candidates, relations, meta}
   const [reviewOpen, setReviewOpen] = useState(false);
   const [reviewHighlight, setReviewHighlight] = useState(null);
-  const [hoverName, setHoverName] = useState(null); // bestaande node oplichten vanuit het review-paneel
-  const [fresh, setFresh] = useState(new Map());     // net toegevoegde nodes -> verschijn-glow
-  const [query, setQuery] = useState("");          // zoekterm uit de command bar: filtert/highlight de graph
+  const [hoverName, setHoverName] = useState(null); // highlight an existing node from the review panel
+  const [fresh, setFresh] = useState(new Map());     // just added nodes -> appear glow
+  const [query, setQuery] = useState("");          // search term from the command bar: filters and highlights the graph
   const [lang, setLangState] = useState(getPersonInfo()?.language || "en");
-  const [selected, setSelected] = useState(null);  // concept-detail uit /concept/{name}
+  const [selected, setSelected] = useState(null);  // concept detail from /concept/{name}
   const [chat, setChat] = useState(null);          // {session_id, messages, state}
   const [teachEnabled, setTeachEnabled] = useState(false);   // feature flag, asked at runtime (no rebuild to flip)
   useEffect(() => { teach.flags().then((f) => setTeachEnabled(!!f.enabled)); }, []);
@@ -101,7 +101,7 @@ function App({ onLogout }) {
   const navigationRef = useRef(0);
   const trailRef = useRef([]);
   const activeNameRef = useRef(null);
-  const sourceRef = useRef(null);                  // {source_id, title, payload} — de gebruiker ziet het id nooit
+  const sourceRef = useRef(null);                  // {source_id, title, payload}: the learner never sees the id
   const flag = (k, v) => setBusy((b) => ({ ...b, [k]: v }));
 
   const t = useCallback((key, vars) => {
@@ -110,7 +110,7 @@ function App({ onLogout }) {
     return str;
   }, [lang]);
 
-  // Taal: localStorage én Person.ui_language, zodat de backend hem kent.
+  // Language: localStorage and Person.ui_language, so the backend knows it.
   const setLang = useCallback(async (l) => {
     if (!DICTS[l]) return;
     await api.patchProfile({ ui_language: l });
@@ -118,7 +118,7 @@ function App({ onLogout }) {
     try { localStorage.setItem(LANG_KEY, l); } catch {}
   }, []);
   useEffect(() => {
-    // Geen lokale keuze: de voorkeur op de server volgen.
+    // No local choice: follow the preference on the server.
     let local = null;
     try { local = localStorage.getItem(LANG_KEY); } catch {}
     if (local && DICTS[local]) setLangState(local);
@@ -148,8 +148,8 @@ function App({ onLogout }) {
     if (t.ttl) setTimeout(() => setToasts((ts) => ts.filter((x) => x.id !== id)), t.ttl);
     return id;
   }, []);
-  // Backend-fouten kunnen lange stacktrace-achtige teksten zijn; de toast
-  // toont de kern, de volledige tekst zit in de tooltip.
+  // Backend errors can be long, stack-trace-like texts; the toast shows the gist and
+  // the full text is in the tooltip.
   const fail = useCallback((e) => {
     const full = e?.message || String(e);
     const short = full.length > 180 ? full.slice(0, 177).replace(/\s+\S*$/, "") + "…" : full;
@@ -190,13 +190,13 @@ function App({ onLogout }) {
     finally { setMotionSaving(false); }
   };
 
-  // Posities van bestaande nodes bewaren, anders springt de hele graph
-  // bij elke verversing terug naar een nieuwe simulatie.
+  // Keep the positions of existing nodes, or the whole graph jumps back to a new
+  // simulation on every refresh.
   const refreshGraph = useCallback(async () => {
     const g = await api.graph();
     const prev = new Map(graphRef.current.nodes.map((n) => [n.id, n]));
-    // Nieuwe nodes starten bij een bestaande buur (via de eerste link), zodat
-    // ze niet vanaf de rand komen aanvliegen.
+    // New nodes start at an existing neighbour (through the first link), so they do
+    // not fly in from the edge.
     const nodes = g.nodes.map((n) => {
       const p = prev.get(n.id);
       if (p) return { ...n, x: p.x, y: p.y, vx: 0, vy: 0 };
@@ -236,7 +236,7 @@ function App({ onLogout }) {
   const openConcept = useCallback(async (name, options = {}) => {
     const navigation = ++navigationRef.current;
     const base = options.path || (options.branch ? trailRef.current : []);
-    setReviewOpen(false);          // mentor- en review-paneel sluiten elkaar uit
+    setReviewOpen(false);          // the mentor and review panels exclude each other
     setChat(null);
     try {
       const detail = await api.concept(name);
@@ -280,7 +280,7 @@ function App({ onLogout }) {
     navigationRef.current++;
     activeNameRef.current = null;
     saveTrail([]);
-    setSelected(null); setChat(null); setExpanded(false);   // review vervangt het mentorpaneel
+    setSelected(null); setChat(null); setExpanded(false);   // review replaces the mentor panel
     setReviewOpen(true);
   };
   const revealCandidate = (name) => {
@@ -326,7 +326,7 @@ function App({ onLogout }) {
   };
 
   // ---- analyseren ----
-  // De client kiest een job-id en pollt de voortgang: "deel 4 van 9".
+  // The client picks a job id and polls the progress: "part 4 of 9".
   const pollProgress = (jobId, label, hint) => {
     const phaseText = (st) => {
       if (!st) return "";
@@ -376,8 +376,8 @@ function App({ onLogout }) {
   const handleYoutube = (url) => runAnalyze(
     t("busy.youtube"), t("busy.youtubeHint"),
     (jobId) => api.analyzeYoutube(url, jobId, lang), { youtube: url });
-  // "Genereer bron over dit onderwerp": het model schrijft bronmateriaal,
-  // de kandidaten daaruit gaan naar het review-paneel.
+  // "Generate a source about this topic": the model writes source material, and the
+  // candidates from it go to the review panel.
   const handleGenerate = (topic, depth) => runAnalyze(
     t("busy.topic", { topic }), t("busy.topicHint"),
     () => api.ingestTopic(topic, depth), { topic, depth });
@@ -387,7 +387,7 @@ function App({ onLogout }) {
     if (p.youtube) handleYoutube(p.youtube); else if (p.url) handleUrl(p.url); else if (p.podcast) handlePodcast(p.podcast); else if (p.topic) handleGenerate(p.topic, p.depth); else if (!p.file) handleAnalyze(p);
   };
 
-  // ---- leren: elke /learn loopt hier langs ----
+  // ---- learning: every /learn goes through here ----
   const runLearn = async (body, busyKey, busyVal = true) => {
     const navigation = ++navigationRef.current;
     const base = busyKey === "learn" ? [] : trailRef.current;
@@ -432,7 +432,7 @@ function App({ onLogout }) {
     if (!selected) return;
     const name = selected.name;
     const navigation = navigationRef.current;
-    // Eigen bericht meteen tonen; de backend kent de echte seq wel.
+    // Show the learner's own message right away; the backend knows the real seq.
     setChat((c) => ({
       ...(c || { messages: [] }),
       messages: [...((c && c.messages) || []), { seq: "tmp-" + Date.now(), role: "user", content: message }],
@@ -450,8 +450,8 @@ function App({ onLogout }) {
     }
   };
 
-  // Niveauklik in de paneelheader: niveau zetten én meteen een nieuwe uitleg
-  // vragen, als kort gebruikersbericht zodat de historie klopt.
+  // Level click in the panel header: set the level and ask for a new explanation
+  // right away, as a short learner message so the history stays right.
   const changeLevel = (lvl) => {
     if (lvl === level && !selected) return;
     setLevel(lvl);
@@ -579,7 +579,7 @@ function App({ onLogout }) {
     }
   };
 
-  // Escape: chip dicht, fullscreen terug naar paneel.
+  // Escape: close the chip, full screen back to the panel.
   useEffect(() => {
     const onKey = (e) => {
       if (e.key !== "Escape" || profileOpen) return;
@@ -606,8 +606,8 @@ function App({ onLogout }) {
   const empty = loaded && graph.nodes.length === 0;
   // Why Learn is off: nothing on the map yet, or nothing picked.
   const learnHint = selected ? "" : t(empty ? "nav.learnNeedsSource" : "nav.learnPick");
-  // "Volgend onderwerp" in de les volgt het leerpad. Alleen ophalen in de lesweergave; het
-  // plan is gedeeld met de Leerpad-weergave en wordt server-side bewaard.
+  // "Next topic" in the lesson follows the learning path. Only fetched in the lesson view;
+  // the plan is shared with the Learning path view and stored on the server.
   const { plan: learningPlan } = usePlan(graph, lang, !!(selected && expanded));
   const next = useMemo(() => (selected && expanded ? nextInPlan(learningPlan, graph, selected.name) : null), [learningPlan, graph, selected, expanded]);
 
@@ -661,7 +661,7 @@ function App({ onLogout }) {
         onAnalyzeFile={handleFile} onAnalyzeUrl={handleUrl} onPodcastEpisodes={api.podcastEpisodes} onAnalyzePodcast={handlePodcast}
       />
 
-      {/* Op de telefoon ingeklapt achter één knop (die knop is op desktop verborgen). */}
+      {/* On a phone collapsed behind one button (hidden on desktop). */}
       <div className={"map-legend" + (legendOpen ? " open" : "")}><button type="button" className="legend-toggle" aria-expanded={legendOpen} onClick={() => setLegendOpen((o) => !o)}><span className="legend-dots" aria-hidden="true">{["learned","learning","queued","suggested"].map((status) => <i key={status} className={"status-dot " + status} />)}</span>{t("legend.title")} {legendOpen ? "▴" : "▾"}</button>{["learned","learning","queued","suggested"].map((status) => <span key={status}><i className={"status-dot " + status} />{t("status." + status)}</span>)}</div>
 
 

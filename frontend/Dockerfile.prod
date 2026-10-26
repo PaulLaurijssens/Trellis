@@ -1,10 +1,10 @@
-# Productie-image voor de Trellis-frontend. Verschilt bewust van de dev-Dockerfile:
-#  - npm ci uit package-lock.json (reproduceerbaar) i.p.v. npm install
-#  - next build + next start i.p.v. next dev
-#  - code IN het image, geen bind-mount
-#  - NEXT_PUBLIC_API_URL is een BUILD-arg: Next bakt NEXT_PUBLIC_*-waarden in de bundel,
-#    dus dit runtime zetten doet niets. Default "/api" => same-origin, geen CORS, en de
-#    PWA praat met dezelfde herkomst als waar hij vandaan komt.
+# Production image for the Trellis frontend. Differs from the dev Dockerfile on purpose:
+#  - npm ci from package-lock.json (reproducible) instead of npm install
+#  - next build + next start instead of next dev
+#  - code IN the image, no bind mount
+#  - NEXT_PUBLIC_API_URL is a BUILD arg: Next bakes NEXT_PUBLIC_* values into the bundle,
+#    so setting it at runtime does nothing. Default "/api" => same origin, no CORS, and the
+#    PWA talks to the origin it came from.
 ARG NODE_VERSION=22.23.2
 FROM node:${NODE_VERSION}-bookworm-slim AS build
 WORKDIR /app
@@ -26,10 +26,9 @@ ENV NODE_ENV=production \
     NEXT_TELEMETRY_DISABLED=1 \
     PORT=3000
 
-# --chown is niet optioneel: COPY neemt anders de rechten van de build-context over, en een
-# context met 0640-bestanden levert een image op waarin de non-root user zijn eigen
-# package.json niet kan lezen (EACCES bij het starten). Numerieke ids mogen vooruitlopen
-# op de useradd hieronder.
+# --chown is not optional: COPY otherwise takes over the permissions of the build context,
+# and a context with 0640 files gives an image in which the non-root user cannot read its
+# own package.json (EACCES at start). Numeric ids may come before the useradd below.
 COPY --from=build --chown=10003:10003 /app/node_modules ./node_modules
 COPY --from=build --chown=10003:10003 /app/.next ./.next
 COPY --from=build --chown=10003:10003 /app/public ./public

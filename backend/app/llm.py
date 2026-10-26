@@ -1,4 +1,4 @@
-"""LLM-agnostische laag. Model wisselen = .env aanpassen."""
+"""Model-agnostic layer. Changing models = changing the settings, not the code."""
 import asyncio, json, os, random, re, time
 import litellm
 
@@ -7,13 +7,13 @@ from .provider_errors import ProviderError, classify
 # Provider presets include reasoning models that reject optional sampling parameters.
 litellm.drop_params = True
 
-# Twee taken, twee modellen: extractie is volume-werk (snel/goedkoop),
-# mentor-antwoorden vragen om redeneerkracht.
+# Two jobs, two models: extraction is volume work (fast and cheap), mentor answers
+# need reasoning power.
 EXTRACT_MODEL = os.getenv("EXTRACT_MODEL", "gemini/gemini-3.7-flash")
 MENTOR_MODEL = os.getenv("MENTOR_MODEL", "gemini/gemini-3.1-pro-preview")
 EMBED_MODEL = os.getenv("EMBED_MODEL", "gemini/gemini-embedding-2-preview")
 EMBED_DIM = int(os.getenv("EMBED_DIM", "3072"))
-# Gemini Embedding 2: Google raadt voor tekst-taken een task-instructie als prefix aan.
+# Gemini Embedding 2: Google recommends a task instruction as a prefix for text tasks.
 EMBED_PREFIX = os.getenv("EMBED_PREFIX", "task: search result | query: ")
 
 # Provider "custom" (Other): its own endpoint and key variable, set by settings.apply(). Passed per call,
@@ -98,7 +98,7 @@ def _check_dim(vector, model: str):
 
 
 class Usage:
-    """Tokenteller per fase, zodat een analyse kan rapporteren wat hij kostte."""
+    """Token counter per phase, so an analysis can report what it cost."""
 
     def __init__(self):
         self.phases: dict[str, dict] = {}
@@ -108,7 +108,7 @@ class Usage:
         prompt = getattr(u, "prompt_tokens", None) if u else None
         completion = getattr(u, "completion_tokens", None) if u else None
         if prompt is None:
-            prompt = fallback_chars // 4          # geen usage teruggekregen: schatting
+            prompt = fallback_chars // 4          # no usage returned: estimate
         cached = 0
         details = getattr(u, "prompt_tokens_details", None) if u else None
         if details is not None:
@@ -134,7 +134,7 @@ def _strip_fences(text: str) -> str:
 
 
 def parse_json(text: str):
-    """JSON uit een modelantwoord, tolerant voor fences en pratende inleidingen."""
+    """JSON from a model answer, tolerant of code fences and chatty introductions."""
     text = _strip_fences(text)
     try:
         return json.loads(text)
@@ -169,7 +169,7 @@ def complete_json(system: str, user: str, model: str, usage: Usage | None = None
 
 async def acomplete_json(system: str, user: str, model: str, usage: Usage | None = None,
                          phase: str = "", timeout: float = 180.0, stage: str | None = None) -> dict | list:
-    """Asynchrone variant voor de parallelle extractie."""
+    """Async variant for the parallel extraction."""
     resp = await acall_model(lambda: litellm.acompletion(
         model=model,
         messages=[{"role": "system", "content": system}, {"role": "user", "content": user}],
@@ -183,8 +183,8 @@ async def acomplete_json(system: str, user: str, model: str, usage: Usage | None
 
 
 def embed(texts: list[str], usage: Usage | None = None, phase: str = "embed") -> list[list[float]]:
-    """Eén call per tekst: Gemini Embedding 2 aggregeert meerdere inputs
-    in één call tot één vector, dus batchen zou concepten samensmelten."""
+    """One call per text: Gemini Embedding 2 aggregates several inputs in one call
+    into one vector, so batching would merge concepts."""
     out = []
     model = EMBED_MODEL
     for t in texts:
@@ -198,7 +198,7 @@ def embed(texts: list[str], usage: Usage | None = None, phase: str = "embed") ->
 
 async def aembed(texts: list[str], usage: Usage | None = None, phase: str = "embed",
                  concurrency: int = 6) -> list[list[float]]:
-    """Zelfde als embed(), maar parallel met een semaphore."""
+    """Same as embed(), but in parallel with a semaphore."""
     sem = asyncio.Semaphore(concurrency)
     model = EMBED_MODEL
 

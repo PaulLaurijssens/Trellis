@@ -19,8 +19,8 @@ Own = Depends(auth.own_person)
 
 log = logging.getLogger("uvicorn.error")
 PENDING_TTL_DAYS = 7
-STALE_MINUTES = 30          # sessie stil -> consolideren
-CONSOLIDATE_EVERY = 600     # seconden tussen twee dream-rondes
+STALE_MINUTES = 30          # session quiet -> consolidate
+CONSOLIDATE_EVERY = 600     # seconds between two dream rounds
 
 app = FastAPI(title="Mentor")
 # Production is same-origin (nginx serves the frontend and /api), so it needs no CORS at all. The
@@ -49,13 +49,13 @@ def _expired_source():
 
 
 async def _consolidation_loop():
-    """Dream-fase: bij startup en daarna elke 10 minuten stille sessies
-    destilleren naar laag 2 en 3."""
+    """Dream phase: at startup and then every 10 minutes, distil quiet sessions
+    into layers 2 and 3."""
     while True:
         try:
             done = await asyncio.to_thread(memory.consolidate_stale, STALE_MINUTES)
             if done:
-                log.info("Geconsolideerd: %d sessie(s)", done)
+                log.info("Consolidated: %d session(s)", done)
         except Exception as e:
             log.warning("Consolidatieronde mislukt: %s", e)
         await asyncio.to_thread(_embed_missing)
@@ -119,9 +119,9 @@ class Learn(BaseModel):
     level: int = 3
     person_id: str | None = None      # ignored: the session decides
     source_id: str | None = None
-    # Uit de analyse: citaten met tijdcode voor deze kandidaat, en de relaties
-    # tussen alle kandidaten van dezelfde bron (alleen toegepast tussen
-    # kandidaten die daadwerkelijk geleerd zijn).
+    # From the analysis: timestamped quotes for this candidate, and the relations
+    # between all candidates of the same source (only applied between candidates
+    # that are actually learned).
     mentions: list[dict] | None = None
     candidate_relations: list[dict] | None = None
 
@@ -164,7 +164,7 @@ class Ask(BaseModel):
     level: int = 5
 
 
-# ---- Suggesties: extractie levert kandidaten, slaat niets op ----
+# ---- Suggestions: extraction returns candidates and stores nothing ----
 
 @app.post("/ingest/text")
 def ingest_text(body: IngestText, me: str = Me):
@@ -175,14 +175,14 @@ def ingest_text(body: IngestText, me: str = Me):
 @app.post("/ingest/raw")
 def ingest_raw(
     text: str = Body(..., media_type="text/plain"),
-    title: str = Query(..., description="Titel van de bron"),
+    title: str = Query(..., description="Title of the source"),
     source_type: str = Query("text"),
     url: str | None = Query(None),
     job_id: str | None = Query(None, description="Door de client gekozen id om voortgang te pollen"),
     me: str = Me,
 ):
-    """Rauwe tekst als request body: plakken zonder JSON-escaping.
-    Timestamps worden bewaard als tijdcodes; hoofdstuktitels worden chunk-grenzen."""
+    """Raw text as the request body: paste without JSON escaping.
+    Timestamps are kept; chapter titles become chunk boundaries."""
     url = sources.clean_url(url) if url else None      # tracking tags (utm_, li_fat_id, ...) do not belong in a source link
     return extract.suggest(text, source_type, title, url, job_id, language=graph.ui_language(me))
 
@@ -194,7 +194,7 @@ def ingest_youtube(body: IngestYoutube, me: str = Me):
         vid = transcript.youtube_id(body.url)
     except ValueError as e:
         raise HTTPException(422, str(e))
-    jobs.update(body.job_id, "fetch", 0, 0, "Transcript ophalen…")
+    jobs.update(body.job_id, "fetch", 0, 0, "Fetching the transcript…")
     try:
         fetched = YouTubeTranscriptApi().fetch(vid, languages=body.languages)
     except Exception as e:
@@ -328,7 +328,7 @@ async def write_guide(concept_id: str, body: GuideRequest, me: str = Me):
 
 @app.get("/ingest/status/{job_id}")
 def ingest_status(job_id: str):
-    """Voortgang van een lopende analyse: {phase, done, total, message}."""
+    """Progress of a running analysis: {phase, done, total, message}."""
     st = jobs.get(job_id)
     if st is None:
         raise HTTPException(404, "Unknown job")
@@ -345,7 +345,7 @@ def ingest_topic(body: IngestTopic, me: str = Me):
     return {**extract.suggest(text, "generated", body.topic, language=language), "text": text}
 
 
-# ---- Leren: hier wordt pas naar de graph geschreven ----
+# ---- Learning: only here is the graph written ----
 
 @app.post("/learn")
 def learn(body: Learn, me: str = Me):
@@ -361,8 +361,8 @@ def learn(body: Learn, me: str = Me):
 
 @app.post("/candidates/commit")
 def commit_candidates(body: CommitCandidates, me: str = Me):
-    """Review-paneel: kandidaten opnemen als 'queued', bestaande koppelen,
-    relaties leggen. Alleen entity resolution kan een LLM-call doen."""
+    """Review panel: add candidates as 'queued', link existing ones, make relations.
+    Only entity resolution may make an LLM call."""
     try:
         return learning.commit_candidates(body.source_id, body.selected, body.link_existing,
                                           body.relations, me)
@@ -397,7 +397,7 @@ def get_chat(concept: str, person_id: str = Me):
 
 @app.post("/chat/{concept}/new")
 def new_chat(concept: str, person_id: str = Me, level: int | None = Query(None)):
-    """Forceert een nieuwe sessie; de oude wordt meteen geconsolideerd."""
+    """Forces a new session; the old one is consolidated right away."""
     c = graph.find_concept(concept)
     if c:
         old = graph.active_session(person_id, c["id"])
@@ -418,7 +418,7 @@ def end_chat(concept: str, person_id: str = Me):
         raise HTTPException(404, "Onbekend concept")
     session = graph.active_session(person_id, c["id"])
     if not session:
-        return {"consolidated": False, "reden": "geen actieve sessie"}
+        return {"consolidated": False, "reason": "no active session"}
     try:
         done = memory.consolidate_session(session["id"])
     except memory.ConsolidationError as exc:
@@ -427,7 +427,7 @@ def end_chat(concept: str, person_id: str = Me):
             "state": graph.understands_state(person_id, c["id"])}
 
 
-# ---- Geheugen: inspecteren, corrigeren, herbouwen ----
+# ---- Memory: inspect, correct, rebuild ----
 
 @app.get("/memory/{person_id}")
 def get_memory(person_id: str = Own):
@@ -461,7 +461,7 @@ def patch_profile(body: ProfilePatch, person_id: str = Own):
 def patch_concept_memory(name: str, body: StatePatch, person_id: str = Own):
     state = memory.patch_understands(person_id, name, body.model_dump(exclude_unset=True))
     if state is None:
-        raise HTTPException(404, "Geen begripstoestand voor dit concept")
+        raise HTTPException(404, "No understanding for this concept")
     return state
 
 
@@ -573,7 +573,7 @@ def verify_backup(stamp: str, owner: str = Depends(_owner)):
 
 @app.get("/levels")
 def get_levels():
-    """Niveau-omschrijvingen, zodat de frontend dezelfde labels toont."""
+    """Level descriptions, so the frontend shows the same labels."""
     return mentor.LEVELS
 
 

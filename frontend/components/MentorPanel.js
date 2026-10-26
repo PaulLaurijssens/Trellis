@@ -181,8 +181,8 @@ export default function MentorPanel({
       <details><summary>{t("learn.notes")}</summary><MemoryDetail compact key={concept.name} name={concept.name} state={state} onPatch={onRemoveMemory} onObservation={onObservation} onPosition={onPosition} /></details>
       <details><summary>{t("learn.conceptDetails")}</summary><p><LocalizedText>{concept.definition}</LocalizedText></p><Actions concept={concept} level={level} busy={busy} onExplain={onExplain} onMarkLearned={onMarkLearned} /></details>
       {trail?.length > 1 && <button className="textlink context-return" onClick={() => onReturn(trail.length - 2)}>← {t("trail.return", { name: trail[trail.length - 2] })}</button>}
-      {/* Gespreksopties staan hier en niet meer onder het invoerveld: daar staat nu
-          "Volgend onderwerp". Een gesprek afsluiten gebeurt ook vanzelf na 30 minuten stilte. */}
+      {/* Conversation options live here, no longer under the input: that is where "Next
+          topic" is now. A conversation also ends by itself after 30 quiet minutes. */}
       <details className="context-session"><summary>{t("learn.sessionMenu")}</summary><div className="chat-links">
         <button className="textlink" onClick={onEndChat} disabled={busy.chat || busy.explain || busy.ending || !chat?.messages?.length} title={t("chat.endTitle")}>{busy.ending ? t("chat.ending") : t("chat.end")}</button>
         <button className="textlink" onClick={onNewChat} disabled={busy.chat || busy.explain || busy.ending} title={t("chat.newTitle")}>{t("chat.new")}</button>

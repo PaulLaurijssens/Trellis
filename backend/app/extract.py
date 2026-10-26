@@ -1,8 +1,8 @@
-"""Concept-extractie uit tekst + entity resolution tegen de bestaande graph.
+"""Concept extraction from text + entity resolution against the existing graph.
 
-Extractie levert alleen suggesties op; wegschrijven gebeurt pas via /learn.
-De extractie zelf is gechunkt en parallel (pipeline.py); dit bestand houdt
-de normalisatie, de bron-registratie en de resolutie tegen de graph."""
+Extraction only returns suggestions; writing happens via /learn. The extraction
+itself is chunked and parallel (pipeline.py); this file holds the normalisation,
+the source registration and the resolution against the graph."""
 import asyncio
 
 from . import llm, graph, transcript, pipeline
@@ -13,15 +13,15 @@ Answer with JSON only: {"same_as": "<candidate name>"} or {"same_as": null}."""
 
 
 def normalize(text: str) -> dict:
-    """Rauwe transcripten naar segmenten met tijdcode plus hoofdstuk-markers.
-    Tijdcodes blijven bewaard als start_sec; zonder tijdcodes worden alinea's
-    segmenten zonder start_sec. Zie transcript.parse()."""
+    """Raw transcripts to timestamped segments plus chapter markers. Timestamps are
+    kept as start_sec; without timestamps, paragraphs become segments without
+    start_sec. See transcript.parse()."""
     return transcript.parse(text)
 
 
 def normalized_text(text: str) -> str:
-    """Platte tekst zonder tijdcodes en hoofdstuktitels (voor wie alleen de
-    inhoud nodig heeft)."""
+    """Plain text without timestamps and chapter titles (for callers that only
+    need the content)."""
     return "\n\n".join(s["text"] for s in transcript.parse(text)["segments"])
 
 
@@ -44,7 +44,7 @@ def generate(topic: str, depth: int, language: str = "en") -> str:
 
 
 def resolve(name: str, definition: str, embedding: list[float]) -> str | None:
-    """Retourneert bestaande concept-naam als het een duplicaat is, anders None."""
+    """Returns the existing concept name when this is a duplicate, otherwise None."""
     cands = graph.find_similar(embedding, k=3)
     cands = [c for c in cands if c["score"] > 0.80]
     if not cands:
@@ -59,14 +59,14 @@ def resolve(name: str, definition: str, embedding: list[float]) -> str | None:
 def suggest_segments(segments: list[dict], chapters: list[dict], timed: bool,
                      source_type: str, title: str, url: str | None = None,
                      job_id: str | None = None, duration_sec: float | None = None, language: str = "en") -> dict:
-    """Kandidaat-concepten uit segmenten, zonder iets op te slaan. De bron
-    wordt geparkeerd als PendingSource; pas /learn promoveert hem."""
+    """Candidate concepts from segments, without storing anything. The source is
+    parked as a PendingSource; only /learn promotes it."""
     result = asyncio.run(pipeline.run(segments, chapters, timed, job_id, duration_sec))
     return stage_result(result, source_type, title, url)
 
 
 def stage_result(result, source_type, title, url):
-    # Kandidaten die al als Concept bestaan (naam/alias) markeren voor de review.
+    # Mark candidates that already exist as a Concept (name/alias) for the review.
     names = [c["name"] for c in result["candidates"]] + \
             [a for c in result["candidates"] for a in c.get("aliases", [])]
     found = graph.match_names(names)
@@ -80,7 +80,7 @@ def stage_result(result, source_type, title, url):
 
 def suggest(text: str, source_type: str, title: str, url: str | None = None,
             job_id: str | None = None, language: str = "en") -> dict:
-    """Haalt kandidaat-concepten uit rauwe tekst zonder iets op te slaan."""
+    """Gets candidate concepts from raw text without storing anything."""
     parsed = normalize(text)
     return suggest_segments(parsed["segments"], parsed["chapters"], parsed["timed"],
                             source_type, title, url, job_id)

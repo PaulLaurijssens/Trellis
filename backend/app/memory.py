@@ -1,8 +1,8 @@
-"""Geheugenconsolidatie: destilleert laag 2 en 3 uit de ruwe gesprekslog.
+"""Memory consolidation: distils layers 2 and 3 from the raw conversation log.
 
-Laag 1 (ChatMessage) is de bron van waarheid. Alles hier is afgeleid en
-kan met rebuild() opnieuw worden opgebouwd. Handmatige correcties van de
-gebruiker zijn dat niet: die overleven consolidatie en rebuild.
+Layer 1 (ChatMessage) is the source of truth. Everything here is derived and can be
+rebuilt with rebuild(). The learner's own corrections are not: they survive
+consolidation and rebuild.
 """
 import logging
 import json
@@ -50,8 +50,8 @@ def _norm(s: str) -> str:
 
 
 def _merge_list(existing: list, incoming: list, removed: list) -> list:
-    """Voegt toe, dedupliceert case-insensitief, en respecteert tombstones:
-    wat de gebruiker heeft weggehaald komt niet terug."""
+    """Adds, deduplicates case-insensitively, and respects tombstones: what the
+    learner removed does not come back."""
     blocked = {_norm(r) for r in removed}
     out, seen = [], set()
     for item in list(existing) + list(incoming):
@@ -214,8 +214,8 @@ def rebuild(person_id):
 # ---- Handmatige correcties ----
 
 def _patch_understands(person_id: str, concept_name: str, patch: dict) -> dict | None:
-    """Zet velden handmatig. Wat de gebruiker weghaalt wordt een tombstone,
-    zodat consolidatie het niet terugzet."""
+    """Sets fields by hand. What the learner removes becomes a tombstone, so
+    consolidation does not put it back."""
     concept = graph.find_concept(concept_name)
     if not concept:
         return None

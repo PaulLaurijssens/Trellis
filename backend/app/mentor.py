@@ -1,4 +1,4 @@
-"""Mentor: vragen beantwoorden op instelbaar niveau, gegrond in de graph."""
+"""Mentor: answers questions at an adjustable level, grounded in the graph."""
 from . import llm, graph
 
 LEVELS = {

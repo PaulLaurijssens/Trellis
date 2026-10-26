@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useT, LANGS } from "../lib/i18n";
 
-// Linksonder: legenda en de avatar met het menu (profiel, rebuild, taal).
+// Bottom left: the legend and the avatar with the menu (profile, rebuild, language).
 export default function ProfileMenu({ onProfile, onRebuild, rebuilding }) {
   const { t, lang, setLang } = useT();
   const [open, setOpen] = useState(false);
@@ -56,7 +56,7 @@ export default function ProfileMenu({ onProfile, onRebuild, rebuilding }) {
           </div>
         )}
       </div>
-      <div className="legend" aria-label="Legenda">
+      <div className="legend" aria-label="Legend">
         <span title={t("legend.learning")}><i className="learning" />Learning</span>
         <span title={t("legend.queuedTitle")}><i className="queued" />{t("legend.queued")}</span>
         <span title={t("legend.learned")}><i className="learned" />Learned</span>

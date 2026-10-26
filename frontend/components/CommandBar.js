@@ -20,7 +20,7 @@ const SpinIcon = () => (
   </svg>
 );
 
-// Zoekveld (standaard) + "Toevoegen": een invoerkaart met vier types.
+// Search field (default) + "Add": an input card with several source types.
 export default function CommandBar({
   levels, level, nodes, candidates = [], busy, empty, shifted,
   clusters = [], clusterScope = "", onCluster, focusRequest,
@@ -61,9 +61,9 @@ export default function CommandBar({
   const wrap = useRef(null);
 
   useEffect(() => { setLvl(level || 3); }, [level]);
-  useEffect(() => { onSearch?.(text.trim()); }, [text]);   // graph filteren terwijl je typt
+  useEffect(() => { onSearch?.(text.trim()); }, [text]);   // filter the graph while typing
 
-  // Sneltoetsen: "/" of ⌘K naar het zoekveld, ⌘N opent de invoerkaart.
+  // Shortcuts: "/" or ⌘K to the search field, ⌘N opens the input card.
   useEffect(() => {
     const onKey = (e) => {
       const tag = document.activeElement?.tagName;

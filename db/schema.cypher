@@ -13,7 +13,7 @@ FOR (c:Concept) ON EACH [c.name, c.aliases, c.definition];
 // ---- Vector index: created from code (graph.ensure_vector_index) with the size of the chosen
 //      embedding model, at setup. Not here: the size is a per-install decision.
 
-// ---- Chat (laag 1: ruwe gesprekslog, bron van waarheid) ----
+// ---- Chat (layer 1: raw conversation log, the source of truth) ----
 CREATE INDEX chat_session_open IF NOT EXISTS
 FOR (s:ChatSession) ON (s.consolidated, s.last_activity);
 
@@ -24,15 +24,15 @@ CREATE CONSTRAINT settings_id IF NOT EXISTS FOR (s:Settings) REQUIRE s.id IS UNI
 // (:Concept {id, name, aliases[], definition, domain, embedding, created_at,
 //            status: suggested|learning|learned})
 // (:Source  {id, type: youtube|paper|text|manual, title, url, ingested_at})
-// (:PendingSource {id, type, title, url, created_at})  // suggestieronde; promoveert bij /learn
-// (:Person  {id, name, level 1..5, learning_profile: JSON-string})   // laag 3
+// (:PendingSource {id, type, title, url, created_at})  // suggestion round; promoted by /learn
+// (:Person  {id, name, level 1..5, learning_profile: JSON-string})   // layer 3
 // (Concept)-[:PREREQUISITE_OF]->(Concept)
 // (Concept)-[:PART_OF]->(Concept)
 // (Concept)-[:RELATED_TO {strength}]-(Concept)
 // (Concept)-[:MENTIONED_IN {context, importance}]->(Source)
 // (Concept)-[:PREREQUISITE_OF {strength, reason}]->(Concept)
 // (Person)-[:ASKED_ABOUT {ts}]->(Concept)
-// (Person)-[:UNDERSTANDS {level, status, since, last_session,       // laag 2
+// (Person)-[:UNDERSTANDS {level, status, since, last_session,       // layer 2
 //            covered[], struggles[], misconceptions[], summary,
 //            quiz_correct, quiz_wrong,
 //            removed[], manual_fields[]}]->(Concept)

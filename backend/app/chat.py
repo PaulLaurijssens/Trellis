@@ -1,4 +1,4 @@
-"""Mentor-chat. Bouwt de systeemprompt uit de graph plus het geheugen."""
+"""Mentor chat. Builds the system prompt from the graph plus the memory."""
 import litellm
 import json
 
@@ -98,11 +98,11 @@ def _reply(system: str, messages: list[dict]) -> str:
 
 def open_session(concept_name: str, person_id: str, level: int | None,
                  force_new: bool = False) -> dict:
-    """Zoekt het concept op, maakt het zo nodig aan, en levert de actieve sessie."""
+    """Finds the concept, creates it when needed, and returns the active session."""
     concept = graph.find_concept(concept_name)
     seeded = None
     if not concept:
-        # Onbekend concept: eerst door de bestaande leer-flow halen.
+        # Unknown concept: run it through the normal learning flow first.
         res = learning.learn(concept_name, "", level or 3, person_id)
         concept = graph.find_concept(res["concept"])
         seeded = res["explanation"]
@@ -128,7 +128,7 @@ def send(concept_name: str, message: str, person_id: str = "paul",
     opened = open_session(concept_name, person_id, level)
     concept, sid, lvl = opened["concept"], opened["session_id"], opened["level"]
     if level is not None:
-        # Expliciet gekozen niveau blijft de standaard: op de sessie en op UNDERSTANDS.
+        # An explicitly chosen level stays the default: on the session and on UNDERSTANDS.
         graph.set_level(person_id, concept["id"], sid, lvl)
 
     journey.attach_session(person_id, sid)
@@ -151,7 +151,7 @@ def send(concept_name: str, message: str, person_id: str = "paul",
 
 
 def history(concept_name: str, person_id: str = "paul") -> dict | None:
-    """Actieve sessie heropenen, inclusief de begripstoestand voor het paneel."""
+    """Reopens the active session, including the understanding for the panel."""
     concept = graph.find_concept(concept_name)
     if not concept:
         return None

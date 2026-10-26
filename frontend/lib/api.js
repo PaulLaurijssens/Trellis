@@ -91,7 +91,7 @@ export const api = {
   createBackup: () => req("/admin/backups", { method: "POST" }),
   verifyBackup: (stamp) => req("/admin/backups/" + encodeURIComponent(stamp) + "/verify", { method: "POST" }),
 
-  // Rauwe tekst als body: plakken zonder JSON-escaping.
+  // Raw text as the body: paste without JSON escaping.
   analyze: ({ text, title, source_type, url }, jobId) => {
     const q = new URLSearchParams({ title, source_type });
     if (url) q.set("url", url);

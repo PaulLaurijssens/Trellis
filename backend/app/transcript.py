@@ -1,15 +1,15 @@
-"""Transcripten parsen naar segmenten met tijdcode en hoofdstuk-markers.
+"""Parse transcripts into segments with timestamps and chapter markers.
 
-Tijdcodes worden bewaard als gestructureerde data (start_sec) in plaats van
-weggegooid: de extractie levert er straks "spring naar moment"-links mee op."""
+Timestamps are kept as structured data (start_sec) instead of thrown away: the
+extraction turns them into "jump to moment" links."""
 import json, re, urllib.request
 
-# 4:45 / 1:02:33 / 00:00:04,000 - met of zonder omliggende blokhaken.
+# 4:45 / 1:02:33 / 00:00:04,000 - with or without surrounding brackets.
 _TS = r"(?:\d{1,2}:)?\d{1,2}:\d{2}(?:[.,]\d{1,3})?"
 _TS_WRAPPED = rf"[\[(]?(?P<ts>{_TS})[\])]?"
-# Een regel die alleen een timestamp of een timestamp-range (SRT/VTT) is.
+# A line that is only a timestamp or a timestamp range (SRT/VTT).
 _TS_ONLY = re.compile(rf"^{_TS_WRAPPED}(?:\s*(?:-->|[-–—])\s*[\[(]?{_TS}[\])]?)?\s*$")
-# Een regel die met een timestamp begint, gevolgd door tekst.
+# A line that starts with a timestamp, followed by text.
 _TS_PREFIX = re.compile(rf"^{_TS_WRAPPED}\s*[-–—:)\]]?\s*(?P<rest>.+)$")
 _SRT_INDEX = re.compile(r"^\d{1,5}$")
 
@@ -24,10 +24,9 @@ def parse_ts(ts: str) -> float:
 
 
 def is_chapter_title(rest: str) -> bool:
-    """Onderscheidt een hoofdstuktitel achter een timestamp van gesproken tekst.
-    Een titel is kort, bevat geen zinsinterpunctie en begint niet midden in een
-    zin. Auto-captions ("12:30 so the trick here is") beginnen juist met kleine
-    letter en blijven zo staan."""
+    """Tells a chapter title after a timestamp apart from spoken text. A title is
+    short, has no sentence punctuation and does not start mid-sentence. Auto-captions
+    ("12:30 so the trick here is") start with a lowercase letter and stay that way."""
     return (len(rest.split()) <= 8
             and not any(c in rest for c in ".!?")
             and not rest[:1].islower())
@@ -37,18 +36,17 @@ def parse(text: str) -> dict:
     """-> {"segments": [{"start_sec": float|None, "text": str}],
            "chapters": [{"start_sec": float, "title": str}], "timed": bool}
 
-    Ondersteunt YouTube-transcripten ("4:45 tekst" of timestamp op eigen regel
-    gevolgd door tekst), SRT/VTT-ranges en "[00:12]"-prefixen. Zonder tijdcodes
-    worden alinea's segmenten zonder start_sec.
+    Supports YouTube transcripts ("4:45 text", or a timestamp on its own line followed
+    by text), SRT/VTT ranges and "[00:12]" prefixes. Without timestamps, paragraphs
+    become segments without start_sec.
 
-    Hoofdstukmarkers ("0:45 The KV cache") worden alleen als zodanig gezien als
-    de getimede regels schaars zijn (een hoofdstukkenlijst: mediane afstand
-    >= 30 s) of als ze in een blok van >= 3 titelachtige regels staan. In een
-    dicht caption-transcript zijn korte regels met een hoofdletter gewoon
-    gesproken tekst."""
+    Chapter markers ("0:45 The KV cache") only count as such when the timed lines are
+    sparse (a chapter list: median gap >= 30 s) or when they stand in a block of >= 3
+    title-like lines. In a dense caption transcript, short capitalised lines are just
+    spoken text."""
     lines = text.replace("\r\n", "\n").replace("\r", "\n").split("\n")
 
-    # Pas 1: regels classificeren.
+    # Pass 1: classify the lines.
     items = []   # ("ts", sec) | ("timed", sec, rest, title_like) | ("text", line) | ("blank",)
     for raw in lines:
         line = raw.strip()
@@ -72,7 +70,7 @@ def parse(text: str) -> dict:
     gaps = sorted(b - a for a, b in zip(times, times[1:]) if b > a)
     sparse = bool(gaps) and gaps[len(gaps) // 2] >= 30
 
-    # Welke getimede regels zijn hoofdstukmarkers?
+    # Which timed lines are chapter markers?
     chapter_idx = set()
     if sparse:
         chapter_idx = {i for i, it in enumerate(items) if it[0] == "timed" and it[3]}
@@ -90,8 +88,8 @@ def parse(text: str) -> dict:
 
     # Pas 2: segmenten bouwen.
     segments, chapters = [], []
-    pending_ts = None          # timestamp op eigen regel: hoort bij de volgende tekst
-    untimed = []               # lopende alinea zonder tijdcode
+    pending_ts = None          # timestamp on its own line: belongs to the next text
+    untimed = []               # current paragraph without a timestamp
 
     def flush_untimed():
         if untimed:
@@ -110,7 +108,7 @@ def parse(text: str) -> dict:
             _, ts, rest, _ = it
             if i in chapter_idx:
                 chapters.append({"start_sec": ts, "title": rest})
-                pending_ts = ts       # de tekst eronder hoort bij dit moment
+                pending_ts = ts       # the text below belongs to this moment
             else:
                 segments.append({"start_sec": ts, "text": rest})
                 pending_ts = None
@@ -125,8 +123,8 @@ def parse(text: str) -> dict:
 
     timed = any(s["start_sec"] is not None for s in segments)
     if timed:
-        # Losse regels zonder tijdcode tussen getimede regels plakken we aan
-        # de vorige getimede regel; ze zijn een vervolg van dezelfde uiting.
+        # Loose lines without a timestamp between timed lines are joined to the
+        # previous timed line; they continue the same utterance.
         merged = []
         for s in segments:
             if s["start_sec"] is None and merged:
@@ -141,7 +139,7 @@ def parse(text: str) -> dict:
 
 
 def from_youtube(fetched) -> list[dict]:
-    """Segmenten rechtstreeks uit youtube-transcript-api, zonder eerst te joinen."""
+    """Segments straight from youtube-transcript-api, without joining them first."""
     out = []
     for s in fetched:
         start = getattr(s, "start", None)
@@ -155,9 +153,9 @@ def from_youtube(fetched) -> list[dict]:
 
 
 def youtube_meta(video_id: str, timeout: float = 10.0) -> dict:
-    """Titel en hoofdstukken van een YouTube-video. Hoofdstukken staan in de
-    beschrijving als regels "mm:ss Titel"; de transcript-API geeft ze niet.
-    Best effort: bij een fout gewoon geen hoofdstukken."""
+    """Title and chapters of a YouTube video. Chapters are lines "mm:ss Title" in the
+    description; the transcript API does not return them. Best effort: on an error,
+    simply no chapters."""
     try:
         req = urllib.request.Request(
             f"https://www.youtube.com/watch?v={video_id}&hl=en",
@@ -183,7 +181,7 @@ def youtube_meta(video_id: str, timeout: float = 10.0) -> dict:
             if mm:
                 chapters.append({"start_sec": parse_ts(mm.group(1)), "title": mm.group(2)})
         chapters.sort(key=lambda c: c["start_sec"])
-        # Een echte hoofdstukkenlijst begint bij 0:00 en heeft er minstens drie.
+        # A real chapter list starts at 0:00 and has at least three.
         if len(chapters) < 3 or chapters[0]["start_sec"] > 30:
             chapters = []
     return {"title": title, "chapters": chapters, "duration_sec": duration}
