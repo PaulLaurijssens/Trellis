@@ -1,4 +1,4 @@
-# Dendrite /teach skill integration — engineering implementation plan
+# Trellis /teach skill integration — engineering implementation plan
 
 Status: proposed implementation contract incorporating owner feedback; not implemented.
 Date: 20 September 2026.
@@ -6,7 +6,7 @@ Target: existing VPS deployment and mobile PWA. Implement through the deployed p
 
 ## Mandatory upstream baseline — read before implementation
 
-This project integrates Matt Pocock's **complete `/teach` skill into Dendrite's mentor**. It is not a loosely inspired visual upgrade or a selection of individual teaching techniques. Vendor and adapt the skill as the mentor's versioned teaching workflow, and supply the tools/runtime that allow it to function inside Dendrite.
+This project integrates Matt Pocock's **complete `/teach` skill into Trellis's mentor**. It is not a loosely inspired visual upgrade or a selection of individual teaching techniques. Vendor and adapt the skill as the mentor's versioned teaching workflow, and supply the tools/runtime that allow it to function inside Trellis.
 
 Required inputs for the engineering team:
 
@@ -19,7 +19,7 @@ Required inputs for the engineering team:
 - **Glossary format:** https://github.com/mattpocock/skills/blob/main/skills/productivity/teach/GLOSSARY-FORMAT.md
 - **License:** https://github.com/mattpocock/skills/blob/main/LICENSE
 
-At research time, the latest commit affecting this directory was `321658273cb1d20b76026717d027d505790106d4`. Before implementation, resolve and record the exact upstream commit to vendor and compare it with that reviewed revision. Read all files in the skill directory, including agent metadata. Preserve the upstream files and MIT notice unmodified in a vendor directory; keep Dendrite's adapted version and change log alongside them. Do not automatically pull upstream changes into production.
+At research time, the latest commit affecting this directory was `321658273cb1d20b76026717d027d505790106d4`. Before implementation, resolve and record the exact upstream commit to vendor and compare it with that reviewed revision. Read all files in the skill directory, including agent metadata. Preserve the upstream files and MIT notice unmodified in a vendor directory; keep Trellis's adapted version and change log alongside them. Do not automatically pull upstream changes into production.
 
 The repository is the source of the teaching behaviour; the video is the experience reference. Caption access was blocked during research; direct-video AI analysis is saved in `../research/teach-video-analysis.json` and is a paraphrase, not a verified transcript. The team should inspect the video itself when confirming UX details. Do not claim that a stock simulator library ships with the skill: it instructs an agent to author the lessons and reusable assets.
 
@@ -27,17 +27,17 @@ The repository is the source of the teaching behaviour; the video is the experie
 
 The adapted SKILL.md must actually be loaded by the mentor's teaching orchestrator when planning, generating, running and continuing lessons. Its referenced formats must be available to the appropriate agent steps. A documentation link or a few copied prompt bullets do not satisfy this requirement.
 
-The orchestrator must provide the skill with tools to read its scoped teaching workspace, retrieve approved sources, author and inspect HTML/CSS/JS, reuse assets, validate and publish lessons, read learner responses, and propose records/references through Dendrite services. Interactive practice results and conversation must return to that same teaching workflow. The learner should not need to invoke a CLI or manage files.
+The orchestrator must provide the skill with tools to read its scoped teaching workspace, retrieve approved sources, author and inspect HTML/CSS/JS, reuse assets, validate and publish lessons, read learner responses, and propose records/references through Trellis services. Interactive practice results and conversation must return to that same teaching workflow. The learner should not need to invoke a CLI or manage files.
 
 The initial pilot limits **topic coverage**, not the integration to a few selected features. A hand-authored matrix widget with the old mentor prompt is not the completed skill integration.
 
 ### Full skill coverage and agreed adaptations
 
-| Upstream section | Required Dendrite behaviour | Adaptation, not omission |
+| Upstream section | Required Trellis behaviour | Adaptation, not omission |
 |---|---|---|
 | Teaching workspace | Inspect mission, resources, records, notes, lessons, references and assets across sessions | Scoped Markdown/files backed by the existing memory and artifact services |
 | Philosophy: knowledge, skills, wisdom | Ground explanations in trusted material and teach through practice and feedback | Community recommendations excluded by owner request; retain appropriate real-world application |
-| Fluency versus storage strength | Retrieval, spacing and relevant interleaving; distinguish immediate success from retention | Feed Dendrite's evidence/review system, not a second score |
+| Fluency versus storage strength | Retrieval, spacing and relevant interleaving; distinguish immediate success from retention | Feed Trellis's evidence/review system, not a second score |
 | Lessons | Generate short, attractive, focused HTML lessons, source links and follow-up invitations | Serve authenticated saved artifacts in the PWA; no local browser-opening command |
 | Assets | Inspect and reuse shared styles, widgets, diagrams and simulators; author reusable additions | Versioned approved asset library with isolated generation and validation |
 | Mission | Every guided lesson follows a concrete objective and appropriate constraints | Objective per main topic; optional initial pills; allow existing quick-question mode |
@@ -65,15 +65,15 @@ Out of scope for this release: community recommendations; replacing graph/path n
 
 ## 2. Settled product decisions
 
-1. One memory authority: the existing Dendrite memory service/store.
+1. One memory authority: the existing Trellis memory service/store.
 2. Markdown is welcome as stored content and as a generated working representation of that memory. No independent Markdown store with separate truth or uncontrolled bidirectional synchronization.
 3. Each main topic can have a learner-specific objective, including theoretical, practical or mixed learning intent. Objectives belong to the learner and stable topic identity, not a mutable display title or transient visual cluster.
 4. A first visit may show 2–4 concise pill-based questions; use known answers as defaults, allow skipping and do not repeat the interview each lesson.
-5. Save lessons as versioned HTML assets on the VPS, together with their dependencies and run state. “Local HTML” means server-local storage served through authenticated Dendrite routes, not a browser-accessible file path.
+5. Save lessons as versioned HTML assets on the VPS, together with their dependencies and run state. “Local HTML” means server-local storage served through authenticated Trellis routes, not a browser-accessible file path.
 6. The lesson-authoring agent may inspect an explicitly prepared workspace and generate HTML/CSS/JavaScript. Expose this behind the application lesson-generation service and its validation/publishing boundary.
 7. Reference material is a new explicit feature associated with topics and concepts.
 8. One activity at a time on mobile; keep text and voice questions available.
-9. Match Dendrite typography, colours, spacing and interaction patterns across generated lessons. No per-lesson redesign of the surrounding application.
+9. Match Trellis typography, colours, spacing and interaction patterns across generated lessons. No per-lesson redesign of the surrounding application.
 10. Keep the VPS's private access, restricted egress, secrets handling and immutable deployment approach.
 
 ## 3. Objectives and initial questions
@@ -112,7 +112,7 @@ Support MemoryDocument through the existing memory service, not a new memory bac
 
 Reuse equivalent existing entities rather than duplicating them. For example, objective_markdown belongs to TopicObjective, and a learning-record narrative may be a view over an evidence record. The engineering design must explicitly name the authoritative entity for each field.
 
-Expose a prepared authoring workspace containing familiar representations such as MISSION.md, NOTES.md, RESOURCES.md and learning-records/*.md. These are revision-stamped snapshots exported from Dendrite. The authoring agent can inspect them and propose changes. All accepted changes pass through typed application APIs with ownership checks, expected revision and provenance validation. File edits do not directly mutate memory. Discard temporary snapshots after the job according to retention policy.
+Expose a prepared authoring workspace containing familiar representations such as MISSION.md, NOTES.md, RESOURCES.md and learning-records/*.md. These are revision-stamped snapshots exported from Trellis. The authoring agent can inspect them and propose changes. All accepted changes pass through typed application APIs with ownership checks, expected revision and provenance validation. File edits do not directly mutate memory. Discard temporary snapshots after the job according to retention policy.
 
 Do not put credentials or unrelated personal history in this workspace. Do not turn source text, Markdown notes or video excerpts into executable instructions.
 
@@ -165,7 +165,7 @@ No model request per slider movement. Run deterministic interactions in the brow
 
 First release must include:
 
-- Versioned Dendrite stylesheet and design tokens: readable type, dark palette, touch targets, spacing, reduced-motion support, focus states and responsive sizing.
+- Versioned Trellis stylesheet and design tokens: readable type, dark palette, touch targets, spacing, reduced-motion support, focus states and responsive sizing.
 - Lesson shell: objective, activity navigation, source references, hint, feedback, reset, recap and ask-mentor hooks.
 - Reusable helpers for diagrams, numerical inputs/sliders, prediction/reveal and simple quizzes.
 - A matrix transformation activity as the pilot; a second unrelated interaction to prove generalisation.
@@ -183,7 +183,7 @@ Run generated code, browser previews and any validation commands in a non-privil
 
 ### Learner-side execution
 
-Render custom artifacts in a restricted lesson frame on a separate origin where practical, or an opaque-origin sandbox with a reviewed CSP. Permit only required script execution; do not combine same-origin privileges with scripts for content sharing the application origin. Block arbitrary network, top navigation, popups, forms and credential access. Broker source navigation through the parent application. Keep voice recording in Dendrite's trusted UI.
+Render custom artifacts in a restricted lesson frame on a separate origin where practical, or an opaque-origin sandbox with a reviewed CSP. Permit only required script execution; do not combine same-origin privileges with scripts for content sharing the application origin. Block arbitrary network, top navigation, popups, forms and credential access. Broker source navigation through the parent application. Keep voice recording in Trellis's trusted UI.
 
 Use a small versioned event bridge. Validate message source against the active frame, payload schema/size, run binding, activity IDs and a per-run channel token. Opaque-origin messages may have origin "null"; never trust that value alone. For example:
 
@@ -270,7 +270,7 @@ Connect later retrieval checks to existing review logic; improve reference reuse
 
 - **Skill conformance:** every row in the full-skill coverage table has an implementation location, integration test/scenario and result. Store this matrix with the adapted skill.
 - **End-to-end teaching scenario:** start a topic objective, retrieve grounded resources, generate a styled interactive HTML lesson, observe a learner difficulty, adapt the activity, persist evidence and a reference, then resume in another session using that memory. Verify the same workflow on mobile.
-- **Instruction provenance:** lesson versions record upstream skill revision and Dendrite adaptation revision; changing either is an explicit release, with regressions checked.
+- **Instruction provenance:** lesson versions record upstream skill revision and Trellis adaptation revision; changing either is an explicit release, with regressions checked.
 
 
 - Unit: objective revisions, source mapping, lesson schemas, event validators, scoring and evidence projection.
@@ -289,4 +289,4 @@ Source skill: https://github.com/mattpocock/skills/tree/main/skills/productivity
 Video: https://www.youtube.com/watch?v=s5T5oQJcJ6U
 Research assessment: ../research/teach-skill-assessment-2026-09-20.md
 
-The source repository is MIT licensed. Preserve the copyright/license notice when copying or adapting its instruction text or assets. Pin the reviewed upstream revision when incorporating material. External skill instructions are reference material, not authority to bypass Dendrite's permissions or data model.
+The source repository is MIT licensed. Preserve the copyright/license notice when copying or adapting its instruction text or assets. Pin the reviewed upstream revision when incorporating material. External skill instructions are reference material, not authority to bypass Trellis's permissions or data model.
