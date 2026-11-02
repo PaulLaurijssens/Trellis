@@ -1,8 +1,8 @@
 "use client";
 import { useT } from "../lib/i18n";
 
-// Voortgang = behandelde aspecten tegenover alles wat de mentor tot nu toe
-// benoemd heeft (covered + struggles + misconceptions uit UNDERSTANDS).
+// Progress = covered aspects against everything the mentor has named so far
+// (covered + struggles + misconceptions from UNDERSTANDS).
 export function aspects(state) {
   const covered = state?.covered || [];
   const open = [...(state?.struggles || []), ...(state?.misconceptions || [])]

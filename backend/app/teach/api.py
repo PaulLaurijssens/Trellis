@@ -10,7 +10,7 @@ from typing import Literal
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from pydantic import BaseModel, Field
 
-from .. import auth, chat, graph
+from .. import auth, chat, graph, languages
 from . import artifacts, flags, lessons, model, objectives, orchestrator, skill
 
 log = logging.getLogger("uvicorn.error")
@@ -50,7 +50,7 @@ def get_flags(person_id: str, request: Request):
 class TopicCreate(BaseModel):
     title: str
     concept_ids: list[str]
-    language: Literal["en", "nl"] = "en"
+    language: languages.Code = "en"
     origin: Literal["curriculum_group", "learner"] = "curriculum_group"
     plan_key: str | None = None
 
@@ -132,7 +132,7 @@ class JobCreate(BaseModel):
     topic_id: str
     concept_id: str
     objective_id: str | None = None
-    language: Literal["en", "nl"] = "en"
+    language: languages.Code = "en"
     time_budget_min: Literal[5, 10, 20] = 10
     intent: str | None = None
     note: str | None = Field(None, max_length=400)

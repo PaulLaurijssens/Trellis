@@ -1,6 +1,6 @@
-"""Voortgang van lopende analyses. De client kiest een job-id, stuurt die mee
-met de ingest-call en pollt GET /ingest/status/{id}. In-memory: één proces,
-en een analyse die de herstart niet overleeft hoeft ook niet gevolgd te worden."""
+"""Progress of running analyses. The client picks a job id, sends it with the ingest
+call and polls GET /ingest/status/{id}. In memory: one process, and an analysis that
+does not survive a restart need not be followed either."""
 import time
 
 _JOBS: dict[str, dict] = {}

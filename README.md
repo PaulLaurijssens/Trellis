@@ -9,22 +9,30 @@ where you struggled, so a concept comes back for a quick check when it is due.
 
 **Your data and memory are yours.** Everything is stored on your own computer or server, and you use
 your own AI key. For each answer, Trellis sends what the mentor needs to the AI provider you choose;
-with a local model, nothing leaves your machine.
+with a local model, nothing leaves your machine. You can download your whole learning memory as one
+file, bring it into another Trellis, and let other AI assistants read it through MCP
+([Your learning memory](#your-learning-memory-take-it-anywhere)).
 
 > Status: **alpha**, a personal project made public. It works for its author every day; expect rough
 > edges. Issues and pull requests are welcome. License: AGPL-3.0 (free to use, self-host and change;
 > if you offer it as a service, you must share your changes).
 
-**Try it** (about 15 minutes; the steps below explain each line). You need Docker Desktop and a key
-from one AI provider.
+**Try it** (about 15 minutes). You need Docker Desktop and a key from one AI provider. The installer
+checks your computer, downloads Trellis and starts it.
 
-```bash
-git clone https://github.com/PaulLaurijssens/Trellis.git && cd Trellis
-cp .env.example .env        # then put a long random string after NEO4J_PASSWORD= in .env
-docker compose up -d        # the first start takes 10 to 15 minutes
+Windows (PowerShell):
+
+```powershell
+irm https://github.com/PaulLaurijssens/Trellis/releases/latest/download/setup.ps1 | iex
 ```
 
-Then open <http://localhost:8080> and follow the three setup steps.
+Mac or Linux (Terminal):
+
+```bash
+curl -fsSL https://github.com/PaulLaurijssens/Trellis/releases/latest/download/setup.sh | bash
+```
+
+Then open <http://localhost:8080> and follow the three setup steps. The steps below explain each part.
 
 <!-- Screenshots go here: docs/img/roadmap.png, docs/img/lesson.png, docs/img/phone.png -->
 
@@ -33,8 +41,8 @@ Then open <http://localhost:8080> and follow the three setup steps.
 ## Setting it up (15 minutes, no programming needed)
 
 You need a computer that stays on while you use Trellis: your own laptop is fine to start. If you
-get stuck, paste this README into an AI assistant (ChatGPT, Claude, Gemini) together with the exact
-error text, and ask it to walk you through. That is how this guide is meant to be used.
+get stuck, see *Troubleshooting* below, or paste this README into an AI assistant (ChatGPT, Claude,
+Gemini) together with the exact error text, and ask it to walk you through.
 
 ### 1. Install Docker Desktop
 
@@ -47,44 +55,65 @@ Docker runs the five parts of Trellis in isolated boxes, so you install nothing 
 Trellis needs about 4 GB of RAM while running and 3 GB of disk. In Docker Desktop → Settings →
 Resources, give Docker at least 6 GB of memory.
 
-### 2. Get the code
+Docker Desktop is free for personal use, education, open-source projects and small businesses
+(fewer than 250 employees and less than $10 million in annual revenue). Larger companies need a paid
+Docker subscription to use it for work. On Linux, the free Docker Engine is enough:
+<https://docs.docker.com/engine/install/>.
 
-Open a terminal (Mac: Terminal app; Windows: PowerShell) and run:
+### 2. Run the installer
 
-```bash
-git clone https://github.com/PaulLaurijssens/Trellis.git
-cd Trellis
+Windows: open **PowerShell** (Start menu, type "PowerShell") and run:
+
+```powershell
+irm https://github.com/PaulLaurijssens/Trellis/releases/latest/download/setup.ps1 | iex
 ```
 
-No git? Download the ZIP from the green **Code** button on GitHub, unzip it, and `cd` into the folder.
-
-### 3. Set one password for the database
-
-Copy the example settings file and put a long random string in it:
+Mac or Linux: open **Terminal** and run:
 
 ```bash
-cp .env.example .env
+curl -fsSL https://github.com/PaulLaurijssens/Trellis/releases/latest/download/setup.sh | bash
 ```
 
-Open `.env` in any text editor and replace `change-me` after `NEO4J_PASSWORD=` with a long random
-string (letters and digits, 20+ characters). You will never have to type it; it protects the database
-inside Docker. Everything else in the file can stay as it is.
+The installer asks before it changes anything. It checks Docker, memory, disk space and the port,
+puts Trellis in a `Trellis` folder in your home folder, makes the database password for you, downloads
+the ready-made images and starts Trellis. The first start takes a few minutes. Later starts take
+seconds. When it is done, it shows the address: **<http://localhost:8080>**.
 
-### 4. Start Trellis
+**Stuck on a step?** The installer stops with what went wrong, what to try, and a ready prompt to paste into
+ChatGPT, Claude or Copilot. Prefer an AI assistant to guide you from the start? See
+[Install with an AI assistant](docs/INSTALL-WITH-AI.md).
+
+You can run the installer again at any time. It checks everything again, repairs known problems and
+starts Trellis. Your data stays.
+
+**Prefer to read a script before you run it?** Download the installer and the checksum file from the
+[latest release](https://github.com/PaulLaurijssens/Trellis/releases/latest), check the file, read it,
+then run it:
 
 ```bash
-docker compose up -d
+curl -fsSLO https://github.com/PaulLaurijssens/Trellis/releases/latest/download/setup.sh
+curl -fsSLO https://github.com/PaulLaurijssens/Trellis/releases/latest/download/SHA256SUMS
+grep ' setup.sh$' SHA256SUMS | sha256sum -c   # Mac: grep ' setup.sh$' SHA256SUMS | shasum -a 256 -c
+less setup.sh
+bash setup.sh
 ```
 
-The first start downloads and builds everything: 10 to 15 minutes, depending on your computer and
-connection. Later
-starts take seconds. When the command returns, open **<http://localhost:8080>** in your browser.
+```powershell
+Invoke-WebRequest https://github.com/PaulLaurijssens/Trellis/releases/latest/download/setup.ps1 -OutFile setup.ps1
+Invoke-WebRequest https://github.com/PaulLaurijssens/Trellis/releases/latest/download/SHA256SUMS -OutFile SHA256SUMS
+(Get-FileHash setup.ps1 -Algorithm SHA256).Hash   # compare with the setup.ps1 line in SHA256SUMS
+notepad setup.ps1
+powershell -ExecutionPolicy Bypass -File setup.ps1
+```
 
-### 5. Finish the setup in the browser
+No installer? See *Manual install* below: it does the same in four commands.
+
+### 3. Finish the setup in the browser
 
 The first visit shows a three-step setup screen:
 
-1. **Your name and language.** English and Dutch today; more can be added (see *Languages*).
+1. **Your name.** Trellis is in English; you can add your own language (see
+   [Add your language](#add-your-language)).
 2. **Your AI model.** Trellis talks to a model provider with **your own key**, and you pay that
    provider directly; Trellis itself costs nothing. Pick one:
 
@@ -95,6 +124,13 @@ The first visit shows a three-step setup screen:
    | Anthropic Claude | <https://console.anthropic.com/settings/keys> | Needs a second provider for embeddings; the screen asks. |
    | Mistral | <https://console.mistral.ai/api-keys> | |
    | Ollama (local, free) | <https://ollama.com/download>, then `ollama pull qwen3:32b nomic-embed-text` | Needs a strong GPU. Lessons may fail. |
+   | Other | Any provider that LiteLLM supports: Azure OpenAI, Microsoft Foundry, OpenRouter and more | Recipes in [docs/PROVIDERS.md](docs/PROVIDERS.md). |
+
+   Before you continue, Trellis tests your key and the three models with a very small request. When
+   something is wrong (a wrong key, a model your plan does not include, no credit), the screen says
+   what to fix. A key from Azure or Microsoft Foundry is not an OpenAI key: use **Other**. The owner
+   can change the provider and key later in *My profile → Settings → AI provider*. The embedding size
+   cannot change later; [docs/PROVIDERS.md](docs/PROVIDERS.md) explains why.
 
    The key is stored only inside your own Trellis database, and used only to call that provider.
    **Costs:** a conversation turn costs a few cents; an interactive lesson about $0.40–$0.80
@@ -102,6 +138,47 @@ The first visit shows a three-step setup screen:
 3. **Your password.** Trellis is a private notebook; this password is its only door.
 
 Done. Add your first source with the **Add +** button.
+
+### Manual install (without the installer)
+
+The installer does nothing you cannot do yourself. You need Docker Desktop (step 1) and a terminal.
+
+1. **Get the files.** Either download
+   [trellis-bundle.zip](https://github.com/PaulLaurijssens/Trellis/releases/latest/download/trellis-bundle.zip)
+   and unzip it (it holds a `trellis` folder), or get the source code:
+
+   ```bash
+   git clone https://github.com/PaulLaurijssens/Trellis.git
+   ```
+
+   No git? Download the ZIP from the green **Code** button on GitHub and unzip it. Then go into the
+   folder: `cd trellis` (bundle) or `cd Trellis` (source).
+
+2. **Set one password for the database.** Copy the example settings file:
+
+   ```bash
+   cp .env.example .env          # Windows PowerShell: copy .env.example .env
+   ```
+
+   Open `.env` in any text editor and replace `change-me` after `NEO4J_PASSWORD=` with a long random
+   string (letters and digits, 20+ characters). You will never have to type it; it protects the
+   database inside Docker. Everything else in the file can stay as it is.
+
+3. **Start Trellis.**
+
+   ```bash
+   docker compose up -d --wait
+   ```
+
+   This downloads the ready-made images and returns when Trellis answers: a few minutes the first
+   time, seconds after that. In a source folder, Docker builds an image itself when there is no
+   ready-made image for that version; `docker compose up -d --build --wait` always builds from the
+   source (10 to 15 minutes).
+
+4. Open **<http://localhost:8080>** and finish the setup in the browser (step 3 above).
+
+`TRELLIS_PORT=8090` in `.env` uses another port when 8080 is taken. `TRELLIS_VERSION=0.4.0` in `.env`
+runs that version instead of the newest one.
 
 ### What you can add
 
@@ -153,12 +230,69 @@ which costs nothing. If it still fails, you see what failed, in plain words, and
 
 ### Everyday commands
 
+Run these in the Trellis folder (the installer puts it in your home folder: `~/Trellis`).
+
 ```bash
-docker compose up -d        # start (also after a reboot)
+docker compose up -d --wait # start (after a reboot, Trellis starts again by itself once Docker runs)
 docker compose down         # stop (your data stays)
-git pull && docker compose up -d --build     # update to a newer version (press "Make a backup now" in Settings first)
+docker compose ps           # what runs, and whether it is healthy
 docker compose logs -f api  # watch the server log when something looks wrong
 ```
+
+### Troubleshooting
+
+**Make a report.** The installer can collect what a helper needs (versions, memory, disk, container
+status, the last log lines) with passwords and keys hidden. Attach it to a
+[bug report](https://github.com/PaulLaurijssens/Trellis/issues/new/choose) or paste it in an AI chat.
+
+```bash
+bash ~/Trellis/setup.sh --report                                              # Mac, Linux
+powershell -ExecutionPolicy Bypass -File $HOME\Trellis\setup.ps1 -Report      # Windows
+```
+
+**See the logs.** In the Trellis folder, `docker compose ps` shows each part and whether it is
+healthy. `docker compose logs --tail 100 api` shows the last lines of one part (also `frontend`,
+`web`, `neo4j`, `author`). In Docker Desktop: *Containers* → *trellis* → click a container → *Logs*.
+
+**The page does not load after the computer was asleep.** Docker Desktop sometimes loses the port
+after sleep: Trellis runs, but <http://localhost:8080> does not answer. Run
+`docker compose up -d --force-recreate web` in the Trellis folder, or run the installer again.
+
+**Port 8080 is already in use.** Put `TRELLIS_PORT=8090` (or another free port) in `.env` and run
+`docker compose up -d --wait`. Then open <http://localhost:8090>.
+
+**Downloading the images fails** (`TLS handshake timeout`, `x509: certificate signed by unknown
+authority`, `connection reset`, `i/o timeout`). Your network blocks or inspects the connection to
+`ghcr.io`. Check:
+
+- Can you open <https://ghcr.io> in your browser? If not, the network blocks it. Try another network
+  (a phone hotspot is fine for the download) or ask your IT department to allow `ghcr.io` and
+  `pkg-containers.githubusercontent.com`.
+- A company proxy: set it in Docker Desktop → Settings → Resources → Proxies.
+- A network that inspects encrypted traffic (some company, school and antivirus products do) needs
+  its root certificate in your system's certificate store. Docker Desktop on Mac and Windows uses that
+  store; restart Docker Desktop after you add it.
+- `manifest unknown` or `not found`: the version in `TRELLIS_VERSION` in `.env` does not exist. Remove
+  the line to get the newest version.
+
+**Building from source fails.** You only build when you ask for it (`--build`) or when there is no
+ready-made image. `npm error Exit handler never called`, `ECONNRESET`, `SELF_SIGNED_CERT_IN_CHAIN` or
+pip's `CERTIFICATE_VERIFY_FAILED` mean the network failed, not Trellis. First try the ready-made images:
+`docker compose up -d --wait` without `--build`. If you must build on a filtered network, point the
+build at a package mirror that your network allows:
+
+```bash
+docker compose build --build-arg PIP_INDEX_URL=https://mirror.example.com/pypi/simple \
+                     --build-arg NPM_CONFIG_REGISTRY=https://mirror.example.com/npm/
+docker compose up -d --wait
+```
+
+**A part stays "unhealthy" or keeps restarting.** Usually too little memory: give Docker at least
+6 GB (Docker Desktop → Settings → Resources). Then look at the logs of that part (see above).
+
+**The setup screen says the key or the model is wrong.** It names the problem: a wrong key, a model
+your plan does not include, no credit, or a wrong endpoint. [docs/PROVIDERS.md](docs/PROVIDERS.md)
+has what each provider needs, and recipes for Azure OpenAI, Microsoft Foundry and OpenRouter.
 
 ---
 
@@ -174,6 +308,23 @@ front of it. Two good ways, both described in [docs/VPS.md](docs/VPS.md):
 - **A rented server + Caddy** (a domain name, reachable from anywhere).
 
 Once you open Trellis over HTTPS on a phone, use "Add to Home Screen": it installs as an app.
+
+## Your learning memory: take it anywhere
+
+Trellis remembers your learning in three layers: what happened (every conversation and checked
+exercise), what you understand per concept (with quotes from your own messages as evidence), and how
+you learn. You can see and correct all of it in *My profile → Memory*, and it is yours to take along:
+
+- **Download it.** *My profile → Your data → Download memory* gives one zip file: JSON that other
+  tools can read, and Markdown pages that open as an Obsidian vault. The format is open and
+  documented in [docs/MEMORY-FORMAT.md](docs/MEMORY-FORMAT.md).
+- **Bring it into another Trellis.** *Import memory* shows what will change and merges it with what
+  is there. Nothing is overwritten, and importing twice changes nothing.
+- **Let another AI read it.** Create an access key under *Connect an AI*, and Claude Code, Claude
+  Desktop, Cursor, VS Code or your own agent can read your learning memory through MCP (read only;
+  revoke the key any time). Setup in [docs/MCP.md](docs/MCP.md).
+
+The export is a personal copy, not a backup of the whole install: for that, see *Backups* below.
 
 ## Backups
 
@@ -198,10 +349,19 @@ the time of the backup. Moving to a new computer: install Trellis there, copy th
 
 ## Updating
 
-`git pull && docker compose up -d --build`. Your memory stays: the graph lives in a Docker volume and
-the lesson files in `artifacts/`. When an update changes the shape of the data, it ships a migration
-in `db/migrations/`; the API applies pending migrations at start and remembers the version in the
-database. Press **Make a backup now** before an update; the nightly backup can be a day old.
+Press **Make a backup now** in *My profile → Settings* first; the nightly backup can be a day old.
+Then, in the Trellis folder:
+
+- **Installed with the installer or the bundle:** if `.env` has a `TRELLIS_VERSION=` line, change it
+  to the new version (see [Releases](https://github.com/PaulLaurijssens/Trellis/releases)). Then run
+  `docker compose pull && docker compose up -d --wait`. When the release notes say that
+  `compose.yaml` changed, download the new `trellis-bundle.zip` and copy its `compose.yaml` over the
+  old one. Keep your `.env` and `backups/`.
+- **Source checkout:** `git pull && docker compose up -d --build --wait`.
+
+Your memory stays: the graph and the lesson files live in Docker volumes. When an update changes the
+shape of the data, it ships a migration in `db/migrations/`; the API applies pending migrations at
+start and remembers the version in the database.
 `docker compose exec api python -m app.migrate --dry-run` shows what an update would apply.
 
 ## Lesson costs
@@ -224,11 +384,42 @@ docker compose exec api python -m app.reset_password
 
 It asks for the new password and prints which account it changed.
 
-## Languages
+## Add your language
 
-The interface and the mentor speak English and Dutch. The mentor answers in the language you write
-in. Adding a language is two files: an entry in `backend/app/languages.py` and a dictionary
-`frontend/lib/<code>.js` (copy `en.js` and translate the values). Pull requests welcome.
+Trellis comes in English. The mentor already answers in the language you write in, whatever it is.
+To get the screens, lessons, study guides and memory in your own language as well, let an AI coding
+agent (Claude Code, Cursor, Codex, ...) add it. It takes a few minutes and some tokens.
+
+You need a source checkout, because the ready-made images contain English only:
+
+```bash
+# Get the source and open it in your coding agent
+git clone https://github.com/PaulLaurijssens/Trellis.git
+cd Trellis
+```
+
+Give the agent this prompt, with your language filled in:
+
+```text
+Add <LANGUAGE> to Trellis as a user interface and content language, with code <CODE> (ISO 639-1, for example de, fr, pt-BR).
+
+1. backend/app/languages.py: add "<CODE>": {"name": "<English name>", "native": "<name in the language itself>"} to LANGUAGES. Optionally add a STOPWORDS set of about 40 short, unmistakable function words for this language that are not English words.
+2. frontend/lib/<CODE>.js: copy frontend/lib/en.js and translate every value into <LANGUAGE>. Keep every key and every {placeholder} exactly as they are. Keep product and model names (Trellis, Neo4j, OpenAI, Gemini, Claude, Ollama) untranslated. Use the informal, friendly tone of the English text.
+3. frontend/lib/languages.js: import the new dictionary and add { code: "<CODE>", native: "<name in the language itself>", dict: <variable> } to LANGUAGES.
+4. Run: cd frontend && node --test tests/*.test.mjs. The languages test must pass (no unknown keys, same placeholders as English). Fix any failure.
+5. Do not change anything else.
+```
+
+Then rebuild and start Trellis, and pick the language in *My profile → Settings*:
+
+```bash
+# Build from your changed source and start
+docker compose up -d --build --wait
+```
+
+After an update (`git pull`), new English texts show in English until you ask the agent again to
+*"translate the keys that are in frontend/lib/en.js but missing in frontend/lib/<CODE>.js"*.
+Made a good one? A pull request is welcome.
 
 ## How it works, in one paragraph
 
@@ -256,11 +447,18 @@ docker compose -f compose.dev.yaml exec backend python -m unittest discover -s t
 cd backend && pip install -r requirements.lock.txt && python -m unittest discover -s tests   # the same, without Docker
 python3 -m unittest discover -s backend/tests -p "test_teach_*.py"                        # quick checks, no packages needed
 docker compose -f compose.dev.yaml exec backend python tests/e2e_kept_lesson.py           # see the "kept lesson" screen, no AI tokens
+cd frontend && node --test tests/*.test.mjs                                               # frontend unit tests
+cd frontend && node tests/run-browser.mjs        # browser flows (Playwright) against the dev app on :3000, API mocked
 ```
 
-None of the backend tests need a running database. The end-to-end lesson test (real Chromium, phone
-size) and the layout-regression test live in `author/tests/`. GitHub runs the quick checks, all
-backend tests and a full `docker compose` start on every push. See [CONTRIBUTING.md](CONTRIBUTING.md).
+The `test_*.py` unit tests need no database. The `*_neo4j.py` scripts do, and wipe it: run them only
+against a test database with `TRELLIS_TEST_WIPE=yes`. The end-to-end lesson test (real Chromium,
+phone size) and the layout-regression test live in `author/tests/`. GitHub runs the quick checks,
+all backend tests, the database scripts against a fresh Neo4j, the official MCP client against the
+MCP server, the frontend unit tests, the production build, every browser flow, a full
+`docker compose` start that waits for every health check, and a check of the release bundle on every
+push. Testing a release by hand: [docs/TESTING.md](docs/TESTING.md). See
+[CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Security
 

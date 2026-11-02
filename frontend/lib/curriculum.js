@@ -1,9 +1,9 @@
 "use client";
-// Het leerpad-plan, gedeeld door het Leerpad en de knop "Volgend onderwerp".
-// Stale-while-revalidate: het laatst bekende plan staat meteen op het scherm (uit geheugen
-// of localStorage), en wordt op de achtergrond bijgewerkt als de graaf veranderd is. De
-// backend bewaart het plan en deelt alleen nieuwe concepten opnieuw in, dus dat bijwerken
-// is meestal een fractie van een seconde in plaats van de 30+ s van een volledig plan.
+// The learning path plan, shared by the Learning path and the "Next topic" button.
+// Stale-while-revalidate: the last known plan shows right away (from memory or
+// localStorage) and is updated in the background when the graph changed. The backend
+// stores the plan and only places new concepts, so that update usually takes a fraction
+// of a second instead of the 30+ s of a full plan.
 import { useEffect, useMemo, useState } from "react";
 
 const BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
@@ -47,7 +47,7 @@ function fetchPlan(snapshot, lang) {
   return inflight[snapshot];
 }
 
-// enabled=false: niets ophalen, alleen een eventueel al bekend plan teruggeven.
+// enabled=false: fetch nothing, only return a plan that is already known.
 export function usePlan(graph, lang, enabled = true) {
   const snapshot = useMemo(() => snapshotOf(graph, lang), [graph, lang]);
   const [, rerender] = useState(0);
@@ -70,7 +70,7 @@ export function usePlan(graph, lang, enabled = true) {
   return { plan: known?.plan || null, updating: enabled && !fresh && !error, error, retry: () => setRetry((n) => n + 1) };
 }
 
-// Plan-volgorde: fase oplopend, binnen een fase de volgorde van de groepen.
+// Plan order: stage ascending, within a stage the order of the groups.
 function order(plan) {
   return plan.groups
     .map((g, i) => ({ g, i }))
@@ -78,8 +78,8 @@ function order(plan) {
     .flatMap(({ g }) => g.ids);
 }
 
-// Het eerstvolgende niet-begrepen onderwerp NA het huidige in het leerpad; staat het huidige
-// er niet in, dan het eerste niet-begrepen onderwerp van het hele pad.
+// The next not yet understood topic AFTER the current one in the learning path; when the
+// current one is not in it, the first not yet understood topic of the whole path.
 export function nextInPlan(plan, graph, currentName) {
   if (!plan?.groups?.length) return null;
   const nodes = new Map(graph.nodes.map((n) => [n.id, n]));

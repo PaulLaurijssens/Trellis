@@ -49,6 +49,12 @@ def apply():
     the environment, so a stored key is exported into this process only."""
     data = _cache
     provider = providers.spec(data.get("provider"), data)
+    custom = data.get("provider") == providers.CUSTOM
+    # The custom endpoint is passed per call (llm.endpoint), only for the custom models.
+    endpoint = (provider.get("endpoint") or {}) if custom and provider else {}
+    llm.API_BASE, llm.API_VERSION = endpoint.get("api_base"), endpoint.get("api_version")
+    llm.API_KEY_ENV = provider["key_env"] if custom and provider else None
+    llm.CUSTOM_MODELS = {m for m in (data.get("mentor_model"), data.get("extract_model"), data.get("embed_model")) if m} if custom else set()
     if provider:
         llm.MENTOR_MODEL = os.getenv("MENTOR_MODEL") or data.get("mentor_model") or provider["mentor"]
         llm.EXTRACT_MODEL = os.getenv("EXTRACT_MODEL") or data.get("extract_model") or provider["extract"]
@@ -87,6 +93,9 @@ def public() -> dict:
         value = data.get(field) or ""
         out[field + "_set"] = bool(value)
         out[field + "_tail"] = value[-4:] if value else ""
+    custom = data.get("provider") == providers.CUSTOM
+    out["api_base"] = data.get("api_base") if custom else None          # an address, not a secret
+    out["api_version"] = data.get("api_version") if custom else None
     out["models"] = {"mentor": llm.MENTOR_MODEL, "extract": llm.EXTRACT_MODEL, "embed": llm.EMBED_MODEL, "embed_dim": llm.EMBED_DIM}
     prov = providers.spec(data.get("provider"), data) or {}
     out["features"] = {"voice": bool(prov.get("voice")), "video": bool(prov.get("video"))}

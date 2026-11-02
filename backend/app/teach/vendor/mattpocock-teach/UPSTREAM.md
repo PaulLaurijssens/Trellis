@@ -6,7 +6,7 @@
 - Resolved: 2026-09-20 through the GitHub commits API (latest commit that touches the directory).
 - License: MIT, copyright (c) 2026 Matt Pocock. `LICENSE` in this directory is the unmodified upstream file.
 
-The files in this directory are byte-identical copies. **Do not edit them.** Dendrite's adapted version
+The files in this directory are byte-identical copies. **Do not edit them.** Trellis's adapted version
 lives in `../../skill/`, with its change log. `tests/test_teach_skill.py` recomputes the git blob hash of
 every file below and fails when one differs. Upstream changes are never pulled automatically: a new
 upstream revision is an explicit release (new commit here, new hashes, review of `skill/CHANGELOG.md`).

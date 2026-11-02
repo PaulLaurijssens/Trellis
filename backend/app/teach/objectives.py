@@ -6,7 +6,7 @@ identity for "what I am studying". Objectives are revisioned; the learner confir
 import json
 import uuid
 
-from .. import graph, llm
+from .. import graph, languages, llm
 from . import model
 
 DRAFT_SYSTEM = '''Write a short learning objective for one learner and one topic. Return JSON only:
@@ -152,7 +152,7 @@ def draft(person_id: str, topic_id: str, answers: dict) -> dict:
                          ids=topic["concept_ids"])
     # Time today belongs to the run, not to the topic: it never reaches the objective text.
     payload = {"topic": topic["title"], "concepts": concepts, "answers": {k: v for k, v in answers.items() if k != "time_budget_min"},
-               "language": graph.LANGUAGE_NAMES_EN[language]}
+               "language": languages.name(language)}
     try:
         raw = llm.complete_json(DRAFT_SYSTEM, json.dumps(payload, ensure_ascii=False), llm.EXTRACT_MODEL, timeout=45)
         result = model.objective({**raw, "intent": answers["intent"] or "understand"})

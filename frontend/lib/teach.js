@@ -4,16 +4,19 @@
 // untrusted: this file checks the sender, the schema, the size, the rate, the run and the activity
 // before anything reaches the server, and the server checks again. The frame can ask; it cannot write.
 import { getPerson, handleUnauthorized } from "./session";
+import { httpError, networkError } from "./errors";
 
 const BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 const me = () => getPerson() || "-";
 
 async function req(path, opts = {}) {
-  const res = await fetch(BASE + "/teach/" + me() + path, { credentials: "include", ...opts });
+  let res;
+  try { res = await fetch(BASE + "/teach/" + me() + path, { credentials: "include", ...opts }); }
+  catch { throw networkError(BASE); }
   if (!res.ok) {
-    let detail = "HTTP " + res.status;
-    try { const j = await res.json(); if (j.detail) detail = typeof j.detail === "string" ? j.detail : JSON.stringify(j.detail); } catch {}
-    const err = new Error(detail); err.status = res.status; handleUnauthorized(err); throw err;
+    let data = null;
+    try { data = await res.json(); } catch {}
+    const err = httpError(res.status, data); handleUnauthorized(err); throw err;
   }
   return res.json();
 }

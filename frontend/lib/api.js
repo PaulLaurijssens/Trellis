@@ -1,4 +1,5 @@
 import { getPerson, handleUnauthorized } from "./session";
+import { httpError, networkError } from "./errors";
 
 const BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 // The logged-in person (from the session cookie). Routes keep the person in their path; the API
@@ -10,23 +11,41 @@ async function req(path, opts = {}) {
   try {
     res = await fetch(BASE + path, { credentials: "include", ...opts });
   } catch {
-    throw new Error("Geen verbinding met de backend. Draait die op " + BASE + "?");
+    throw networkError(BASE);
   }
   if (!res.ok) {
-    let detail = "Er ging iets mis (HTTP " + res.status + ")", info = null;
-    try {
-      const j = await res.json();
-      if (typeof j.detail === "string") detail = j.detail;
-      else if (j.detail?.message) { detail = j.detail.message; info = j.detail; }   // e.g. {message, paste, title} from /ingest/url
-      else if (j.detail) detail = JSON.stringify(j.detail);
-    } catch {}
-    const err = new Error(detail);
-    err.status = res.status;
-    err.info = info;
+    let data = null;
+    try { data = await res.json(); } catch {}
+    const err = httpError(res.status, data);
     handleUnauthorized(err);
     throw err;
   }
   return res.json();
+}
+
+// A file download (the memory export): same error handling as req, but the body is a Blob.
+async function download(path) {
+  let res;
+  try {
+    res = await fetch(BASE + path, { credentials: "include" });
+  } catch {
+    throw networkError(BASE);
+  }
+  if (!res.ok) {
+    let data = null;
+    try { data = await res.json(); } catch {}
+    const err = httpError(res.status, data);
+    handleUnauthorized(err);
+    throw err;
+  }
+  const name = /filename="([^"]+)"/.exec(res.headers.get("Content-Disposition") || "")?.[1] || "trellis-memory.zip";
+  return { blob: await res.blob(), name };
+}
+
+// The address another AI connects to: the API base plus /mcp, made absolute for the browser's host.
+export function mcpUrl() {
+  const base = /^https?:/.test(BASE) ? BASE : (typeof window === "undefined" ? "" : window.location.origin) + BASE;
+  return base.replace(/\/$/, "") + "/mcp";
 }
 
 const json = (body) => ({
@@ -62,11 +81,17 @@ export const api = {
   correctObservation: (name, id, state) => req("/memory/" + me() + "/concept/" + encodeURIComponent(name) + "/observations/" + id, { ...json({ state }), method: "PATCH" }),
   setLearningPosition: (name, body) => req("/memory/" + me() + "/concept/" + encodeURIComponent(name) + "/position", { ...json(body), method: "PATCH" }),
   rebuildMemory: () => req("/memory/rebuild/" + me(), { method: "POST" }),
+  exportMemory: () => download("/memory/" + me() + "/export"),
+  // Raw file as the body (zip or JSON); preview changes nothing, apply merges.
+  importMemory: (file, mode) => req("/memory/" + me() + "/import?mode=" + mode, { method: "POST", headers: { "Content-Type": "application/octet-stream" }, body: file }),
+  connections: () => req("/memory/" + me() + "/connections"),
+  createConnection: (name, scopes) => req("/memory/" + me() + "/connections", json({ name, scopes })),
+  revokeConnection: (id) => req("/memory/" + me() + "/connections/" + encodeURIComponent(id), { method: "DELETE" }),
   backups: () => req("/admin/backups"),
   createBackup: () => req("/admin/backups", { method: "POST" }),
   verifyBackup: (stamp) => req("/admin/backups/" + encodeURIComponent(stamp) + "/verify", { method: "POST" }),
 
-  // Rauwe tekst als body: plakken zonder JSON-escaping.
+  // Raw text as the body: paste without JSON escaping.
   analyze: ({ text, title, source_type, url }, jobId) => {
     const q = new URLSearchParams({ title, source_type });
     if (url) q.set("url", url);
@@ -83,7 +108,7 @@ export const api = {
   analyzeUrl: (url, jobId) => req("/ingest/url", json({ url, job_id: jobId })),
   podcastEpisodes: (feed_url) => req("/ingest/podcast/episodes", json({ feed_url })),
   analyzePodcast: (episode, jobId) => req("/ingest/podcast", json({ ...episode, job_id: jobId })),
-  analyzeYoutube: (url, jobId, language) => req("/ingest/youtube", json({ url, job_id: jobId, ui_language: language, languages: language === "nl" ? ["nl", "en"] : ["en", "nl"] })),
+  analyzeYoutube: (url, jobId, language) => req("/ingest/youtube", json({ url, job_id: jobId, ui_language: language, languages: language === "en" ? ["en"] : [language, "en"] })),
   ingestStatus: (jobId) => req("/ingest/status/" + encodeURIComponent(jobId)),
   ingestTopic: (topic, depth) => req("/ingest/topic", json({ topic, depth })),
   commitCandidates: (body) => req("/candidates/commit", json(body)),

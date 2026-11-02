@@ -54,7 +54,7 @@ def propose(session_id, person_id, concept_name, user_message, answer, message_s
         excluded = {clean_name(p.get("name")).casefold() for p in previous}
         # Separate extraction cannot corrupt the verbatim assistant reply or logs.
         response = llm.litellm.completion(
-            model=llm.EXTRACT_MODEL, temperature=0.2, timeout=15, num_retries=0,
+            model=llm.EXTRACT_MODEL, temperature=0.2, timeout=15, num_retries=0, **llm.endpoint(llm.EXTRACT_MODEL),
             messages=[{"role": "system", "content": PROMPT}, {"role": "user", "content": json.dumps(
                 {"current_concept": concept_name, "user": user_message, "assistant": answer,
                  "previous_suggestions": [{"name": p["name"], "state": p["state"]} for p in previous]}, ensure_ascii=False)}])

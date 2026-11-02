@@ -70,21 +70,16 @@ def objective(data: dict) -> dict:
 
 
 def fallback_objective(topic_title: str, answers: dict, language: str) -> dict:
-    """Deterministic draft when the model is unavailable. The learner still edits and confirms it."""
+    """Deterministic draft when the model is unavailable, in English. The learner still edits and confirms it."""
     intent = answers.get("intent") or "understand"
-    nl = language == "nl"
-    why = {"understand": (f"I want to understand how {topic_title} works and where its limits are.",
-                          f"Ik wil begrijpen hoe {topic_title} werkt en waar de grenzen liggen."),
-           "apply": (f"I want to apply {topic_title} to my own problems.",
-                     f"Ik wil {topic_title} kunnen toepassen op mijn eigen vraagstukken."),
-           "build": (f"I want to build something small that uses {topic_title}.",
-                     f"Ik wil iets kleins bouwen dat {topic_title} gebruikt."),
-           "explore": (f"I want to explore what {topic_title} makes possible and decide what to study next.",
-                       f"Ik wil verkennen wat {topic_title} mogelijk maakt en kiezen wat ik verder uitzoek.")}[intent][nl]
-    outcome = {"understand": ("Explain the core mechanism in my own words", "Het kernmechanisme in eigen woorden uitleggen"),
-               "apply": ("Work a new example without help", "Een nieuw voorbeeld zonder hulp uitwerken"),
-               "build": ("Build and inspect a small working example", "Een klein werkend voorbeeld bouwen en bekijken"),
-               "explore": ("Compare two applications and choose one to study", "Twee toepassingen vergelijken en er één kiezen")}[intent][nl]
+    why = {"understand": f"I want to understand how {topic_title} works and where its limits are.",
+           "apply": f"I want to apply {topic_title} to my own problems.",
+           "build": f"I want to build something small that uses {topic_title}.",
+           "explore": f"I want to explore what {topic_title} makes possible and decide what to study next."}[intent]
+    outcome = {"understand": "Explain the core mechanism in my own words",
+               "apply": "Work a new example without help",
+               "build": "Build and inspect a small working example",
+               "explore": "Compare two applications and choose one to study"}[intent]
     text = why + ((" " + answers["free_text"]) if answers.get("free_text") else "")
     return objective({"intent": intent, "objective_markdown": text, "observable_outcomes": [outcome],
                       "constraints": [], "out_of_scope": [], "preferred_depth": "working"})
@@ -134,8 +129,9 @@ def manifest(data) -> dict:
             raise ValueError("manifest.sources: objects with source_id")
         sources.append({"source_id": ref["source_id"][:80], "primary": ref.get("primary") is True,
                         "start_sec": ref["start_sec"] if isinstance(ref.get("start_sec"), (int, float)) else None})
-    if data.get("language") not in ("en", "nl"):
-        raise ValueError("manifest.language: en or nl")
+    # Any well-formed code: a lesson made in a language this install does not have must still load.
+    if not isinstance(data.get("language"), str) or not re.fullmatch(r"[a-z]{2,3}(-[A-Za-z0-9]{2,8})?", data["language"]):
+        raise ValueError("manifest.language: a language code such as en")
     return {"entrypoint": "index.html", "title": _text(data.get("title"), 160, "manifest.title"),
             "outcome": _text(data.get("outcome"), 400, "manifest.outcome"), "language": data["language"],
             "duration_min": int(data.get("duration_min") or 10), "activities": activities, "sources": sources,

@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useT, LANGS } from "../lib/i18n";
 
-// Linksonder: legenda en de avatar met het menu (profiel, rebuild, taal).
+// Bottom left: the legend and the avatar with the menu (profile, rebuild, language).
 export default function ProfileMenu({ onProfile, onRebuild, rebuilding }) {
   const { t, lang, setLang } = useT();
   const [open, setOpen] = useState(false);
@@ -43,20 +43,20 @@ export default function ProfileMenu({ onProfile, onRebuild, rebuilding }) {
               <>
                 <button role="menuitem" onClick={() => { setOpen(false); onProfile(); }}>{t("menu.profile")}</button>
                 <button role="menuitem" onClick={() => setConfirm(true)}>{t("menu.rebuild")}</button>
-                <div className="menu-lang" role="group" aria-label={t("menu.language")}>
+                {LANGS.length > 1 && <div className="menu-lang" role="group" aria-label={t("menu.language")}>
                   <span>{t("menu.language")}</span>
                   <div className="seg sm">
                     {LANGS.map(([code, label]) => (
                       <button key={code} className={code === lang ? "on" : ""} onClick={() => setLang(code)} title={label}>{code.toUpperCase()}</button>
                     ))}
                   </div>
-                </div>
+                </div>}
               </>
             )}
           </div>
         )}
       </div>
-      <div className="legend" aria-label="Legenda">
+      <div className="legend" aria-label="Legend">
         <span title={t("legend.learning")}><i className="learning" />Learning</span>
         <span title={t("legend.queuedTitle")}><i className="queued" />{t("legend.queued")}</span>
         <span title={t("legend.learned")}><i className="learned" />Learned</span>

@@ -1,4 +1,4 @@
-"""Concept-gedreven leren: één concept tegelijk, met zijn prerequisites."""
+"""Concept-driven learning: one concept at a time, with its prerequisites."""
 import json
 from . import llm, graph, extract, illustrations, journey, languages
 from .mentor import LEVELS
@@ -21,8 +21,8 @@ Answer with JSON only:
 
 
 def _upsert(name: str, definition: str, status: str) -> tuple[str, str]:
-    """Embed, resolve tegen bestaande nodes, en schrijf weg.
-    Retourneert (concept_id, canonieke naam)."""
+    """Embed, resolve against existing nodes, and write.
+    Returns (concept_id, canonical name)."""
     exact = graph.find_concept(name)
     # Accepted conversation suggestions have no embedding yet. Exact names and
     # aliases must retain their identity instead of entering fuzzy resolution.
@@ -42,10 +42,10 @@ def _upsert(name: str, definition: str, status: str) -> tuple[str, str]:
 
 def _apply_candidate_relations(source_id: str, relations: list[dict],
                                broad: bool = False) -> list[dict]:
-    """Relaties uit de analyse overnemen. Standaard alleen tussen concepten die
-    uit deze bron geleerd zijn; met broad=True (commit) mag het andere eind
-    ook een willekeurig bestaand concept zijn, zolang minstens één kant bij
-    deze bron hoort. Namen matchen op naam of alias."""
+    """Takes over relations from the analysis. By default only between concepts
+    learned from this source; with broad=True (commit) the other end may be any
+    existing concept, as long as at least one side belongs to this source. Names
+    match on name or alias."""
     learned = graph.source_concepts(source_id)
     by_name = {}
     for c in learned:
@@ -85,8 +85,8 @@ def learn(concept: str, context: str = "", level: int = 3,
           person_id: str = "paul", source_id: str | None = None,
           mentions: list[dict] | None = None,
           candidate_relations: list[dict] | None = None) -> dict:
-    # Eerst valideren: anders staat het concept al in de graph als de bron
-    # verlopen blijkt, en is er voor niets een LLM-call gedaan.
+    # Validate first: otherwise the concept is already in the graph when the source
+    # turns out to have expired, and an LLM call was made for nothing.
     if source_id and not graph.source_exists(source_id):
         raise KeyError(source_id)
 
@@ -132,8 +132,8 @@ def learn(concept: str, context: str = "", level: int = 3,
             continue
         pid, pname = _upsert(p["name"], p.get("definition", ""), "suggested")
         if pid != cid:
-            # waarom_nodig hoort bij de relatie, niet bij het concept:
-            # het is de reden dat A voorwaarde is voor B, niet wat A is.
+            # why_needed belongs to the relation, not the concept: it is why A is a
+            # prerequisite of B, not what A is. (waarom_nodig: older model output.)
             graph.link_concepts(pid, cid, "PREREQUISITE_OF", reason=p.get("why_needed") or p.get("waarom_nodig"))
             prereqs.append(pname)
 
@@ -146,8 +146,8 @@ def learn(concept: str, context: str = "", level: int = 3,
         if candidate_relations:
             applied = _apply_candidate_relations(source_id, candidate_relations)
 
-    # De uitleg is het startpunt van het gesprek over dit concept: bewaar hem
-    # als eerste mentorbericht, zodat de chat er naadloos op verdergaat.
+    # The explanation starts the conversation about this concept: keep it as the
+    # first mentor message, so the chat continues from it seamlessly.
     session = graph.active_session(person_id, cid) or {
         "id": graph.create_session(person_id, cid, level)}
     journey.attach_session(person_id, session["id"])
@@ -167,9 +167,9 @@ def learn(concept: str, context: str = "", level: int = 3,
 
 def commit_candidates(source_id: str, selected: list[dict], link_existing: list,
                       relations: list[dict] | None, person_id: str = "paul") -> dict:
-    """Geselecteerde kandidaten opnemen als Concept met status 'queued' (nog niet
-    geleerd, wel in de kaart), bestaande concepten aan de bron koppelen, en de
-    relaties uit de analyse leggen. Geen LLM-calls behalve entity resolution."""
+    """Adds the selected candidates as Concepts with status 'queued' (not learned
+    yet, but on the map), links existing concepts to the source, and makes the
+    relations from the analysis. No LLM calls except entity resolution."""
     if not graph.source_exists(source_id):
         raise KeyError(source_id)
     src = graph.promote_source(source_id)

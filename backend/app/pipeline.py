@@ -1,17 +1,18 @@
-"""Gechunkte, parallelle concept-extractie over lange transcripten.
+"""Chunked, parallel concept extraction over long transcripts.
 
-Fasen: blokken -> segmentatie op inhoud -> parallelle extractie per chunk
-(met voorcontext-overlap) -> globale merge op embeddings -> importance ->
-één relatie-call. Slaat niets op; /learn doet dat later."""
+Phases: blocks -> segmentation by content -> parallel extraction per chunk (with
+overlapping preceding context) -> global merge on embeddings -> importance -> one
+relations call. Stores nothing; /learn does that later."""
 import asyncio, json, logging, math, re
 
 from . import llm, jobs
+from .provider_errors import ProviderError
 
 log = logging.getLogger("uvicorn.error")
 
 CONCURRENCY = 6
-WPM = 150                      # woorden per minuut: maakt ongetimede tekst vergelijkbaar met spraak
-BLOCK_SEC = 40                 # doelgrootte van een label-blok
+WPM = 150                      # words per minute: makes untimed text comparable to speech
+BLOCK_SEC = 40                 # target size of a label block
 BLOCK_WORDS = 90
 CHUNK_TARGET_SEC = 11 * 60     # 8-15 minuten spraak per chunk
 CHUNK_MAX_SEC = 15 * 60
@@ -61,6 +62,13 @@ Answer with JSON only: {"relations":[{"from":"","to":"","type":"PREREQUISITE_OF"
 
 VALID_RELS = {"PREREQUISITE_OF", "PART_OF", "RELATED_TO"}
 
+
+def warning(code: str, error: Exception | None = None, **params) -> dict:
+    """A warning the frontend translates: {"code", "params"}. `reason` is the provider error code, when known."""
+    if error is not None:
+        params["reason"] = error.code if isinstance(error, ProviderError) else None
+    return {"code": code, "params": params}
+
 # The language for definitions and context, set per request by extract.suggest(); the pipeline
 # itself is deep async code, so a context variable beats threading one more argument everywhere.
 import contextvars
@@ -83,9 +91,9 @@ def fmt_ts(sec: float | None) -> str:
 # ---------------------------------------------------------------- blokken
 
 def make_blocks(segments: list[dict], timed: bool) -> list[dict]:
-    """Segmenten samenvoegen tot label-blokken van ~40 s / ~90 woorden.
-    Elk blok: {idx, start_sec, text, words, dur} met dur in seconden
-    (ongetimed: woorden / WPM)."""
+    """Joins segments into label blocks of ~40 s / ~90 words.
+    Each block: {idx, start_sec, text, words, dur} with dur in seconds
+    (untimed: words / WPM)."""
     blocks, cur, cur_words = [], [], 0
     cur_start = None
 
@@ -116,7 +124,7 @@ def make_blocks(segments: list[dict], timed: bool) -> list[dict]:
         cur_words += words
         cur_segs.append(s)
     close()
-    # duur per blok: tot de start van het volgende blok, anders op woordtelling
+    # duration per block: until the next block starts, otherwise by word count
     for i, b in enumerate(blocks):
         nxt = blocks[i + 1]["start_sec"] if i + 1 < len(blocks) else None
         if timed and b["start_sec"] is not None and nxt is not None and nxt > b["start_sec"]:
@@ -127,7 +135,7 @@ def make_blocks(segments: list[dict], timed: bool) -> list[dict]:
 
 
 def _split_long(run: list[dict], max_sec: float) -> list[list[dict]]:
-    """Een reeks blokken in ongeveer gelijke stukken van hoogstens max_sec."""
+    """A run of blocks in roughly equal pieces of at most max_sec."""
     total = sum(b["dur"] for b in run)
     parts = max(1, math.ceil(total / max_sec))
     target = total / parts
@@ -154,7 +162,7 @@ def _runs_from_boundaries(blocks: list[dict], boundaries: list[int]) -> list[lis
 
 
 def _normalize_runs(runs: list[list[dict]], min_sec: float, max_sec: float) -> list[list[dict]]:
-    """Te lange delen splitsen, te korte met de buur samenvoegen."""
+    """Splits parts that are too long and joins parts that are too short with a neighbour."""
     split = []
     for r in runs:
         split.extend(_split_long(r, max_sec))
@@ -165,7 +173,7 @@ def _normalize_runs(runs: list[list[dict]], min_sec: float, max_sec: float) -> l
             merged[-1] = merged[-1] + r
         else:
             merged.append(r)
-    # Kan door het samenvoegen weer te lang zijn geworden; één keer nasplitsen.
+    # Joining may have made it too long again; split once more.
     out = []
     for r in merged:
         out.extend(_split_long(r, max_sec * 1.15))
@@ -173,7 +181,7 @@ def _normalize_runs(runs: list[list[dict]], min_sec: float, max_sec: float) -> l
 
 
 def chapter_runs(blocks: list[dict], chapters: list[dict]) -> list[list[dict]]:
-    """Hoofdstukken zijn de primaire grenzen: >12 min splitsen, <3 min samenvoegen."""
+    """Chapters are the primary boundaries: split above 12 min, join below 3 min."""
     starts = sorted(c["start_sec"] for c in chapters)
     boundaries = []
     for st in starts:
@@ -184,13 +192,13 @@ def chapter_runs(blocks: list[dict], chapters: list[dict]) -> list[list[dict]]:
 
 
 def fixed_runs(blocks: list[dict]) -> list[list[dict]]:
-    """Fallback: vaste delen van ~11 minuten; blokgrenzen liggen op zinsgrenzen
-    voor zover het transcript die heeft."""
+    """Fallback: fixed parts of ~11 minutes; block boundaries fall on sentence
+    boundaries as far as the transcript has them."""
     return _normalize_runs([blocks], CHUNK_MIN_SEC, CHUNK_MAX_SEC)
 
 
-async def topic_runs(blocks: list[dict], usage: llm.Usage, warnings: list[str]) -> list[list[dict]]:
-    """Eén goedkope EXTRACT_MODEL-call die onderwerpwisselingen aanwijst."""
+async def topic_runs(blocks: list[dict], usage: llm.Usage, warnings: list) -> list[list[dict]]:
+    """One cheap EXTRACT_MODEL call that points out topic changes."""
     total_chars = sum(len(b["text"]) for b in blocks)
     condense = total_chars > SEGMENT_CONDENSE_CHARS
     lines = []
@@ -210,15 +218,15 @@ async def topic_runs(blocks: list[dict], usage: llm.Usage, warnings: list[str]) 
             if m:
                 boundaries.append(int(m.group()))
         if not boundaries:
-            raise ValueError("geen grenzen")
+            raise ValueError("no boundaries")
         return _normalize_runs(_runs_from_boundaries(blocks, boundaries), CHUNK_MIN_SEC, CHUNK_MAX_SEC)
     except Exception as e:
-        warnings.append(f"Segmentatie op inhoud mislukt ({type(e).__name__}); vaste blokken gebruikt.")
+        warnings.append(warning("extract.segmentFailed", e))
         return fixed_runs(blocks)
 
 
 def build_chunks(runs: list[list[dict]]) -> list[dict]:
-    """Chunks met de laatste ~10% van de vorige chunk als voorcontext."""
+    """Chunks with the last ~10% of the previous chunk as preceding context."""
     chunks = []
     for i, run in enumerate(runs):
         pre = ""
@@ -260,9 +268,9 @@ def _words(s: str) -> list[str]:
 
 
 def locate_quote(quote: str, chunk: dict, blk: dict) -> float | None:
-    """Precieze tijdcode: het segment (caption-regel) waar het citaat begint.
-    Zoekt in het aangewezen blok en zijn buren naar de eerste 5 woorden van
-    het citaat; valt terug op de blokstart."""
+    """Precise timestamp: the segment (caption line) where the quote starts. Looks
+    for the quote's first 5 words in the given block and its neighbours; falls back
+    to the block start."""
     q = _words(quote)
     if len(q) < 3:
         return blk["start_sec"]
@@ -273,8 +281,8 @@ def locate_quote(quote: str, chunk: dict, blk: dict) -> float | None:
         if not b or not b.get("segs"):
             continue
         segs = b["segs"]
-        # Segmenten zijn kort (enkele woorden); het citaat kan over meerdere
-        # segmenten lopen. Daarom over een glijdend venster van segmenten zoeken.
+        # Segments are short (a few words); a quote can span several segments, so
+        # search over a sliding window of segments.
         for i, seg in enumerate(segs):
             window = []
             j = i
@@ -289,7 +297,8 @@ def locate_quote(quote: str, chunk: dict, blk: dict) -> float | None:
 
 async def extract_chunk(chunk: dict, sem: asyncio.Semaphore, usage: llm.Usage,
                         progress) -> list[dict] | None:
-    """Eén chunk door het extract-model; één herhaling bij een fout, daarna None."""
+    """One chunk through the extract model; one retry on an error, then None.
+    A provider error is not repeated here: llm already retried busy and rate limits."""
     prompt = chunk_prompt(chunk)
     by_idx = {b["idx"]: b for b in chunk["blocks"]}
     last_err = None
@@ -327,8 +336,10 @@ async def extract_chunk(chunk: dict, sem: asyncio.Semaphore, usage: llm.Usage,
         except Exception as e:      # timeout, ongeldige JSON, API-fout
             last_err = e
             log.warning("Chunk %d poging %d mislukt: %s", chunk["idx"], attempt + 1, e)
+            if isinstance(e, ProviderError):
+                break
     progress()
-    chunk["error"] = f"{type(last_err).__name__}: {str(last_err)[:120]}"
+    chunk["error"] = last_err.code if isinstance(last_err, ProviderError) else type(last_err).__name__
     return None
 
 
@@ -345,16 +356,16 @@ def _cos(a: list[float], b: list[float]) -> float:
     return dot / (na * nb)
 
 
-async def merge_candidates(raw: list[dict], usage: llm.Usage, warnings: list[str]) -> list[dict]:
-    """Dedupliceren over chunks: naam-gelijkheid, embedding-clustering
-    (cos > 0.90) en LLM-bevestiging voor de twijfelzone (0.80-0.90)."""
+async def merge_candidates(raw: list[dict], usage: llm.Usage, warnings: list) -> list[dict]:
+    """Deduplicates across chunks: equal names, embedding clustering (cos > 0.90)
+    and LLM confirmation for the grey zone (0.80-0.90)."""
     if not raw:
         return []
     texts = [f"{c['name']}: {c['definition']}" for c in raw]
     try:
         embs = await llm.aembed(texts, usage, "embed", CONCURRENCY)
     except Exception as e:
-        warnings.append(f"Embedden mislukt ({type(e).__name__}); alleen op naam gededupliceerd.")
+        warnings.append(warning("extract.embedFailed", e))
         embs = [None] * len(raw)
 
     clusters: list[dict] = []          # {members: [i], names: set, emb: list|None}
@@ -380,8 +391,8 @@ async def merge_candidates(raw: list[dict], usage: llm.Usage, warnings: list[str
         else:
             clusters.append({"members": [i], "names": names, "emb": embs[i], "n": 1})
 
-    # Twijfelgevallen in batches bevestigen; de kandidaat zat al als eigen
-    # cluster in de lijst, bij "same" voegen we die alsnog samen.
+    # Confirm doubtful cases in batches; the candidate is already its own cluster
+    # in the list, and "same" merges it after all.
     if pending_pairs:
         decisions = await _confirm_pairs(raw, clusters, pending_pairs, usage, warnings)
         for (i, k), same in zip(pending_pairs, decisions):
@@ -451,7 +462,7 @@ async def _confirm_pairs(raw, clusters, pairs, usage, warnings) -> list[bool]:
             same = data.get("same", []) if isinstance(data, dict) else []
             return [bool(x) for x in same][:len(batch)] + [False] * max(0, len(batch) - len(same))
         except Exception as e:
-            warnings.append(f"Bevestiging van {len(batch)} twijfelgevallen mislukt ({type(e).__name__}).")
+            warnings.append(warning("extract.confirmFailed", e, count=len(batch)))
             return [False] * len(batch)
 
     results = await asyncio.gather(*(one(b) for b in batches))
@@ -459,8 +470,8 @@ async def _confirm_pairs(raw, clusters, pairs, usage, warnings) -> list[bool]:
 
 
 def score(merged: list[dict], n_chunks: int) -> None:
-    """Importance 1-5: chunk_count dominant, LLM-score als tweede stem.
-    Bij één chunk zegt chunk_count niets en telt alleen de LLM-score."""
+    """Importance 1-5: chunk_count dominates, the LLM score is the second vote.
+    With one chunk, chunk_count says nothing and only the LLM score counts."""
     if not merged:
         return
     max_cc = max(c["chunk_count"] for c in merged)
@@ -475,7 +486,7 @@ def score(merged: list[dict], n_chunks: int) -> None:
     merged.sort(key=lambda c: (-c["importance"], -c["chunk_count"], -c["llm_importance"], c["name"]))
 
 
-async def relations(merged: list[dict], usage: llm.Usage, warnings: list[str]) -> list[dict]:
+async def relations(merged: list[dict], usage: llm.Usage, warnings: list) -> list[dict]:
     """Eén afsluitende call over namen + definities."""
     if len(merged) < 2:
         return []
@@ -488,7 +499,7 @@ async def relations(merged: list[dict], usage: llm.Usage, warnings: list[str]) -
     try:
         data = await llm.acomplete_json(RELATIONS_SYSTEM, user, llm.EXTRACT_MODEL, usage, "relations")
     except Exception as e:
-        warnings.append(f"Relaties leggen mislukt ({type(e).__name__}).")
+        warnings.append(warning("extract.relationsFailed", e))
         return []
     out, seen = [], set()
     for r in (data.get("relations", []) if isinstance(data, dict) else []):
@@ -515,7 +526,7 @@ async def run(segments: list[dict], chapters: list[dict], timed: bool,
         return {"candidates": [], "candidate_relations": [],
                 "meta": {"chunks": 0, "skipped_chunks": 0, "duration_sec": 0, "chaptered": False,
                          "candidates_raw": 0, "candidates_merged": 0, "tokens": usage.report(),
-                         "warnings": ["Geen tekst gevonden."]}}
+                         "warnings": [warning("extract.noText")]}}
     total_sec = sum(b["dur"] for b in blocks)
     if duration_sec is None:
         last = blocks[-1]
@@ -535,12 +546,12 @@ async def run(segments: list[dict], chapters: list[dict], timed: bool,
 
     # 2. parallelle extractie
     done = 0
-    jobs.update(job_id, "extract", 0, n, f"deel 0 van {n}")
+    jobs.update(job_id, "extract", 0, n, f"part 0 of {n}")
 
     def progress():
         nonlocal done
         done += 1
-        jobs.update(job_id, "extract", done, n, f"deel {done} van {n}")
+        jobs.update(job_id, "extract", done, n, f"part {done} of {n}")
 
     sem = asyncio.Semaphore(CONCURRENCY)
     results = await asyncio.gather(*(extract_chunk(c, sem, usage, progress) for c in chunks))
@@ -551,8 +562,10 @@ async def run(segments: list[dict], chapters: list[dict], timed: bool,
         else:
             raw.extend(r)
     if skipped:
-        warnings.append(f"{len(skipped)} van {n} delen overgeslagen na een mislukte extractie "
-                        f"(deel {', '.join(str(i + 1) for i in skipped)}).")
+        codes = [chunks[i]["error"] for i in skipped if str(chunks[i].get("error", "")).startswith("provider.")]
+        warnings.append(warning("extract.partsSkipped", skipped=len(skipped), total=n,
+                                parts=", ".join(str(i + 1) for i in skipped),
+                                reason=max(set(codes), key=codes.count) if codes else None))
 
     # 3. merge + score
     jobs.update(job_id, "merge", n, n, f"{len(raw)} kandidaten samenvoegen…")
@@ -572,7 +585,7 @@ async def run(segments: list[dict], chapters: list[dict], timed: bool,
             "chunk_count": c["chunk_count"],
             "mentions": [{"start_sec": m["start_sec"], "quote": m["quote"], "chunk_idx": m["chunk_idx"]}
                          for m in c["mentions"]],
-            # context blijft de samenvattende zin; het citaat is het bewijs.
+            # context stays the summarising sentence; the quote is the evidence.
             "context": c["context"] or (first["quote"] if first else ""),
         })
     meta = {

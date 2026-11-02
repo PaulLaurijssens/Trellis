@@ -9,7 +9,7 @@ class YoutubeImportTests(unittest.TestCase):
             with self.assertRaises(ValueError):transcript.youtube_id(url)
     def test_actionable_error_without_library_dump(self):
         RequestBlocked=type('RequestBlocked',(Exception,),{})
-        message=transcript.fetch_error(RequestBlocked('private diagnostics'),'en')
+        message=transcript.fetch_error(RequestBlocked('private diagnostics'))
         self.assertIn('blocking',message);self.assertIn('Paste transcript',message)
         self.assertNotIn('private diagnostics',message)
     def test_pasted_timestamps_preserved(self):

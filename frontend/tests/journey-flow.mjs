@@ -1,4 +1,5 @@
 // Phase 3 browser flow. All API requests intercepted; no real learner data written.
+import {CORS,fallback,shot} from './mock-api.mjs';
 import assert from 'node:assert/strict';
 const {chromium}=await import(process.env.MENTOR_PLAYWRIGHT_MODULE||'playwright');
 const browser=await chromium.launch({headless:true,...(process.env.MENTOR_BROWSER_PATH?{executablePath:process.env.MENTOR_BROWSER_PATH}:{})});
@@ -13,7 +14,7 @@ try {
  const journey=()=>({active_goal:goal,goals,recent:{concept:'Robotics',consolidated:false},review:[{concept:'Vectors',date:'2026-01-01',quote:'I can apply the dot product.'}],sources:[{id:'paper',title:'Attention paper'}]});
  await page.route('http://localhost:8000/**',async route=>{
   const req=route.request(),path=decodeURIComponent(new URL(req.url()).pathname),body=req.postData()?JSON.parse(req.postData()):{};
-  if(req.method()==='OPTIONS'){await route.fulfill({status:204,headers:{'Access-Control-Allow-Origin':'*','Access-Control-Allow-Headers':'content-type','Access-Control-Allow-Methods':'GET,POST,PATCH,DELETE,OPTIONS'}});return;}
+  if(req.method()==='OPTIONS'){await route.fulfill({status:204,headers:{...CORS,'Access-Control-Allow-Headers':'content-type','Access-Control-Allow-Methods':'GET,POST,PATCH,DELETE,OPTIONS'}});return;}
   let data={},status=200;
   if(path==='/levels')data={1:'First steps',2:'Foundations',3:'Practical',4:'Technical',5:'Advanced'};
   else if(path==='/graph')data={nodes,edges:[{source:'v',target:'a',type:'PREREQUISITE_OF'}]};
@@ -35,14 +36,14 @@ try {
    proposals=[{id:'p',name:'Vectors',definition:'Direction and magnitude.',reason:'Useful for robot movement.',relation:'PREREQUISITE_OF',direction:'suggested_to_current',state:'pending'}];data={answer:m.at(-1).content,suggestions:proposals};
   }else if(path.startsWith('/chat/')){const name=path.slice(6);data={session_id:name,messages:messages[name],suggestions:name==='Robotics'?proposals:[],state:{covered:[]}};}
   else if(path==='/translations')data={texts:JSON.parse(req.postData()).texts};
-  else throw Error('Unexpected request '+path);
-  await route.fulfill({status,contentType:'application/json',headers:{'Access-Control-Allow-Origin':'*'},body:JSON.stringify(data)});
+  else if((data=fallback(path,JSON.parse(route.request().postData()||'{}')))===undefined) throw Error('Unexpected request '+path);
+  await route.fulfill({status,contentType:'application/json',headers:{...CORS},body:JSON.stringify(data)});
  });
  await page.goto(process.env.MENTOR_TEST_URL||'http://localhost:3000');
  await page.getByRole('button',{name:'Suggest connections',exact:true}).click();
  await page.getByText('Useful for robot movement.',{exact:true}).waitFor();
  assert.match(lastQuestion,/prerequisites and related topics/);
- await page.getByRole('button',{name:'This helped me — save',exact:true}).click();
+ await page.getByRole('button',{name:'This helped me',exact:true}).click();
  await page.getByRole('button',{name:'Saved as a helpful example ✓',exact:true}).waitFor();
  await page.locator('.helpful-examples > summary').click();
  await page.locator('.helpful-examples').getByRole('button',{name:'Edit',exact:true}).click();
@@ -51,7 +52,7 @@ try {
  await page.getByText('An arrow from robot to target.',{exact:true}).waitFor();
  assert.match(saved[0].original,/Think of an arrow/);
  await page.locator('.helpful-examples').getByRole('button',{name:'Remove',exact:true}).click();
- await page.getByRole('button',{name:'This helped me — save',exact:true}).waitFor();
+ await page.getByRole('button',{name:'This helped me',exact:true}).waitFor();
  await page.locator('.lesson-context details').filter({has:page.locator('.sources')}).locator('summary').first().click();
  await page.getByRole('button',{name:'Discuss this source →',exact:true}).click();
  await page.waitForFunction(()=>document.querySelectorAll('.msg.user').length===2);
@@ -63,7 +64,7 @@ try {
  await page.getByLabel('Source (optional)',{exact:true}).selectOption('paper');
  await page.locator('.goal-form').getByRole('button',{name:'Save',exact:true}).click();
  await page.getByText('Could not save this goal. Try again.',{exact:true}).waitFor();
- await page.screenshot({path:'/private/tmp/phase3-goal-retry.png',fullPage:true});
+ await shot(page,'phase3-goal-retry.png',{fullPage:true});
  assert.equal(await page.getByLabel('What would you like to understand?',{exact:true}).inputValue(),'Understand attention in this paper');
  await page.locator('.goal-form').getByRole('button',{name:'Save',exact:true}).click();
  await page.locator('.learning-sidebar .goal-card h3').waitFor();
@@ -79,18 +80,17 @@ try {
  await page.reload();
  await page.getByRole('navigation',{name:'Workspace'}).getByRole('button',{name:'Explore',exact:true}).click();
  await page.locator('.learning-sidebar .goal-card h3').waitFor();
- await page.getByText('Revisit something?',{exact:true}).click();
- await page.locator('.review-option').getByRole('button',{name:'Vectors →',exact:true}).click();
- await page.getByRole('button',{name:'Try a short review',exact:true}).click();
+ await page.locator('.due-today .due-item').filter({hasText:'Vectors'}).locator('.btn').click();
+ await page.locator('.review-option').getByRole('button',{name:'Try a short review',exact:true}).click();
  await page.waitForFunction(()=>document.querySelector('.msg.user')?.textContent.includes('briefly revisit'));
  assert.match(lastQuestion,/briefly revisit/);
  await page.locator('.chat-log').evaluate(el=>el.scrollTop=0);
- await page.screenshot({path:'/private/tmp/phase3-mentor.png',fullPage:true});
+ await shot(page,'phase3-mentor.png',{fullPage:true});
  await page.setViewportSize({width:390,height:844});
  await page.getByRole('navigation',{name:'Workspace'}).getByRole('button',{name:'Explore',exact:true}).click();
  await page.locator('.learning-sidebar').waitFor({state:'visible'});
  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
- await page.screenshot({path:'/private/tmp/phase3-mobile.png',fullPage:true});
+ await shot(page,'phase3-mobile.png',{fullPage:true});
  assert.deepEqual(errors,[]);
  console.log('PASS: connection proposals, source question, helpful-example save/edit/delete, simplified browsing, goal error/retry, route completion, pause/resume, refresh persistence, optional review and mobile layout.');
 }finally{await browser.close();}

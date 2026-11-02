@@ -5,8 +5,11 @@ import os
 
 from fastapi import Body, Depends, FastAPI, File, Form, HTTPException, Query, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse, Response
 from pydantic import BaseModel
+from .provider_errors import ProviderError
 from . import graph, extract, mentor, chat, memory, jobs, transcript, journey, learn as learning, auth, settings, llm, backup, migrate, sources, guide
+from . import memory_export, memory_import, tokens, mcp_server, languages
 from .teach import api as teach_api
 
 # Identity comes from the session cookie (auth.py). `Me` replaces every person_id default; a route
@@ -16,32 +19,60 @@ Own = Depends(auth.own_person)
 
 log = logging.getLogger("uvicorn.error")
 PENDING_TTL_DAYS = 7
-STALE_MINUTES = 30          # sessie stil -> consolideren
-CONSOLIDATE_EVERY = 600     # seconden tussen twee dream-rondes
+STALE_MINUTES = 30          # session quiet -> consolidate
+CONSOLIDATE_EVERY = 600     # seconds between two dream rounds
 
 app = FastAPI(title="Mentor")
 # Production is same-origin (nginx serves the frontend and /api), so it needs no CORS at all. The
 # list is for local dev only. It was "*": with that, a sandboxed lesson frame (opaque origin) could
 # have READ any /api response if its CSP ever failed. Now the browser refuses that by itself.
 CORS_ORIGINS = [o.strip() for o in os.getenv("CORS_ORIGINS", "http://localhost:3000,http://localhost:3001").split(",") if o.strip()]
-app.add_middleware(CORSMiddleware, allow_origins=CORS_ORIGINS, allow_methods=["*"], allow_headers=["*"])
+app.add_middleware(CORSMiddleware, allow_origins=CORS_ORIGINS, allow_methods=["*"], allow_headers=["*"],
+                   expose_headers=["Content-Disposition"])
 app.middleware("http")(auth.middleware)
 app.include_router(auth.router)
 app.include_router(teach_api.public)
 app.include_router(teach_api.router)
+app.include_router(mcp_server.router)
+
+
+@app.exception_handler(ProviderError)
+async def provider_error(request: Request, exc: ProviderError):
+    """A failed model call: a code the frontend translates, never a 401 (that would log the user out)."""
+    log.warning("model call failed: %s", exc)
+    headers = {"Retry-After": str(exc.retry_after)} if exc.retry_after else None
+    return JSONResponse({"detail": exc.to_dict()}, status_code=exc.status, headers=headers)
+
+
+def _expired_source():
+    return HTTPException(404, {"code": "import.expired", "params": {}, "message": "This analysis has expired. Run it again."})
 
 
 async def _consolidation_loop():
-    """Dream-fase: bij startup en daarna elke 10 minuten stille sessies
-    destilleren naar laag 2 en 3."""
+    """Dream phase: at startup and then every 10 minutes, distil quiet sessions
+    into layers 2 and 3."""
     while True:
         try:
             done = await asyncio.to_thread(memory.consolidate_stale, STALE_MINUTES)
             if done:
-                log.info("Geconsolideerd: %d sessie(s)", done)
+                log.info("Consolidated: %d session(s)", done)
         except Exception as e:
             log.warning("Consolidatieronde mislukt: %s", e)
+        await asyncio.to_thread(_embed_missing)
         await asyncio.sleep(CONSOLIDATE_EVERY)
+
+
+def _embed_missing():
+    """Imported concepts arrive without an embedding (embeddings are model specific). Fill them in with
+    this install's model, so later sources find them as similar concepts instead of adding duplicates."""
+    if not settings.configured():
+        return
+    try:
+        done = memory_import.embed_missing()
+        if done:
+            log.info("Embedded %d imported concept(s)", done)
+    except Exception as e:
+        log.warning("Embedding imported concepts failed (will retry): %s", e)
 
 
 @app.on_event("startup")
@@ -72,8 +103,8 @@ class IngestText(BaseModel):
 
 class IngestYoutube(BaseModel):
     url: str
-    languages: list[str] = ["en", "nl"]
-    ui_language: Literal["en", "nl"] = "en"
+    ui_language: languages.Code = "en"     # before `languages`, which would shadow the module here
+    languages: list[str] = ["en"]
     job_id: str | None = None
 
 
@@ -88,9 +119,9 @@ class Learn(BaseModel):
     level: int = 3
     person_id: str | None = None      # ignored: the session decides
     source_id: str | None = None
-    # Uit de analyse: citaten met tijdcode voor deze kandidaat, en de relaties
-    # tussen alle kandidaten van dezelfde bron (alleen toegepast tussen
-    # kandidaten die daadwerkelijk geleerd zijn).
+    # From the analysis: timestamped quotes for this candidate, and the relations
+    # between all candidates of the same source (only applied between candidates
+    # that are actually learned).
     mentions: list[dict] | None = None
     candidate_relations: list[dict] | None = None
 
@@ -117,7 +148,7 @@ class ProfilePatch(BaseModel):
     works_poorly: list[str] | None = None
     preferences: list[str] | None = None
     notes: str | None = None
-    ui_language: str | None = None      # "nl" | "en": taal van UI, uitleg en geheugen
+    ui_language: languages.Code | None = None   # language of the screens, explanations and memory
 
 
 class StatePatch(BaseModel):
@@ -133,7 +164,7 @@ class Ask(BaseModel):
     level: int = 5
 
 
-# ---- Suggesties: extractie levert kandidaten, slaat niets op ----
+# ---- Suggestions: extraction returns candidates and stores nothing ----
 
 @app.post("/ingest/text")
 def ingest_text(body: IngestText, me: str = Me):
@@ -144,14 +175,14 @@ def ingest_text(body: IngestText, me: str = Me):
 @app.post("/ingest/raw")
 def ingest_raw(
     text: str = Body(..., media_type="text/plain"),
-    title: str = Query(..., description="Titel van de bron"),
+    title: str = Query(..., description="Title of the source"),
     source_type: str = Query("text"),
     url: str | None = Query(None),
     job_id: str | None = Query(None, description="Door de client gekozen id om voortgang te pollen"),
     me: str = Me,
 ):
-    """Rauwe tekst als request body: plakken zonder JSON-escaping.
-    Timestamps worden bewaard als tijdcodes; hoofdstuktitels worden chunk-grenzen."""
+    """Raw text as the request body: paste without JSON escaping.
+    Timestamps are kept; chapter titles become chunk boundaries."""
     url = sources.clean_url(url) if url else None      # tracking tags (utm_, li_fat_id, ...) do not belong in a source link
     return extract.suggest(text, source_type, title, url, job_id, language=graph.ui_language(me))
 
@@ -163,7 +194,7 @@ def ingest_youtube(body: IngestYoutube, me: str = Me):
         vid = transcript.youtube_id(body.url)
     except ValueError as e:
         raise HTTPException(422, str(e))
-    jobs.update(body.job_id, "fetch", 0, 0, "Transcript ophalen…")
+    jobs.update(body.job_id, "fetch", 0, 0, "Fetching the transcript…")
     try:
         fetched = YouTubeTranscriptApi().fetch(vid, languages=body.languages)
     except Exception as e:
@@ -175,7 +206,7 @@ def ingest_youtube(body: IngestYoutube, me: str = Me):
             return staged
         except Exception:
             log.warning("Direct YouTube video analysis unavailable")
-            message = ("Captions and direct video analysis are unavailable. " if body.ui_language == "en" else "Ondertiteling en directe videoanalyse zijn niet beschikbaar. ") + transcript.fetch_error(e, body.ui_language)
+            message = "Captions and direct video analysis are unavailable. " + transcript.fetch_error(e)
             jobs.update(body.job_id, "error", 0, 0, message)
             raise HTTPException(503, message)
     segments = transcript.from_youtube(fetched)
@@ -216,7 +247,7 @@ async def ingest_file(file: UploadFile = File(...), title: str = Form(""), job_i
             text, source_type, name = out["text"], "paper", title.strip() or out["title"] or (file.filename or "PDF")
         elif kind == "audio":
             jobs.update(job_id, "fetch", 0, 0, "Transcribing the audio… (a long episode takes a few minutes)")
-            text = await asyncio.to_thread(sources.audio_transcript, data, file.content_type, file.filename or "", graph.LANGUAGE_NAMES_EN[language])
+            text = await asyncio.to_thread(sources.audio_transcript, data, file.content_type, file.filename or "", languages.name(language))
             source_type, name = "podcast", title.strip() or (file.filename or "Audio").rsplit(".", 1)[0]
         else:
             if len(data) > sources.MAX_TEXT_BYTES:
@@ -257,7 +288,7 @@ async def ingest_podcast(body: PodcastEpisode, me: str = Me):
     language = graph.ui_language(me)
     jobs.update(body.job_id, "fetch", 0, 0, "Downloading and transcribing the episode… (a few minutes)")
     try:
-        text = await asyncio.to_thread(sources.podcast_transcript, body.audio_url.strip(), graph.LANGUAGE_NAMES_EN[language])
+        text = await asyncio.to_thread(sources.podcast_transcript, body.audio_url.strip(), languages.name(language))
     except sources.SourceError as exc:
         jobs.update(body.job_id, "error", 0, 0, str(exc))
         raise _source_error(exc)
@@ -297,10 +328,10 @@ async def write_guide(concept_id: str, body: GuideRequest, me: str = Me):
 
 @app.get("/ingest/status/{job_id}")
 def ingest_status(job_id: str):
-    """Voortgang van een lopende analyse: {phase, done, total, message}."""
+    """Progress of a running analysis: {phase, done, total, message}."""
     st = jobs.get(job_id)
     if st is None:
-        raise HTTPException(404, "Onbekende job")
+        raise HTTPException(404, "Unknown job")
     return st
 
 
@@ -314,7 +345,7 @@ def ingest_topic(body: IngestTopic, me: str = Me):
     return {**extract.suggest(text, "generated", body.topic, language=language), "text": text}
 
 
-# ---- Leren: hier wordt pas naar de graph geschreven ----
+# ---- Learning: only here is the graph written ----
 
 @app.post("/learn")
 def learn(body: Learn, me: str = Me):
@@ -325,18 +356,18 @@ def learn(body: Learn, me: str = Me):
                               me, body.source_id,
                               body.mentions, body.candidate_relations)
     except KeyError:
-        raise HTTPException(404, "Onbekende source_id; draai de ingest opnieuw")
+        raise _expired_source()
 
 
 @app.post("/candidates/commit")
 def commit_candidates(body: CommitCandidates, me: str = Me):
-    """Review-paneel: kandidaten opnemen als 'queued', bestaande koppelen,
-    relaties leggen. Alleen entity resolution kan een LLM-call doen."""
+    """Review panel: add candidates as 'queued', link existing ones, make relations.
+    Only entity resolution may make an LLM call."""
     try:
         return learning.commit_candidates(body.source_id, body.selected, body.link_existing,
                                           body.relations, me)
     except KeyError:
-        raise HTTPException(404, "Onbekende source_id; draai de ingest opnieuw")
+        raise _expired_source()
 
 
 @app.post("/concept/{name}/learned")
@@ -366,7 +397,7 @@ def get_chat(concept: str, person_id: str = Me):
 
 @app.post("/chat/{concept}/new")
 def new_chat(concept: str, person_id: str = Me, level: int | None = Query(None)):
-    """Forceert een nieuwe sessie; de oude wordt meteen geconsolideerd."""
+    """Forces a new session; the old one is consolidated right away."""
     c = graph.find_concept(concept)
     if c:
         old = graph.active_session(person_id, c["id"])
@@ -387,7 +418,7 @@ def end_chat(concept: str, person_id: str = Me):
         raise HTTPException(404, "Onbekend concept")
     session = graph.active_session(person_id, c["id"])
     if not session:
-        return {"consolidated": False, "reden": "geen actieve sessie"}
+        return {"consolidated": False, "reason": "no active session"}
     try:
         done = memory.consolidate_session(session["id"])
     except memory.ConsolidationError as exc:
@@ -396,7 +427,7 @@ def end_chat(concept: str, person_id: str = Me):
             "state": graph.understands_state(person_id, c["id"])}
 
 
-# ---- Geheugen: inspecteren, corrigeren, herbouwen ----
+# ---- Memory: inspect, correct, rebuild ----
 
 @app.get("/memory/{person_id}")
 def get_memory(person_id: str = Own):
@@ -430,7 +461,7 @@ def patch_profile(body: ProfilePatch, person_id: str = Own):
 def patch_concept_memory(name: str, body: StatePatch, person_id: str = Own):
     state = memory.patch_understands(person_id, name, body.model_dump(exclude_unset=True))
     if state is None:
-        raise HTTPException(404, "Geen begripstoestand voor dit concept")
+        raise HTTPException(404, "No understanding for this concept")
     return state
 
 
@@ -442,11 +473,67 @@ def rebuild_memory(person_id: str = Own):
         raise HTTPException(409, str(exc))
 
 
+# ---- Your data: export, import, connections for other AIs ----
+
+@app.get("/memory/{person_id}/export")
+def export_memory(person_id: str = Own):
+    try:
+        blob = memory_export.zip_bytes(memory_export.build(person_id))
+    except KeyError:
+        raise HTTPException(404, "Person not found")
+    return Response(blob, media_type="application/zip",
+                    headers={"Content-Disposition": f'attachment; filename="{memory_export.filename()}"',
+                             "Cache-Control": "no-store"})
+
+
+@app.post("/memory/{person_id}/import")
+async def import_memory(request: Request, mode: Literal["preview", "apply"] = "preview", person_id: str = Own):
+    data = bytearray()
+    async for chunk in request.stream():
+        data.extend(chunk)
+        if len(data) > memory_import.MAX_BYTES:
+            raise HTTPException(413, "The file is larger than 24 MB.")
+    try:
+        result = await asyncio.to_thread(memory_import.handle, bytes(data), mode, person_id)
+    except memory_import.ImportProblem as exc:
+        raise HTTPException(400, str(exc))
+    if mode == "preview":
+        return result
+    asyncio.create_task(asyncio.to_thread(_embed_missing))
+    return result
+
+
+class ConnectionCreate(BaseModel):
+    name: str
+    scopes: list[str] = ["memory:read"]
+
+
+@app.get("/memory/{person_id}/connections")
+def list_connections(person_id: str = Own):
+    return {"connections": tokens.listing(person_id), "scopes": tokens.SCOPES}
+
+
+@app.post("/memory/{person_id}/connections")
+def create_connection(body: ConnectionCreate, person_id: str = Own):
+    try:
+        return tokens.create(person_id, body.name, body.scopes)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
+
+
+@app.delete("/memory/{person_id}/connections/{token_id}")
+def revoke_connection(token_id: str, person_id: str = Own):
+    if not tokens.revoke(person_id, token_id):
+        raise HTTPException(404, "Connection not found")
+    return {"revoked": True}
+
+
 @app.get("/health")
 def health():
     """Public, no personal data: for the deploy asserts, uptime checks and the setup screen."""
     from .teach import flags
-    return {"ok": True, "setup_needed": auth.setup_needed(), "configured": settings.configured(), "teach_mode": flags.mode()}
+    return {"ok": True, "setup_needed": auth.setup_needed(), "configured": settings.configured(), "teach_mode": flags.mode(),
+            "version": os.getenv("TRELLIS_VERSION") or "dev", "commit": os.getenv("TRELLIS_COMMIT") or ""}
 
 
 # ---- Backups (owner only). Online: the app keeps running. ----
@@ -486,7 +573,7 @@ def verify_backup(stamp: str, owner: str = Depends(_owner)):
 
 @app.get("/levels")
 def get_levels():
-    """Niveau-omschrijvingen, zodat de frontend dezelfde labels toont."""
+    """Level descriptions, so the frontend shows the same labels."""
     return mentor.LEVELS
 
 
@@ -623,7 +710,7 @@ def delete_helpful_example(example_id: str, person_id: str = Own):
 
 
 class TranslationRequest(BaseModel):
-    language: Literal['en', 'nl']
+    language: languages.Code
     texts: list[str]
 
 
@@ -640,7 +727,7 @@ def translate_content(body: TranslationRequest):
 
 
 @app.post('/voice/transcribe')
-async def transcribe_voice(request: Request, language: Literal['en', 'nl'] = 'en'):
+async def transcribe_voice(request: Request, language: languages.Code = 'en'):
     from . import voice
     if request.headers.get('content-type', '').split(';')[0] != 'audio/wav':
         raise HTTPException(415, 'Expected WAV audio')
@@ -655,6 +742,8 @@ async def transcribe_voice(request: Request, language: Literal['en', 'nl'] = 'en
         raise HTTPException(422, str(e))
     try:
         return {'text': await voice.transcribe(bytes(data), language)}
+    except ProviderError:
+        raise
     except Exception:
         log.warning('Voice transcription failed')
         raise HTTPException(503, 'Transcription unavailable. Please retry.')
@@ -663,7 +752,7 @@ async def transcribe_voice(request: Request, language: Literal['en', 'nl'] = 'en
 class CurriculumRequest(BaseModel):
     nodes: list[dict]
     links: list[dict]
-    language: Literal['en', 'nl'] = 'en'
+    language: languages.Code = 'en'
 
 
 @app.post('/curriculum')
@@ -676,5 +765,7 @@ async def curriculum_proposal(body: CurriculumRequest):
     links=[{'source':str(e.get('source','')),'target':str(e.get('target','')),'type':str(e.get('type',''))} for e in body.links if e.get('source') in ids and e.get('target') in ids]
     if not nodes:return {'groups':[],'conflicts':[],'coverage':0}
     try:return await curriculum.propose(nodes,links,body.language)
+    except ProviderError:
+        raise
     except Exception:
         raise HTTPException(503,'Could not organize the learning roadmap. Please retry.')

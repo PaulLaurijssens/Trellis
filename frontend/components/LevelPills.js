@@ -1,7 +1,7 @@
 "use client";
 
-// De omschrijvingen uit mentor.LEVELS zijn lange zinnen; ze zitten als
-// tooltip op de pill, het korte deel vóór de dubbele punt in het aria-label.
+// The descriptions from mentor.LEVELS are long sentences; they are the pill's tooltip,
+// and the short part before the colon is its aria-label.
 export function shortLabel(n, text) {
   return n + " · " + String(text || "").split(":")[0];
 }

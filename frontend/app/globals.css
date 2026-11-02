@@ -54,7 +54,7 @@
   --line-faint: rgba(130, 160, 200, 0.08);
   --line-strong: rgba(130, 160, 200, 0.25);
 
-  /* tekst */
+  /* text */
   --text: #E8EFF7;
   --text-1: #DCE6F2;
   --text-2: #C4D2E4;
@@ -135,7 +135,7 @@ input, textarea, select { font: inherit; color: var(--text); outline: none; }
 *::-webkit-scrollbar-thumb { background: rgba(130, 160, 200, 0.18); border-radius: 8px; }
 *::-webkit-scrollbar-track { background: transparent; }
 
-/* ---- generieke bouwstenen ---- */
+/* ---- generic building blocks ---- */
 .eyebrow { font-size:16px; letter-spacing: 1.4px; color: var(--text-faint); text-transform: uppercase; }
 .hint { color: var(--text-ghost); font-size:16px; }
 .spinner {
@@ -195,7 +195,7 @@ button.chip:hover:not(:disabled) { border-color: rgba(84, 169, 255, 0.45); color
 .textlink { background: none; border: 0; padding: 0; font-size:16px; color: var(--text-ghost); }
 .textlink:hover:not(:disabled) { color: var(--text-dim); }
 
-/* ---- niveau-pills ---- */
+/* ---- level pills ---- */
 .levels { display: flex; align-items: center; gap: 6px; }
 .levels .lbl { font-size:16px; color: var(--text-faint); margin-right: 2px; }
 .levels button {
@@ -208,7 +208,7 @@ button.chip:hover:not(:disabled) { border-color: rgba(84, 169, 255, 0.45); color
 .levels.sm button { width: 19px; height: 19px; font-size:16px; }
 
 /* ==========================================================================
-   Basislaag: de kaart
+   Base layer: the map
    ========================================================================== */
 .stage { position: fixed; inset: 0; background: var(--bg); overflow: hidden; }
 .graph-layer { position: absolute; inset: 0; transition: opacity .35s ease; }
@@ -286,7 +286,7 @@ button.chip:hover:not(:disabled) { border-color: rgba(84, 169, 255, 0.45); color
 .field input:focus, .field select:focus, .field textarea:focus, .cmd-form .paste:focus { border-color: rgba(84, 169, 255, 0.4); }
 .field textarea { resize: none; line-height: 1.45; }
 .field select option { background: #0f151e; }
-/* Het plakvak heeft een vaste hoogte en scrollt; het duwt nooit de pagina uit. */
+/* The paste box has a fixed height and scrolls; it never stretches the page. */
 .cmd-form .paste { height: 180px; resize: none; overflow-y: auto; line-height: 1.5; width: 100%; }
 .cmd-form .paste::placeholder { color: var(--placeholder); }
 .cmd-actions { display: flex; align-items: center; gap: 10px; justify-content: flex-end; padding: 2px 0 0; flex-wrap: wrap; }
@@ -413,7 +413,7 @@ button.chip:hover:not(:disabled) { border-color: rgba(84, 169, 255, 0.45); color
 .memo-row .chip.struggles { border-color: rgba(229, 166, 74, 0.35); }
 .memo-row .chip.misconceptions { border-color: rgba(224, 122, 110, 0.35); }
 
-/* ---- mini-kennisboom ---- */
+/* ---- mini knowledge tree ---- */
 .tree { margin: 14px 24px 0; }
 .tree-rows { display: flex; flex-direction: column; gap: 8px; }
 .tree-row { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
@@ -423,7 +423,7 @@ button.chip:hover:not(:disabled) { border-color: rgba(84, 169, 255, 0.45); color
 .tree-row .chip { font-size:16px; padding: 3px 10px; }
 .tree-empty { font-size:16px; color: var(--text-ghost); line-height: 1.45; }
 
-/* boom (fullscreen) */
+/* tree (full screen) */
 .tree-big { display: flex; flex-direction: column; gap: 7px; font-size:16px; }
 .tree-node { display: flex; align-items: center; gap: 8px; background: none; border: 0; padding: 2px 0; text-align: left; color: var(--text-mute); border-radius: 6px; }
 .tree-node:hover { color: var(--text-2); }
@@ -787,17 +787,81 @@ button.chip:hover:not(:disabled) { border-color: rgba(84, 169, 255, 0.45); color
 .lesson-start .btn { min-height: 48px; padding: 12px 28px; font-size: 17px; }
 @media (max-width: 800px) { .cluster-start { top: 58px; padding: 16px; max-width: 280px; } .cluster-start h2 { font-size: 20px; } .cluster-start p { margin-bottom: 12px; } .lesson-start h2 { font-size: 27px; } .lesson-start p { font-size: 16px; } }
 
-.memory-evolution { font-family: var(--font-ui); }
-.memory-evolution details { padding: 14px 0; border-top: 1px solid var(--line); }
-.memory-evolution summary { cursor: pointer; font-size:16px; color: var(--text-2); }
-.memory-position { display: flex; flex-wrap: wrap; gap: 14px; margin-bottom: 16px; }
-.memory-position label { display: flex; flex-direction: column; gap: 8px; font-size:16px; }
-.memory-position select { background: #101c29; color: var(--text); border: 1px solid var(--line); padding: 9px; border-radius: 8px; max-width: 100%; }
-.memory-position small { flex-basis: 100%; }.memory-evolution small { color: var(--text-3); font-size:16px; }
-.memory-proof, .memory-observation { margin-top: 14px; padding: 14px; border: 1px solid var(--line); border-radius: 10px; font-size:16px; line-height: 1.6; }
-.memory-proof p,.memory-observation p { margin: 8px 0; }.memory-proof blockquote { margin: 10px 0; padding-left: 12px; border-left: 2px solid var(--learning); color: var(--text-2); overflow-wrap: anywhere; }
-.memory-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }.memory-actions button { background: #16283a; border: 1px solid var(--line); color: #A6D2FF; padding: 8px 10px; border-radius: 8px; font-size:16px; }
-.memory-covered { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }.memory-covered span { padding: 6px 10px; border: 1px solid var(--line); border-radius: 8px; font-size:16px; }.memory-covered button { background: none; border: 0; color: var(--text-3); margin-left: 8px; }
+/* Memory of one concept (MemoryDetail): the Memory tab shows it full, the Learn view compact. */
+.memory-detail { font-family: var(--font-ui); color: var(--text-2); font-size: 16px; line-height: 1.55; }
+.memory-detail-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; flex-wrap: wrap; padding-bottom: 16px; }
+.memory-detail-head > div { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; min-width: 0; }
+.memory-detail-head h3 { margin: 0; font-size: 22px; font-weight: 600; color: var(--text); overflow-wrap: anywhere; }
+.memory-detail-head .btn { min-height: 44px; }
+.memory-section { padding: 16px 0; border-top: 1px solid var(--line); }
+.memory-detail.compact .memory-section:first-child { border-top: 0; padding-top: 4px; }
+.memory-section h4 { margin: 0 0 10px; font-size: 15px; font-weight: 600; letter-spacing: .02em; color: var(--text-1); }
+.memory-section .memory-count { color: var(--text-3); font-weight: 400; }
+.memory-section-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+.memory-section-head .textlink { color: var(--learning-mid); min-height: 32px; }
+details.memory-section > summary { cursor: pointer; list-style: none; display: flex; align-items: center; gap: 8px; min-height: 32px; }
+details.memory-section > summary::-webkit-details-marker { display: none; }
+details.memory-section > summary::before { content: "▸"; color: var(--text-3); transition: transform .15s; }
+details.memory-section[open] > summary::before { transform: rotate(90deg); }
+details.memory-section > summary h4 { margin: 0; }
+.memory-detail small, .memory-hint, .memory-provenance { color: var(--text-3); font-size: 14px; }
+.memory-empty { margin: 0; color: var(--text-3); }
+.memory-provenance { margin: 16px 0 0; padding-top: 12px; border-top: 1px solid var(--line-soft); }
+.memory-detail .sum { margin: 0 0 6px; color: var(--text-1); }
+.memory-detail .sum.stale { color: var(--text-3); }
+.memory-detail textarea { width: 100%; background: #0b121b; color: var(--text); border: 1px solid var(--line-strong); border-radius: 10px; padding: 10px 12px; font: inherit; resize: vertical; }
+.memory-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+.memory-row .btn { min-height: 44px; }
+/* Where I stand: two radio groups drawn as segmented controls. */
+.memory-stand { display: grid; gap: 14px; }
+.memory-choice { display: grid; gap: 6px; }
+.memory-choice-label { font-size: 14px; color: var(--text-3); }
+.memory-segments { display: inline-flex; flex-wrap: wrap; gap: 4px; padding: 4px; border-radius: 12px; border: 1px solid var(--line); background: rgba(7, 11, 17, 0.6); justify-self: start; max-width: 100%; }
+.memory-segments label { position: relative; display: inline-flex; align-items: center; min-height: 40px; padding: 0 14px; border-radius: 9px; color: var(--text-2); cursor: pointer; font-size: 15px; }
+.memory-segments input { position: absolute; opacity: 0; inset: 0; margin: 0; cursor: pointer; }
+.memory-segments label:hover { background: var(--card-hover); }
+.memory-segments label.on { background: #1b3851; color: #DDEBFF; box-shadow: inset 0 0 0 1px #4b8bc1; }
+.memory-segments label:focus-within { outline: 2px solid #9CC8FF; outline-offset: 2px; }
+.memory-segments input:disabled + span { opacity: .6; }
+/* Needs attention, earlier observations, evidence. */
+.memory-list, .memory-proofs, .memory-covered { list-style: none; margin: 0; padding: 0; }
+.memory-list { display: grid; gap: 10px; }
+.memory-observation { padding: 12px 14px; border: 1px solid var(--line); border-radius: 10px; background: var(--card); }
+.memory-observation.active { border-left: 3px solid var(--warn); }
+.memory-observation p { margin: 6px 0; color: var(--text-1); overflow-wrap: anywhere; }
+.memory-tag { display: inline-block; font-size: 13px; letter-spacing: .03em; text-transform: uppercase; color: #F0C987; }
+.memory-tag.misconceptions { color: #F2B4AB; }
+.memory-observation:not(.active) .memory-tag { color: var(--text-3); }
+.memory-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+.memory-actions button { min-height: 40px; background: #16283a; border: 1px solid var(--line-strong); color: #BFDCFF; padding: 8px 12px; border-radius: 9px; font-size: 15px; cursor: pointer; }
+.memory-actions button:hover:not(:disabled) { background: #1d3550; }
+.memory-sources { margin-top: 6px; }
+.memory-sources > summary { cursor: pointer; color: var(--learning-mid); font-size: 14px; }
+.memory-proofs { display: grid; gap: 10px; margin-top: 8px; }
+.memory-proof { display: grid; grid-template-columns: 26px 1fr; gap: 6px; padding: 10px 12px; border: 1px solid var(--line-soft); border-radius: 10px; }
+.memory-proof-mark { width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; font-size: 13px; font-weight: 700; margin-top: 2px; }
+.memory-proof.demonstrated .memory-proof-mark { background: rgba(95, 206, 158, 0.16); color: var(--learned-soft); }
+.memory-proof.needs_practice .memory-proof-mark { background: rgba(229, 166, 74, 0.16); color: #F0C987; }
+.memory-proof strong { font-weight: 600; color: var(--text-1); }
+.memory-kind { color: var(--text-3); font-size: 14px; }
+.memory-proof p { margin: 4px 0; }
+.memory-proof blockquote { margin: 6px 0; padding-left: 12px; border-left: 2px solid var(--learning); color: var(--text-2); font-family: var(--font-mentor); font-size: 17px; overflow-wrap: anywhere; }
+.memory-exercise { color: var(--text-2); font-style: italic; }
+.memory-covered { display: flex; gap: 8px; flex-wrap: wrap; }
+.memory-covered li { display: inline-flex; align-items: center; gap: 2px; padding: 4px 4px 4px 12px; border: 1px solid var(--line-strong); border-radius: 18px; font-size: 15px; color: var(--text-1); max-width: 100%; overflow-wrap: anywhere; }
+.memory-covered button { min-width: 32px; min-height: 32px; border: 0; border-radius: 50%; background: none; color: var(--text-3); font-size: 17px; cursor: pointer; }
+.memory-covered button:hover:not(:disabled) { color: var(--text); background: var(--card-hover); }
+.memory-undo { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 12px; padding: 8px 12px; border-radius: 10px; background: #13202e; border: 1px solid var(--line-strong); color: var(--text-1); font-size: 15px; }
+.memory-undo .textlink { color: var(--learning-mid); font-weight: 600; min-height: 32px; }
+.memory-earlier > summary { color: var(--text-2); }
+.memory-recap .memory-detail { margin: 16px 0 0; }
+.lesson-context .memory-detail .btn { margin-top: 0; }
+@media (max-width: 760px) {
+  .memory-segments { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); width: 100%; }
+  .memory-segments label { justify-content: center; text-align: center; min-height: 44px; padding: 0 6px; line-height: 1.2; }
+  .memory-actions button, .memory-covered button { min-height: 44px; }
+  .memory-covered button { min-width: 44px; }
+}
 .memory-retry { padding: 16px; border: 1px solid #B98B45; border-radius: 10px; color: var(--text-2); font-size: 16px; }
 
 /* Phase 3: one quiet entry to goals and resumptions; graph remains primary. */
@@ -909,8 +973,9 @@ button.chip:hover:not(:disabled) { border-color: rgba(84, 169, 255, 0.45); color
 .profile-organized .preference-pills { display:flex; flex-wrap:wrap; gap:10px; margin:18px 0; }
 .profile-organized .preference-pill { display:inline-flex; align-items:center; gap:10px; max-width:100%; white-space:normal; overflow-wrap:anywhere; border-radius:18px; padding:9px 14px; border:1px solid var(--line-strong); color:var(--text-2); background:transparent; text-align:left; font-size:16px; line-height:1.5; }
 .profile-organized .preference-pill.selected { color:#c0ddff; background:#1b3851; border-color:#4b8bc1; }
-.profile-organized .preference-pill.observed { color:#dec9ef; background:#30253b; border-color:#584465; margin:6px 6px 0 0; }
-.preference-pill .x { flex-shrink:0; border:0; background:none; color:inherit; }
+.profile-organized .preference-pill.observed { color:var(--text-1); background:transparent; border-color:var(--line-strong); padding:4px 4px 4px 14px; }
+.preference-pill .x { flex-shrink:0; min-width:32px; min-height:32px; border:0; border-radius:50%; background:none; color:var(--text-3); font-size:17px; cursor:pointer; }
+.preference-pill .x:hover:not(:disabled) { color:var(--text); background:var(--card-hover); }
 .mentor-preferences .card { margin:14px 0; }
 .custom-preference { display:flex; gap:10px; margin-top:18px; }
 .custom-preference input { flex:1; min-width:0; border:1px solid var(--line-strong); border-radius:10px; background:#0b121b; color:var(--text-2); padding:10px; }
@@ -1166,32 +1231,32 @@ button.chip:hover:not(:disabled) { border-color: rgba(84, 169, 255, 0.45); color
 .visual-roadmap .roadmap-conflicts .textlink { margin-left:12px; }
 
 /* ==========================================================================
-   Telefoon (< 750px): een ANDER layoutmodel, geen verschoven offsets.
-   Desktop is een vast canvas: .stage is fixed en elke regio is absoluut gepind op
-   harde pixels (sidebar 342px, paneel min. 470px). Op 390px breed overlapt dat
-   onvermijdelijk. Hier wordt .stage zelf de scrollcontainer en staan de regio's in
-   normale flow onder elkaar: zoeken, weergave-keuze, kaart, legenda, leerruimte.
-   Alleen wat óver alles hoort (les, review, profiel, toasts) is fixed.
-   Alles zit in deze ene media query, dus desktop en tablet veranderen niet.
+   Phone (< 750px): a DIFFERENT layout model, not shifted offsets.
+   Desktop is a fixed canvas: .stage is fixed and every region is pinned absolutely on
+   hard pixels (sidebar 342px, panel at least 470px). At 390px wide that overlaps
+   inevitably. Here .stage itself becomes the scroll container and the regions stack in
+   normal flow: search, view choice, map, legend, learning space.
+   Only what belongs above everything (lesson, review, profile, toasts) is fixed.
+   Everything sits in this one media query, so desktop and tablet do not change.
 
-   iOS-PWA: layout.js zet statusBarStyle black-translucent + viewportFit cover. Dan
-   tekent iOS de statusbalk OVER de pagina, en een knop onder de statusbalk of het
-   Dynamic Island krijgt geen tikken. Explore/Learn staan precies in het midden van de
-   header, dus onder het eiland; "My profile" staat rechts en werkte wel. Vandaar
-   env(safe-area-inset-top) op de header en op alles wat fixed onder de header hangt.
-   Buiten een geïnstalleerde PWA is die inset 0.
+   iOS PWA: layout.js sets statusBarStyle black-translucent + viewportFit cover. iOS then
+   draws the status bar OVER the page, and a button under the status bar or the Dynamic
+   Island gets no taps. Explore/Learn sit exactly in the middle of the header, so under
+   the island; "My profile" is on the right and did work. Hence env(safe-area-inset-top)
+   on the header and on everything fixed below the header.
+   Outside an installed PWA that inset is 0.
    ========================================================================== */
 @media (max-width: 749.98px) {
   .stage.redesigned { overflow-x: hidden; overflow-y: auto; overscroll-behavior-y: contain; }
 
   .stage.redesigned .workspace-header {
-    /* inset i.p.v. top + inset:auto: die shorthand zette top anders terug op auto. */
+    /* inset instead of top + inset:auto: that shorthand set top back to auto. */
     position: sticky; inset: 0 auto auto; flex-shrink: 0;
     height: calc(66px + env(safe-area-inset-top)); padding-top: env(safe-area-inset-top);
   }
 
-  /* Verkennen: in flow, van boven naar beneden. De DOM-volgorde is anders dan de
-     gewenste leesvolgorde, vandaar flex + order in plaats van de JSX om te gooien. */
+  /* Explore: in flow, top to bottom. The DOM order differs from the reading order we
+     want, hence flex + order instead of reshuffling the JSX. */
   .stage.redesigned .explore-workspace {
     position: relative; inset: auto; display: flex; flex-direction: column; gap: 12px;
     padding: 12px 16px calc(24px + env(safe-area-inset-bottom));
@@ -1203,15 +1268,15 @@ button.chip:hover:not(:disabled) { border-color: rgba(84, 169, 255, 0.45); color
   .stage.redesigned .map-legend { order: 4; position: static; display: flex; gap: 8px 16px; }
   .stage.redesigned .learning-sidebar { order: 5; position: static; inset: auto; width: auto; max-height: none; overflow: visible; }
 
-  /* Binnen de kaart: de knoppen erboven hoefden niet meer ontweken te worden. */
+  /* Inside the map: the buttons above it no longer need to be avoided. */
   .stage.redesigned .atlas-top { top: 8px; right: 8px; left: auto; }
 
-  /* Leerpad: het krijgt de hoogte van het scherm onder de bediening, en begint bovenaan
-     zijn eigen vlak (de 65-70px offset was er om de oude zwevende toggle te ontwijken). */
+  /* Learning path: it gets the screen height below the controls, and starts at the top of
+     its own area (the 65-70px offset was there to avoid the old floating toggle). */
   .stage.redesigned:has(.visual-roadmap) .atlas-surface { height: calc(100dvh - 230px - env(safe-area-inset-top)); min-height: 420px; }
   .stage.redesigned .atlas-surface .learning-path { inset: 0; }
 
-  /* Wat óver de rest hoort: fixed, onder de header, zodat scrollpositie niet uitmaakt. */
+  /* What belongs above the rest: fixed, below the header, so the scroll position does not matter. */
   .stage.redesigned .learn-workspace {
     position: fixed; z-index: 25; inset: calc(66px + env(safe-area-inset-top)) 0 0;
     padding-bottom: env(safe-area-inset-bottom);
@@ -1229,10 +1294,10 @@ button.chip:hover:not(:disabled) { border-color: rgba(84, 169, 255, 0.45); color
 }
 
 /* ==========================================================================
-   Leren en leerpad (2026-09-19): feedback, volgend onderwerp, ingeklapte legenda,
-   twee-vingerbediening van de kaart, leerpad zonder scroll-in-scroll.
+   Learning and learning path (2026-09-19): feedback, next topic, collapsed legend,
+   two-finger map control, a learning path without scroll-in-scroll.
    ========================================================================== */
-/* "Dit hielp mij" was 13px grijze tekst; het is feedback voor de mentor, dus een echte knop. */
+/* "This helped me" was 13px grey text; it is feedback for the mentor, so a real button. */
 .helpful-row { display:flex; flex-wrap:wrap; align-items:center; gap:8px 12px; margin-top:16px; font-family:var(--font-ui); }
 .lesson-main .helpful-save, .redesigned .helpful-save {
   display:inline-flex; align-items:center; gap:8px; margin:0; min-height:40px; padding:8px 14px; opacity:1;
@@ -1242,7 +1307,7 @@ button.chip:hover:not(:disabled) { border-color: rgba(84, 169, 255, 0.45); color
 .lesson-main .helpful-save.saved { opacity:1; border-color:var(--learned-line); color:var(--learned-soft); }
 .helpful-hint { font-size:15px; line-height:1.5; color:var(--text-3); }
 
-/* Volgend onderwerp: de plek waar eerst "Gespreksopties" stond. */
+/* Next topic: where "Conversation options" used to be. */
 .next-topic {
   display:flex; flex-direction:column; align-items:flex-start; gap:2px; width:100%; margin-top:12px; padding:12px 16px;
   border:1px solid #315473; border-radius:14px; background:#112638; color:var(--text); text-align:left; font-family:var(--font-ui);
@@ -1258,11 +1323,11 @@ button.chip:hover:not(:disabled) { border-color: rgba(84, 169, 255, 0.45); color
   border:1px solid var(--line-strong); border-radius:12px; background:rgba(7,11,17,.9); color:var(--text-1);
   font-size:15px; line-height:1.4; text-align:center; pointer-events:none;
 }
-/* De legenda-knop bestaat alleen op de telefoon. */
+/* The legend button exists on phones only. */
 .legend-toggle { display:none; }
 
 @media (max-width: 749.98px) {
-  /* Legenda ingeklapt: vier gekleurde bolletjes + "Legenda"; tik om de uitleg te zien. */
+  /* Legend collapsed: four coloured dots + "Legend"; tap to see what they mean. */
   .stage.redesigned .legend-toggle {
     display:inline-flex; align-items:center; gap:8px; padding:6px 12px; border:1px solid var(--line); border-radius:14px;
     background:none; color:var(--text-3); font-size:15px;
@@ -1271,11 +1336,11 @@ button.chip:hover:not(:disabled) { border-color: rgba(84, 169, 255, 0.45); color
   .stage.redesigned .map-legend { align-items:center; gap:8px 16px; }
   .stage.redesigned .map-legend:not(.open) > span { display:none; }
 
-  /* Kaart: één vinger scrolt de pagina, twee vingers bedienen de kaart (GraphView). */
+  /* Map: one finger scrolls the page, two fingers control the map (GraphView). */
   .stage.redesigned .atlas-layer svg { touch-action:pan-y; }
 
-  /* Leerpad loopt mee met de pagina. Eerst was het een scrollvlak in een scrollende pagina,
-     met de kop en de legenda erboven en eronder: er bleef nauwelijks ruimte over. */
+  /* The learning path scrolls with the page. It used to be a scroll area in a scrolling page,
+     with the heading and the legend above and below it: hardly any room was left. */
   .stage.redesigned:has(.visual-roadmap) .atlas-surface { height:auto; min-height:0; }
   .stage.redesigned .atlas-surface .learning-path { position:static; inset:auto; display:block; overflow:visible; padding:4px 0 0; background:none; }
   .stage.redesigned .curriculum-map { display:block; }
@@ -1286,14 +1351,14 @@ button.chip:hover:not(:disabled) { border-color: rgba(84, 169, 255, 0.45); color
   .stage.redesigned .map-tools { padding:4px 0 8px; }
   .stage.redesigned .map-tools > div { flex-wrap:nowrap; gap:6px; }
   .stage.redesigned .map-tools .btn { min-height:38px; padding:6px 10px; font-size:15px; }
-  /* Een groep opent als paneel van onderen: altijd in beeld, los van de scrollpositie. */
+  /* A group opens as a panel from the bottom: always in view, whatever the scroll position. */
   .stage.redesigned .map-detail {
     position:fixed; top:auto; left:0; right:0; bottom:0; width:auto; max-width:none; max-height:72dvh; z-index:35;
     border-radius:18px 18px 0 0; padding-bottom:calc(20px + env(safe-area-inset-bottom));
   }
   .stage.redesigned .map-detail .map-topic-list { overflow-y:auto; }
 
-  /* Les: de onderbalk compact houden, anders blijft er weinig over voor het antwoord. */
+  /* Lesson: keep the bottom bar compact, or little is left for the answer. */
   .stage.redesigned .lesson-main .chat-foot { padding:8px 16px calc(8px + env(safe-area-inset-bottom)); }
   .stage.redesigned .lesson-main .chat-chips { margin-bottom:8px; }
   .stage.redesigned .next-topic { margin-top:8px; padding:8px 14px; }
@@ -1533,3 +1598,116 @@ button.chip:hover:not(:disabled) { border-color: rgba(84, 169, 255, 0.45); color
 .link-paste { display: flex; flex-direction: column; gap: 10px; margin-top: 4px; }
 .link-paste p { margin: 0; line-height: 1.5; }
 .link-paste .paste { min-height: 160px; }
+/* Model provider: the connection test (setup and Settings), the AI provider card, About. */
+.sr-only { position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0; }
+.hint.error { color: var(--danger); }
+.provider-test { display: grid; gap: 10px; justify-items: start; }
+.provider-test .btn { min-height: 44px; }
+.provider-test .provider-suggest { white-space: normal; text-align: left; line-height: 1.4; padding: 8px 14px; }
+.provider-checks { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; width: 100%; font-size: 14px; line-height: 1.45; color: var(--text-3); }
+.provider-checks li { display: grid; grid-template-columns: 18px 1fr; gap: 8px; align-items: baseline; }
+.provider-checks b { font-weight: 600; color: var(--text-2); }
+.provider-checks code { font-family: var(--font-mono); font-size: 13px; color: var(--text-dim); overflow-wrap: anywhere; }
+.provider-checks .mark { font-weight: 700; text-align: center; }
+.provider-checks li.ok .mark { color: var(--learned); }
+.provider-checks li.warn .mark { color: var(--warn); }
+.provider-checks li.fail .mark { color: var(--danger); }
+.provider-ok { margin: 0; font-size: 14px; color: var(--learned-soft); }
+.provider-warn { margin: 0; padding: 8px 12px; border-radius: 10px; border: 1px solid rgba(229, 166, 74, 0.35); background: rgba(229, 166, 74, 0.08); color: var(--text-1); font-size: 14px; line-height: 1.5; }
+.provider-card .provider-facts { display: grid; grid-template-columns: max-content 1fr; gap: 6px 14px; margin: 10px 0 4px; font-size: 15px; }
+.provider-card .provider-facts dt { color: var(--text-dim); }
+.provider-card .provider-facts dd { margin: 0; color: var(--text-1); min-width: 0; overflow-wrap: anywhere; }
+.provider-card .provider-facts code { font-family: var(--font-mono); font-size: 14px; }
+.provider-card .provider-edit { display: grid; gap: 14px; margin-top: 12px; }
+.provider-card .provider-edit .gate-field select, .provider-card .provider-edit .gate-field input { width: 100%; }
+.provider-card .row { flex-wrap: wrap; }
+.about-card code { font-family: var(--font-mono); font-size: 14px; color: var(--text-dim); }
+.about-card .row { margin: 10px 0 6px; }
+@media (max-width: 560px) { .provider-card .provider-facts { grid-template-columns: 1fr; gap: 2px; } .provider-card .provider-facts dd { margin-bottom: 6px; } }
+.provider-checks .provider-detail { display: block; margin-top: 2px; font-size: 13px; color: var(--text-dim); overflow-wrap: anywhere; white-space: pre-wrap; }
+.provider-checks .provider-detail summary { cursor: pointer; color: var(--text-3); }
+.provider-card .row .btn { width: auto; flex: 0 0 auto; }
+
+/* My profile: the Memory tab (list and detail) and Your data. */
+.profile-tabs { flex-wrap: wrap; }
+.profile-tabs button { min-height: 44px; }
+.profile-organized .hint { color: var(--text-3); }
+.mentor-preferences .noticed-group { margin-top: 16px; }
+.mentor-preferences h5 { margin: 0 0 8px; font-size: 15px; font-weight: 600; color: var(--text-1); }
+.mentor-preferences h5 small { display: block; font-weight: 400; font-size: 14px; color: var(--text-3); margin-top: 2px; }
+.noticed-list { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 8px; }
+.memory-intro { margin: 0 0 16px; color: var(--text-3); font-size: 16px; }
+.memory-view { display: grid; grid-template-columns: minmax(250px, 320px) minmax(0, 1fr); grid-template-rows: auto 1fr; gap: 0 24px; align-items: start; }
+.memory-view > .memory-intro { grid-column: 1 / -1; }
+.memory-master { display: grid; gap: 12px; position: sticky; top: 0; min-width: 0; }
+.memory-toolbar { display: grid; grid-template-columns: 1fr; gap: 8px; }
+.memory-search input { width: 100%; min-height: 44px; border: 1px solid var(--line-strong); border-radius: 10px; background: #0b121b; color: var(--text); padding: 0 12px; font: inherit; font-size: 16px; }
+.memory-search input::placeholder { color: var(--placeholder); }
+.memory-sort { display: flex; align-items: center; gap: 8px; font-size: 14px; color: var(--text-3); }
+.memory-sort select { flex: 1; min-height: 40px; background: #0b121b; color: var(--text-1); border: 1px solid var(--line); border-radius: 10px; padding: 0 10px; font: inherit; font-size: 15px; }
+.memory-filters { display: flex; flex-wrap: wrap; gap: 6px; }
+.memory-filters button { min-height: 36px; padding: 0 12px; border-radius: 18px; border: 1px solid var(--line); background: transparent; color: var(--text-2); font-size: 14px; cursor: pointer; }
+.memory-filters button:hover:not(.on) { border-color: var(--line-strong); color: var(--text); }
+.memory-filters button.on { background: #1b3851; border-color: #4b8bc1; color: #DDEBFF; }
+.memory-filter-count { color: var(--text-3); margin-left: 2px; }
+.memory-filters button.on .memory-filter-count { color: #BFDCFF; }
+.memory-rows { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; max-height: calc(100dvh - 400px); min-height: 200px; overflow-y: auto; }
+.memory-rows button { width: 100%; display: grid; gap: 4px; text-align: left; padding: 10px 12px; border-radius: 10px; border: 1px solid transparent; background: none; color: var(--text-1); cursor: pointer; }
+.memory-rows button:hover { background: var(--card-hover); }
+.memory-rows button[aria-current=true] { background: #132233; border-color: #355b7c; }
+.memory-row-top { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.memory-row-top b { font-weight: 500; font-size: 16px; overflow-wrap: anywhere; }
+.memory-row-top .badge { flex-shrink: 0; }
+.memory-row-meta { font-size: 13.5px; color: var(--text-3); }
+.memory-no-match, .memory-view-empty { padding: 24px 12px; text-align: center; color: var(--text-3); }
+.memory-view-empty h3 { margin: 0 0 6px; color: var(--text-1); font-size: 18px; font-weight: 600; }
+.memory-pane { min-width: 0; padding: 4px 0 0 24px; border-left: 1px solid var(--line); outline: none; }
+.memory-back { display: inline-flex; align-items: center; min-height: 44px; color: var(--learning-mid); font-size: 16px; margin-bottom: 4px; }
+.profile-data { display: grid; gap: 16px; }
+.data-card p { margin: 0 0 8px; color: var(--text-2); }
+.data-card .hint { color: var(--text-3); }
+.data-card .row { flex-wrap: wrap; margin-top: 12px; }
+.data-card .row .btn, .data-card .btn { min-height: 44px; }
+.data-card h5 { margin: 0 0 6px; font-size: 15px; font-weight: 600; color: var(--text-1); }
+.data-note { margin: 10px 0 0; font-size: 15px; color: var(--learned-soft); }
+.data-note.err { color: #F2B4AB; }
+.data-preview { margin-top: 12px; padding: 14px; border: 1px solid var(--line-strong); border-radius: 10px; background: #0d1620; }
+.data-counts { list-style: none; margin: 8px 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 6px 16px; color: var(--text-2); }
+.data-counts b { color: var(--text); font-weight: 600; }
+.data-warnings { margin: 8px 0; padding-left: 18px; color: #F0C987; }
+.data-secret { margin: 12px 0; padding: 14px; border-radius: 10px; border: 1px solid var(--accent-line); background: rgba(95, 206, 158, 0.06); }
+.data-code { display: flex; gap: 8px; align-items: stretch; margin: 6px 0 10px; }
+.data-code code { flex: 1; min-width: 0; padding: 10px 12px; border-radius: 8px; background: var(--code-bg); font-family: var(--font-mono); font-size: 13.5px; color: var(--text-1); overflow-wrap: anywhere; user-select: all; }
+.data-create { display: grid; gap: 10px; margin-top: 12px; }
+.data-field { display: grid; gap: 6px; font-size: 14px; color: var(--text-3); max-width: 360px; }
+.data-field input { min-height: 44px; border: 1px solid var(--line-strong); border-radius: 10px; background: #0b121b; color: var(--text); padding: 0 12px; font: inherit; font-size: 16px; }
+.data-check { display: flex; align-items: center; gap: 10px; font-size: 15px; color: var(--text-2); min-height: 44px; }
+.data-check input { width: 18px; height: 18px; accent-color: #54A9FF; }
+.data-subhead { margin-top: 18px !important; }
+.data-keys { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.data-keys li { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; }
+.data-keys li > div { min-width: 0; }
+.data-keys b { color: var(--text-1); font-weight: 500; }
+.data-keys code { font-family: var(--font-mono); font-size: 13px; color: var(--text-3); margin-left: 6px; }
+.data-keys small { display: block; color: var(--text-3); font-size: 13.5px; margin-top: 2px; }
+.data-confirm { display: flex; gap: 8px; flex-wrap: wrap; }
+@media (max-width: 760px) {
+  .memory-view { display: block; }
+  .memory-master { position: static; }
+  .memory-rows { max-height: none; }
+  .memory-rows button { min-height: 56px; }
+  .memory-pane { padding: 0; border-left: 0; }
+  .data-code { flex-direction: column; }
+}
+.profile.profile-organized { max-width: 1060px; }
+.memory-view .badge, .memory-detail .badge { font-size: 13px; letter-spacing: .02em; text-transform: none; font-weight: 500; padding: 2px 8px; border-radius: 10px; }
+.memory-detail-head h3 + .badge { margin-top: 2px; }
+.data-card .row .btn { width: auto; flex: 0 0 auto; }
+@media (max-width: 600px) {
+  .profile.profile-organized { padding: 18px 16px 22px; }
+  .profile-tabs { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; margin: 18px 0; }
+  .profile-tabs button { flex: 0 0 auto; padding: 8px 10px; }
+}
+.memory-detail [data-focus]:focus { outline: none; }
+.memory-detail [data-focus]:focus-visible { outline: 2px solid #9CC8FF; outline-offset: 4px; }
+.profile .notice { position: sticky; top: 0; z-index: 2; background: #121b26; }

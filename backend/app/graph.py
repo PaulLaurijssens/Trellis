@@ -1,4 +1,4 @@
-"""Neo4j toegang. Alle Cypher op één plek."""
+"""Neo4j access. All Cypher in one place."""
 import json, os, uuid
 from contextvars import ContextVar
 from datetime import datetime, timedelta, timezone
@@ -11,10 +11,10 @@ driver = GraphDatabase.driver(
 )
 
 VALID_RELS = {"PREREQUISITE_OF", "PART_OF", "RELATED_TO"}
-# Leerstatus van een concept. Loopt maar één kant op: een concept dat je al
-# leert wordt niet weer een suggestie.
+# Learning status of a concept. It only moves forward: a concept you are already
+# learning never becomes a suggestion again.
 VALID_STATUS = ("suggested", "queued", "learning", "learned")
-# queued = uit een analyse opgenomen maar nog niet geleerd; zit onder learning.
+# queued = taken from an analysis but not learned yet; ranks below learning.
 STATUS_RANK = {"suggested": 0, "queued": 1, "learning": 2, "learned": 3}
 
 
@@ -47,8 +47,8 @@ def run(query: str, **params):
 
 
 def _split_cypher(script: str) -> list[str]:
-    """Splits een Cypher-script in statements. Strips //-commentaar vóór het
-    splitsen op ';', en negeert beide binnen quotes/backticks."""
+    """Splits a Cypher script into statements. Strips // comments before splitting
+    on ';', and ignores both inside quotes and backticks."""
     stmts, buf, quote = [], [], None
     i, n = 0, len(script)
     while i < n:
@@ -109,8 +109,8 @@ def ensure_vector_index(dim: int):
 
 
 def create_pending_source(type_: str, title: str, url: str | None = None) -> str:
-    """Een suggestieronde parkeert zijn bron als :PendingSource. Pas als er
-    echt van geleerd wordt promoveert die naar een volwaardige :Source."""
+    """A suggestion round parks its source as :PendingSource. Only when something is
+    actually learned from it does it become a full :Source."""
     sid = str(uuid.uuid4())
     run("""CREATE (p:PendingSource {id:$id, type:$type, title:$title, url:$url, created_at:$ts})""",
         id=sid, type=type_, title=title, url=url, ts=_now())
@@ -118,8 +118,8 @@ def create_pending_source(type_: str, title: str, url: str | None = None) -> str
 
 
 def source_exists(source_id: str) -> bool:
-    """Vooraf te controleren, zodat een verlopen bron geen half-geschreven
-    concept achterlaat en geen LLM-call verspilt."""
+    """Checked up front, so an expired source leaves no half-written concept and
+    wastes no LLM call."""
     rows = run("""
         OPTIONAL MATCH (p:PendingSource {id:$id})
         OPTIONAL MATCH (s:Source {id:$id})
@@ -129,8 +129,8 @@ def source_exists(source_id: str) -> bool:
 
 
 def promote_source(source_id: str) -> dict | None:
-    """Maakt van een PendingSource een Source. Idempotent: een tweede /learn
-    op dezelfde bron vindt hem gewoon terug."""
+    """Turns a PendingSource into a Source. Idempotent: a second /learn on the same
+    source simply finds it again."""
     rows = run("""
         OPTIONAL MATCH (p:PendingSource {id:$id})
         OPTIONAL MATCH (s:Source {id:$id})
@@ -144,8 +144,8 @@ def promote_source(source_id: str) -> dict | None:
 
 
 def purge_pending_sources(days: int = 7) -> int:
-    """Suggestierondes waar nooit van geleerd is, verlopen. De timestamps zijn
-    ISO-8601 in UTC en dus lexicografisch vergelijkbaar."""
+    """Suggestion rounds that nothing was learned from expire. Timestamps are ISO-8601
+    in UTC, so they compare lexicographically."""
     cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
     rows = run("""
         MATCH (p:PendingSource) WHERE p.created_at < $cutoff
@@ -166,9 +166,9 @@ def find_similar(embedding: list[float], k: int = 3) -> list[dict]:
 def upsert_concept(name: str, definition: str, aliases: list[str], domain: str,
                    embedding: list[float], status: str = "suggested") -> str:
     cid = str(uuid.uuid4())
-    # Een alias wordt alleen toegevoegd als geen ander Concept die term al claimt
-    # als naam of alias (case-insensitive). Anders zou bijv. "forward pass" zowel
-    # een eigen node zijn als alias van backpropagation, en wordt lookup ambigu.
+    # An alias is only added when no other Concept already claims that term as its
+    # name or alias (case-insensitive). Otherwise "forward pass", for example, would be
+    # both its own node and an alias of backpropagation, and lookups become ambiguous.
     rows = run("""
         MERGE (c:Concept {name:$name})
         ON CREATE SET c.id=$id, c.definition=$definition, c.domain=$domain,
@@ -192,9 +192,9 @@ def upsert_concept(name: str, definition: str, aliases: list[str], domain: str,
              CASE coalesce(c.status,'suggested') WHEN 'learned' THEN 3 WHEN 'learning' THEN 2
                   WHEN 'queued' THEN 1 ELSE 0 END AS have
         SET c.aliases = apoc.coll.toSet(coalesce(c.aliases,[]) + free),
-            // Status nooit verlagen: suggested < queued < learning < learned.
+            // Never lower the status: suggested < queued < learning < learned.
             c.status = CASE WHEN have >= $rank THEN coalesce(c.status,'suggested') ELSE $status END,
-            // Alleen /learn levert een gezaghebbende definitie; suggesties niet.
+            // Only /learn provides an authoritative definition; suggestions do not.
             c.definition = CASE
                 WHEN $status = 'learning' AND trim($definition) <> '' THEN $definition
                 WHEN $status = 'queued' AND trim($definition) <> '' AND trim(coalesce(c.definition,'')) = '' THEN $definition
@@ -207,8 +207,8 @@ def upsert_concept(name: str, definition: str, aliases: list[str], domain: str,
 
 def link_mention(concept_id: str, source_id: str, context: str, importance: int,
                  mentions: list[dict] | None = None):
-    """Context (samenvattende zin) plus de mentions-lijst [{start_sec, quote}]
-    als JSON, en de eerste tijdcode apart voor eenvoudige queries."""
+    """Context (a summarising sentence) plus the mentions list [{start_sec, quote}]
+    as JSON, and the first timestamp separately for simple queries."""
     mentions = [m for m in (mentions or []) if m.get("quote") or m.get("start_sec") is not None]
     first = next((m["start_sec"] for m in mentions if m.get("start_sec") is not None), None)
     run("""
@@ -222,8 +222,8 @@ def link_mention(concept_id: str, source_id: str, context: str, importance: int,
 
 
 def source_concepts(source_id: str) -> list[dict]:
-    """Concepten die daadwerkelijk uit deze bron geleerd zijn (met hun aliassen),
-    om relaties uit de analyse alleen tussen geleerde kandidaten te leggen."""
+    """Concepts actually learned from this source (with their aliases), so relations
+    from the analysis are only made between learned candidates."""
     return run("""
         MATCH (c:Concept)-[:MENTIONED_IN]->(s:Source {id:$sid})
         RETURN c.id AS id, c.name AS name, coalesce(c.aliases,[]) AS aliases
@@ -252,7 +252,7 @@ def link_asked_about(person_id: str, concept_id: str):
 
 
 def _mark_learned(name: str, person_id: str) -> dict | None:
-    """Zet status op 'learned' en legt vast dat de persoon het begrijpt."""
+    """Sets the status to 'learned' and records that the person understands it."""
     rows = run("""
         MATCH (c:Concept)
         WHERE toLower(c.name) = toLower($name)
@@ -328,12 +328,12 @@ def concept_context(name: str) -> dict | None:
 
 
 # ============================================================
-# Laag 1: ruwe gesprekslog. Bron van waarheid, deterministisch.
+# Layer 1: raw conversation log. Source of truth, deterministic.
 # ============================================================
 
 def match_names(names: list[str]) -> dict[str, dict]:
-    """Lichte match van kandidaatnamen op bestaande concepten (naam of alias,
-    case-insensitive). Geen embeddings: dat doet de echte resolutie bij commit."""
+    """Light match of candidate names against existing concepts (name or alias,
+    case-insensitive). No embeddings: the real resolution at commit does that."""
     wanted = {str(n).lower().strip() for n in names if str(n).strip()}
     if not wanted:
         return {}
@@ -379,7 +379,7 @@ def create_session(person_id: str, concept_id: str, level: int) -> str:
 
 
 def active_session(person_id: str, concept_id: str) -> dict | None:
-    """De laatste nog niet geconsolideerde sessie voor dit concept."""
+    """The latest not yet consolidated session for this concept."""
     rows = run("""
         MATCH (s:ChatSession {person_id:$pid, concept_id:$cid})
         WHERE s.consolidated = false
@@ -404,12 +404,14 @@ def add_message(session_id: str, role: str, content: str, illustration=None) -> 
     return rows[0]["seq"] if rows else 0
 
 
-def session_messages(session_id: str) -> list[dict]:
+def session_messages(session_id: str, person_id: str | None = None) -> list[dict]:
+    """Messages of one conversation in order. With person_id: only when that person owns it."""
     rows = run("""
-        MATCH (:ChatSession {id:$sid})-[:HAS_MESSAGE]->(m:ChatMessage)
+        MATCH (s:ChatSession {id:$sid})-[:HAS_MESSAGE]->(m:ChatMessage)
+        WHERE $pid IS NULL OR s.person_id = $pid
         RETURN m.seq AS seq, m.role AS role, m.content AS content, m.ts AS ts, m.illustration AS illustration
         ORDER BY m.seq
-    """, sid=session_id)
+    """, sid=session_id, pid=person_id)
     from .illustrations import validate
     for row in rows:
         try:
@@ -432,7 +434,7 @@ def session_info(session_id: str) -> dict | None:
 
 
 def stale_sessions(minutes: int) -> list[str]:
-    """Sessies die lang genoeg stil liggen om te consolideren."""
+    """Sessions that have been quiet long enough to consolidate."""
     cutoff = (datetime.now(timezone.utc) - timedelta(minutes=minutes)).isoformat()
     rows = run("""
         MATCH (s:ChatSession) WHERE s.consolidated = false AND s.last_activity < $cutoff
@@ -442,7 +444,7 @@ def stale_sessions(minutes: int) -> list[str]:
 
 
 def person_sessions(person_id: str) -> list[str]:
-    """Alle sessies chronologisch: de invoer voor een rebuild."""
+    """All sessions in order: the input for a rebuild."""
     rows = run("""
         MATCH (s:ChatSession {person_id:$pid})
         RETURN s.id AS id ORDER BY s.started_at
@@ -455,8 +457,8 @@ def mark_consolidated(session_id: str):
 
 
 # ============================================================
-# Laag 2: begripstoestand per concept (UNDERSTANDS-relatie).
-# Afgeleid uit laag 1, dus volledig herbouwbaar.
+# Layer 2: understanding per concept (UNDERSTANDS relation).
+# Derived from layer 1, so fully rebuildable.
 # ============================================================
 
 STATE_LISTS = ("covered", "struggles", "misconceptions")
@@ -486,8 +488,8 @@ def ensure_understands(person_id, concept_id, level):
 
 
 def set_level(person_id: str, concept_id: str, session_id: str | None, level: int):
-    """Gekozen niveau vastleggen op de sessie (standaard voor de rest van het
-    gesprek) en op UNDERSTANDS (zodat een volgend gesprek erop opent)."""
+    """Records the chosen level on the session (the default for the rest of the
+    conversation) and on UNDERSTANDS (so the next conversation opens at it)."""
     run("""
         MATCH (p:Person {id:$pid})-[u:UNDERSTANDS]->(c:Concept {id:$cid})
         SET u.level = $level
@@ -557,16 +559,16 @@ def all_understands(person_id: str) -> list[dict]:
 
 
 # ============================================================
-# Laag 3: leerprofiel per persoon. JSON-string op de Person-node.
+# Layer 3: learning profile per person. A JSON string on the Person node.
 # ============================================================
 
 from . import languages as _languages
 LANGUAGES = {code: entry["native"] for code, entry in _languages.LANGUAGES.items()}     # code -> native name (UI)
-LANGUAGE_NAMES_EN = {code: entry["name"] for code, entry in _languages.LANGUAGES.items()}   # code -> English name (prompts)
 
 
 def ui_language(person_id: str) -> str:
-    """Voorkeurstaal van de persoon (UI en geheugen). Standaard Nederlands."""
+    """The person's language (screens, explanations, memory). English unless they chose another one
+    that this install has; a language that was removed falls back to English."""
     rows = run("MERGE (p:Person {id:$pid}) RETURN p.ui_language AS lang", pid=person_id)
     lang = (rows[0]["lang"] if rows else None) or "en"
     return lang if lang in LANGUAGES else "en"
@@ -605,7 +607,7 @@ def learning_profile(person_id: str) -> dict:
         try:
             profile.update(json.loads(raw))
         except (ValueError, TypeError):
-            pass          # kapotte JSON blokkeert de chat niet
+            pass          # broken JSON never blocks the chat
     return profile
 
 
@@ -616,7 +618,7 @@ def save_learning_profile(person_id: str, profile: dict):
     return profile
 
 
-# ---- Context voor de systeemprompt ----
+# ---- Context for the system prompt ----
 
 def concept_prompt_context(concept_id: str) -> dict:
     rows = run("""

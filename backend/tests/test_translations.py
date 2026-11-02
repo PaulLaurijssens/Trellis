@@ -16,7 +16,7 @@ class TranslationTests(unittest.TestCase):
         self.assertEqual(translations.translate(['Een concept'], 'en'), ['A concept'])
         complete.assert_not_called()
         run.return_value = []; complete.return_value = ['Een concept']
-        translations.translate(['Een concept'], 'nl')
+        translations.translate(['Een concept'], 'de')
         self.assertNotEqual(key, run.call_args.kwargs['rows'][0]['key'])
 
     @patch('app.translations.graph.run', return_value=[])

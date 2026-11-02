@@ -4,10 +4,83 @@ All notable changes to Trellis. Dates are UTC. Versions follow the git tags.
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-11-02
+
 ### Added
+- **Your learning memory, portable.** *My profile → Your data* downloads your whole learning memory
+  as one zip (JSON plus Markdown that opens in Obsidian) and imports such a file into any Trellis,
+  with a preview first. Importing merges, keeps your corrections, refuses a file whose evidence does
+  not match its conversations, and changes nothing the second time. Format:
+  [docs/MEMORY-FORMAT.md](docs/MEMORY-FORMAT.md) with a JSON Schema.
+- **Connect an AI (MCP).** A read-only MCP server at `/api/mcp` lets Claude Code, Claude Desktop,
+  Cursor, VS Code or your own agent read your concepts, understanding, evidence, learning profile
+  and focus. Access keys are per assistant, shown once, revocable, and conversations are shared only
+  when you allow it. [docs/MCP.md](docs/MCP.md).
+- A new **Memory** tab: every concept with search, filters (learning now, understood, needs
+  attention, planned) and sorting, and one place to correct a concept's memory: where you stand,
+  the summary (now editable), open difficulties, evidence, what was discussed (with Undo).
+  It works on a phone (list, then detail) and with the keyboard.
+- **How I learn** replaces *Teaching preferences*: your choices, what Trellis noticed (removable with
+  Undo) and your notes, without a colour legend to decode.
+- A guided installer for Windows (`setup.ps1`) and Mac and Linux (`setup.sh`), with a one-line
+  command in the README. It checks Docker, memory, disk and the port, makes the database password,
+  downloads Trellis and starts it. Safe to run again; `--report` makes a diagnostic report with
+  secrets hidden.
+- Ready-made images on ghcr.io (`trellis-api`, `trellis-frontend`, `trellis-author`) for Intel/AMD and
+  ARM computers. `docker compose up` downloads them, so a first install no longer builds anything.
+- A release bundle (`trellis-bundle.zip` with `SHA256SUMS`) with only the files needed to run
+  Trellis, made by `scripts/make-bundle.sh` and the new release workflow.
+- The setup screen tests the key and all three models before you continue, and says what is wrong:
+  a wrong key, a key that looks like another provider's (for example an Azure key under OpenAI), a
+  model your plan does not include, no credit, a wrong endpoint or a wrong embedding size.
+- An **AI provider** card in *My profile → Settings*: the owner can change the provider, the models
+  and the key after setup, with the same test.
+- **Other** takes an endpoint and an API version, so Azure OpenAI and Microsoft Foundry work.
+  [docs/PROVIDERS.md](docs/PROVIDERS.md) has the recipes.
+- When the Gemini Pro model has no free quota, setup offers the Flash model as the mentor model.
+- `/health` shows the version and the commit.
+- Health checks for every part of Trellis. `docker compose up -d --wait` returns when the app works.
+- README: *Troubleshooting* (a page that does not load after sleep, filtered networks, build errors,
+  logs) and a note about Docker Desktop licensing. [docs/TESTING.md](docs/TESTING.md) is a checklist
+  for testers, with a bug report form on GitHub.
+- Optional build arguments `PIP_INDEX_URL` and `NPM_CONFIG_REGISTRY` to build from source through a
+  package mirror.
 - When a site will not hand over an article (paywall, bot check, a page built with JavaScript), the
   Link tab says why and asks you to paste the text right there. The link stays the source, with the
   page title filled in when the site gave one.
+- **Add your language.** Trellis ships in English; the README has a prompt that lets an AI coding
+  agent add your language (screens, lessons and memory) in a few minutes. The mentor already answers
+  in the language you write in.
+- GitHub now also runs the database tests against a fresh Neo4j, the official MCP client against the
+  MCP server, the frontend unit tests, the production build and every browser flow.
+
+### Changed
+- Trellis is English only out of the box: the Dutch interface is no longer included, and the code,
+  comments and messages are English. A learner whose language was Dutch sees English until Dutch is
+  added back as described in *Add your language*.
+- A failed model call shows a clear message in the language of the interface (key rejected, quota
+  used up, model busy, model not found, no connection, timeout) instead of "HTTP 500".
+- A busy or rate-limited provider is tried again a few times, with growing waits, before Trellis
+  gives up. A rejected key is never retried.
+- The README install section starts with the installer; the old steps are now *Manual install*.
+- The web server starts only when the API and the app are healthy.
+- *Rebuild memory* moved to *My profile → Your data*, with an explanation of what it does.
+- The Learn view shows the same memory panel as the Memory tab, with radio buttons instead of drop-down
+  menus for your intent and assessment.
+
+### Security
+- Importing a memory file is safer on an install with several learners: a file can no longer change
+  how existing concepts on the shared map connect, plant links that are not web links, or borrow
+  another learner's conversation as evidence. Very large or deeply nested files are refused before
+  they are read, one import runs at a time, and at most 50 unprocessed conversations are sent to your
+  AI provider.
+- The MCP server refuses browser pages from other sites even under DNS rebinding.
+
+### Fixed
+- Voice input and the learning roadmap had Dutch texts built in next to the English ones.
+- The browser tests work again (they predated login).
+- Putting back an item you removed from your memory (a discussed topic, a profile observation) now
+  works; before, a removed item stayed blocked for good.
 
 ## [0.3.0] - 2026-10-06
 
@@ -62,6 +135,7 @@ before anything enters the map; a mentor with a replayable learning memory; inte
 run in a sandbox after a test on a phone-sized screen; a setup screen for your own model key; nightly
 backups and restore; installable as an app on a phone.
 
+[0.4.0]: https://github.com/PaulLaurijssens/Trellis/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/PaulLaurijssens/Trellis/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/PaulLaurijssens/Trellis/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/PaulLaurijssens/Trellis/releases/tag/v0.1.0

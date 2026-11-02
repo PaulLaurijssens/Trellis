@@ -21,15 +21,127 @@ jobs:
       - run: pip install -r backend/requirements.lock.txt
       - run: python -m unittest discover -s tests -v
         working-directory: backend
+  neo4j:
+    name: database integration tests and the MCP client check
+    runs-on: ubuntu-latest
+    services:
+      neo4j:
+        image: neo4j:5.26.30-community
+        env:
+          NEO4J_AUTH: neo4j/ci-only-password-1234567890
+          NEO4J_PLUGINS: '["apoc"]'
+        ports: ["7687:7687"]
+        options: >-
+          --health-cmd "cypher-shell -u neo4j -p ci-only-password-1234567890 'RETURN 1'"
+          --health-interval 10s --health-timeout 10s --health-retries 30
+    env:
+      NEO4J_URI: bolt://localhost:7687
+      NEO4J_PASSWORD: ci-only-password-1234567890
+      TRELLIS_TEST_WIPE: "yes"
+      PYTHONPATH: .
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - run: pip install -r requirements.lock.txt jsonschema
+      - run: python tests/phase2_neo4j.py
+      - run: python tests/phase3_neo4j.py
+      - run: python tests/profile_preferences_neo4j.py
+      # Last, because the MCP check reads the learner it leaves behind.
+      - run: python tests/memory_portability_neo4j.py
+      - name: MCP server against the official MCP Python client
+        run: |
+          read -r MEMORY_KEY CONVERSATIONS_KEY < <(python tests/make_mcp_tokens.py | tail -1)
+          sudo ln -sfn "$GITHUB_WORKSPACE/db" /import   # the API loads /import/schema.cypher, as in compose
+          uvicorn app.main:app --port 8000 > /tmp/api.log 2>&1 &
+          for _ in $(seq 1 60); do curl -sf http://127.0.0.1:8000/health > /dev/null && break; sleep 1; done
+          python -m venv /tmp/mcp && /tmp/mcp/bin/pip install -q "mcp==2.3.0"
+          /tmp/mcp/bin/python tests/mcp_client_check.py http://127.0.0.1:8000/mcp "$MEMORY_KEY" "$CONVERSATIONS_KEY"
+      - if: failure()
+        run: tail -100 /tmp/api.log || true
+  frontend:
+    name: frontend unit tests, production build and browser flows
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: "22", cache: npm, cache-dependency-path: frontend/package-lock.json }
+      - run: npm ci
+      - run: node --test tests/*.test.mjs
+      - run: npx next build
+      # The browser flows mock every API call, so no backend runs here.
+      - run: npm install --no-save playwright@1.63.0 && npx playwright install --with-deps chromium
+      - name: browser flows
+        run: |
+          rm -rf .next && (npx next dev -p 3000 > /tmp/next.log 2>&1 &)
+          for _ in $(seq 1 90); do curl -sf http://localhost:3000 > /dev/null && break; sleep 1; done
+          node tests/run-browser.mjs
+      - if: failure()
+        run: tail -100 /tmp/next.log || true
   compose:
     name: compose builds and starts
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - run: cp .env.example .env && sed -i 's/^NEO4J_PASSWORD=.*/NEO4J_PASSWORD=ci-only-password-1234567890/' .env
-      - run: docker compose up -d --build
-      - run: |
-          for i in $(seq 1 60); do curl -sf http://127.0.0.1:8080/api/health && exit 0; sleep 5; done
-          docker compose logs api; exit 1
+      # --wait returns when every health check passes (web waits for a healthy api and frontend).
+      - run: docker compose up -d --build --wait --wait-timeout 900
+      - run: curl -sf http://127.0.0.1:8080/api/health
       - run: curl -sf http://127.0.0.1:8080/api/health | grep -q '"setup_needed":true'
       - run: curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:8080/api/graph | grep -q 401
+      - if: failure()
+        run: docker compose ps -a; docker compose logs --tail 200
+  bundle:
+    name: release bundle builds and its compose file is valid
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: scripts/make-bundle.sh --out dist
+      - name: the zip has every file the installer needs
+        run: |
+          unzip -Z1 dist/trellis-bundle.zip | sort > /tmp/files
+          cat /tmp/files
+          for f in compose.yaml .env.example deploy/nginx.conf db/schema.cypher backups/.gitkeep \
+                   setup.sh setup.ps1 README.md LICENSE scripts/restore.sh; do
+            grep -qx "trellis/$f" /tmp/files || { echo "missing in bundle: trellis/$f"; exit 1; }
+          done
+          if grep -v '^trellis/' /tmp/files; then echo "files outside trellis/"; exit 1; fi
+      - name: the bundled compose.yaml has no build sections and is valid
+        run: |
+          mkdir -p /tmp/b && cd /tmp/b && unzip -q "$GITHUB_WORKSPACE/dist/trellis-bundle.zip"
+          if grep -nE '^[[:space:]]+(build|context|dockerfile):' trellis/compose.yaml; then exit 1; fi
+          # shellcheck disable=SC2016  # the literal text in the file
+          grep -qF 'trellis-api:${TRELLIS_VERSION:-latest}' trellis/compose.yaml
+          printf 'NEO4J_PASSWORD=ci-only-password-1234567890\n' > trellis/.env
+          docker compose -f trellis/compose.yaml config --quiet
+          docker compose -f trellis/compose.yaml config --images
+      - name: SHA256SUMS matches the files
+        run: cd dist && sha256sum -c SHA256SUMS
+  installer:
+    name: guided installer (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - name: shellcheck
+        if: runner.os == 'Linux'
+        run: shellcheck -x setup.sh scripts/test-setup.sh
+      - name: setup.sh (fake docker)
+        if: runner.os == 'Linux'
+        run: bash scripts/test-setup.sh
+      - name: setup.ps1 (PowerShell 7)
+        shell: pwsh
+        run: ./scripts/test-setup.ps1
+      - name: setup.ps1 (Windows PowerShell 5.1)
+        if: runner.os == 'Windows'
+        shell: powershell
+        run: ./scripts/test-setup.ps1

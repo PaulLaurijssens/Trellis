@@ -1,4 +1,4 @@
-# Dendrite: assessment of Matt Pocock’s teach skill
+# Trellis: assessment of Matt Pocock’s teach skill
 
 Date: 20 September 2026. Scope: research and proposed adaptation only; no application or VPS changes.
 
@@ -38,7 +38,7 @@ verified audit of the VPS release.
 
 ## Recommendation
 
-Adapt the teaching workflow and artifact concept. Preserve Dendrite’s graph,
+Adapt the teaching workflow and artifact concept. Preserve Trellis’s graph,
 learning paths, learner identity, memory and sources as the authoritative system.
 The main missing layer is a persistent interactive lesson, connected to the mentor
 conversation and able to return meaningful practice evidence.
@@ -49,7 +49,7 @@ prompt into the existing chat cannot provide those missing capabilities.
 
 ## What transfers, and what changes
 
-| Upstream idea | Dendrite adaptation |
+| Upstream idea | Trellis adaptation |
 |---|---|
 | Mission with concrete success criteria | Extend existing goals with desired capability, available time and constraints. Allow casual exploration without a compulsory interview. |
 | Short, focused HTML lessons | Saved lessons with one outcome, one useful interactive example, practice and recap; embedded in the mentor experience. |
@@ -57,7 +57,7 @@ prompt into the existing chat cannot provide those missing capabilities.
 | Knowledge versus skill acquisition | Clear low-friction explanation first; retrieval/prediction/application afterwards, with help and skip options. |
 | Learning records | Reuse the evidence ledger. Add exercise-attempt provenance rather than a parallel Markdown memory store. |
 | Trusted resources | Reuse Source and Mention records; retrieve additional approved sources when needed. Stored snippets and AI video summaries are not full verified sources. |
-| Reusable assets | A shared, versioned component library with Dendrite styling, touch support, accessibility and deterministic calculations. |
+| Reusable assets | A shared, versioned component library with Trellis styling, touch support, accessibility and deterministic calculations. |
 | Reference documents | Save compact reusable concept cards, worked examples and a personal glossary, linked back to lessons and sources. |
 | One mission per workspace | Multiple learner-owned goals in the same knowledge graph; preserve the current active-goal model. |
 | Equal-length quiz answers | Avoid obvious formatting cues, but prioritize clear plausible alternatives over exact character-count constraints. |
@@ -105,7 +105,7 @@ more weight before changing the controls.
 On desktop the visual occupies the main lesson surface, with conversation available
 alongside or below. Keep the graph context collapsible. On mobile show one activity
 at a time with a reachable “Ask mentor” action, touch controls, and exact resume.
-Keep familiar Dendrite styling; avoid adding another dense dashboard.
+Keep familiar Trellis styling; avoid adding another dense dashboard.
 
 ## HTML approach
 

@@ -1,0 +1,69 @@
+name: Bug report
+description: Something does not work as described.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you. Never paste an API key, a password or the contents of `.env`.
+        Tip: the installer makes a report with secrets hidden. Mac or Linux: `bash ~/Trellis/setup.sh --report`.
+        Windows: `powershell -ExecutionPolicy Bypass -File $HOME\Trellis\setup.ps1 -Report`. Attach it below.
+        A security problem? Do not open an issue: see SECURITY.md.
+  - type: input
+    id: version
+    attributes:
+      label: Trellis version
+      description: The release (for example 0.4.0), or the git commit for a source checkout. `curl -s http://localhost:8080/api/health` shows it.
+      placeholder: "0.4.0"
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Operating system and version, processor, memory, Docker Desktop or Docker Engine and its version, how you installed (installer, bundle, source), and the AI provider.
+      placeholder: |
+        Windows 11 23H2, Intel, 16 GB
+        Docker Desktop 4.50.0
+        Installed with the installer
+        Provider: OpenAI
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Run the installer
+        2. Choose OpenAI in the setup screen
+        3. ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: What happened instead
+    validations:
+      required: true
+  - type: textarea
+    id: error
+    attributes:
+      label: Error text, logs or report
+      description: The exact error text, the output of `docker compose logs --tail 100 api`, or the installer report. Remove keys and passwords.
+      render: text
+  - type: dropdown
+    id: severity
+    attributes:
+      label: Severity
+      options:
+        - Blocks me (I cannot install or use Trellis)
+        - Annoying (there is a workaround)
+        - Small (text, layout, a detail)
+    validations:
+      required: true
