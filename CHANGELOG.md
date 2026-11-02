@@ -4,7 +4,7 @@ All notable changes to Trellis. Dates are UTC. Versions follow the git tags.
 
 ## [Unreleased]
 
-## [0.4.0] - 2026-10-26
+## [0.4.0] - 2026-11-02
 
 ### Added
 - **Your learning memory, portable.** *My profile → Your data* downloads your whole learning memory
@@ -48,7 +48,6 @@ All notable changes to Trellis. Dates are UTC. Versions follow the git tags.
 - When a site will not hand over an article (paywall, bot check, a page built with JavaScript), the
   Link tab says why and asks you to paste the text right there. The link stays the source, with the
   page title filled in when the site gave one.
-
 - **Add your language.** Trellis ships in English; the README has a prompt that lets an AI coding
   agent add your language (screens, lessons and memory) in a few minutes. The mentor already answers
   in the language you write in.
