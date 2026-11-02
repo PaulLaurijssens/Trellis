@@ -55,6 +55,7 @@ jobs:
       - name: MCP server against the official MCP Python client
         run: |
           read -r MEMORY_KEY CONVERSATIONS_KEY < <(python tests/make_mcp_tokens.py | tail -1)
+          sudo ln -sfn "$GITHUB_WORKSPACE/db" /import   # the API loads /import/schema.cypher, as in compose
           uvicorn app.main:app --port 8000 > /tmp/api.log 2>&1 &
           for _ in $(seq 1 60); do curl -sf http://127.0.0.1:8000/health > /dev/null && break; sleep 1; done
           python -m venv /tmp/mcp && /tmp/mcp/bin/pip install -q "mcp==2.3.0"
