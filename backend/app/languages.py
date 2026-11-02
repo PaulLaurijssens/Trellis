@@ -7,8 +7,6 @@ write in `name(code)`."""
 import re
 from typing import Annotated
 
-from pydantic import AfterValidator
-
 DEFAULT = "en"
 LANGUAGES = {
     "en": {"name": "English", "native": "English"},
@@ -34,7 +32,12 @@ def check(code: str) -> str:
     return code
 
 
-Code = Annotated[str, AfterValidator(check)]
+try:
+    from pydantic import AfterValidator
+except ImportError:  # the pure unit tests import this module without any packages installed
+    Code = str
+else:
+    Code = Annotated[str, AfterValidator(check)]
 
 
 def name(code) -> str:
