@@ -1,6 +1,5 @@
 "use client";
 import { useEffect, useMemo, useRef, useState } from "react";
-import LevelPills from "./LevelPills";
 import { matchNodes } from "../lib/detect";
 import { useT } from "../lib/i18n";
 
@@ -22,8 +21,8 @@ const SpinIcon = () => (
 
 // Search field (default) + "Add": an input card with several source types.
 export default function CommandBar({
-  levels, level, nodes, candidates = [], busy, empty, shifted,
-  clusters = [], clusterScope = "", onCluster, focusRequest,
+  level, nodes, candidates = [], busy, empty, shifted,
+  clusters = [], clusterScope = "", onCluster, focusRequest, addRequest,
   onSearch, onOpen, onLearn, onGenerate, onAnalyze, onAnalyzeYoutube, onCandidate,
   onAnalyzeFile, onAnalyzeUrl, onPodcastEpisodes, onAnalyzePodcast,
 }) {
@@ -41,7 +40,8 @@ export default function CommandBar({
   const [focused, setFocused] = useState(false);
   const [adding, setAdding] = useState(false);
   const [type, setType] = useState("topic");
-  const [lvl, setLvl] = useState(level || 3);
+  // The depth the mentor starts at: the one chosen last on the learning screen (default 3).
+  const lvl = level || 3;
   // invoerkaart
   const [term, setTerm] = useState("");
   const [context, setContext] = useState("");
@@ -60,7 +60,6 @@ export default function CommandBar({
   const firstField = useRef(null);
   const wrap = useRef(null);
 
-  useEffect(() => { setLvl(level || 3); }, [level]);
   useEffect(() => { onSearch?.(text.trim()); }, [text]);   // filter the graph while typing
 
   // Shortcuts: "/" or ⌘K to the search field, ⌘N opens the input card.
@@ -85,6 +84,8 @@ export default function CommandBar({
     document.addEventListener("pointerdown",onOutside);document.addEventListener("focusin",onOutside);
     return()=>{document.removeEventListener("pointerdown",onOutside);document.removeEventListener("focusin",onOutside);};
   }, []);
+  // "Add a topic" on the empty map opens the input card on the Topic tab.
+  useEffect(()=>{if(addRequest){setType("topic");setAdding(true);setFocused(false);}},[addRequest]);
   useEffect(()=>{if(focusRequest){setAdding(false);setBrowseMode("topics");setText("");setFocused(true);requestAnimationFrame(()=>input.current?.focus());}},[focusRequest]);
 
   useEffect(() => { if (adding) setTimeout(() => firstField.current?.focus(), 30); }, [adding, type]);
@@ -209,7 +210,6 @@ export default function CommandBar({
                   <textarea id="add-context" rows={2} value={context} placeholder={t("cmd.topic.contextPh")} onChange={(e) => setContext(e.target.value)} />
                 </div>
                 <div className="cmd-actions">
-                  <LevelPills levels={levels} value={lvl} onChange={setLvl} label={t("common.level")} />
                   <span style={{ flex: 1 }} />
                   <button className="btn ghost" disabled={!term.trim() || !!busy} onClick={generate} title={t("cmd.topic.generateHint")}>{t("cmd.topic.generate")}</button>
                   <button className="btn" disabled={!canSubmit || !!busy} onClick={submitCard}>{t("cmd.topic.learn")} ↵</button>
@@ -327,7 +327,7 @@ export default function CommandBar({
             {!busy && activeCluster && <button className="scope-chip chip" onClick={()=>onCluster?.("")} aria-label={t("search.clearCluster",{name:activeCluster.name})}>{activeCluster.name} ×</button>}
             {!busy && text && <button className="icon-btn x" onClick={resetSearch} aria-label={t("cmd.clear")}>×</button>}
             {!busy && !text && <span className="kbd" title="Sneltoets">/</span>}
-            <button className="cta" onClick={openCard} disabled={!!busy} title="⌘N">{t("cmd.add")} +</button>
+            <button className={"cta" + (empty && !busy ? " attention" : "")} onClick={openCard} disabled={!!busy} title="⌘N">{t("cmd.add")} +</button>
           </div>
         )}
 
@@ -369,7 +369,6 @@ export default function CommandBar({
                 <span className="what">
                   {matches.exact ? t("cmd.learnAgain", { q }) : t("cmd.learnNew", { q })}
                 </span>
-                <LevelPills levels={levels} value={lvl} onChange={setLvl} small label={null} />
                 <button className="btn" onMouseDown={(e) => e.preventDefault()} onClick={() => { onLearn(q, lvl, ""); resetSearch(); }}>
                   {t("cmd.learnThis")}{matches.exact ? "" : " ↵"}
                 </button>
@@ -382,12 +381,6 @@ export default function CommandBar({
 
       {busy && !adding && <div className="cmd-hint">{busy.hint}</div>}
 
-      {empty && !busy && !text && !adding && (
-        <>
-          <div className="empty-line" />
-          <div className="empty-hint">{t("empty.hint")}</div>
-        </>
-      )}
     </div>
   );
 }

@@ -4,6 +4,16 @@ All notable changes to Trellis. Dates are UTC. Versions follow the git tags.
 
 ## [Unreleased]
 
+### Changed
+- A new, empty map has one clear first step: **Add** and the **Add a topic** link (which now opens
+  the input card) pulse gently, and the extra "Start with a concept" box is gone.
+- **Learning path** is switched off until the map has a topic, and says why on hover or tap,
+  instead of "organizing" nothing.
+- The map explanation and legend are hidden on an empty map, and an **i** next to the zoom buttons
+  hides or shows them (remembered per browser).
+- The level picker (1 to 5) is gone from the input card and the search: Learn starts at the depth
+  you chose last on the learning screen, where **Depth** now has a short explanation behind an **i**.
+
 ### Fixed
 - The OpenAI preset asked for `openai/gpt-5.5-mini`, a model that does not exist, so its setup test
   always failed on the extract model. It now uses `openai/gpt-5.4-mini`.

@@ -75,6 +75,11 @@ try {
   await page.locator(".teaching-figure").waitFor();
   await page.locator(".chat-log").evaluate(el => el.scrollTop=0);
   await shot(page,'redesign-learn.png',{fullPage:true, animations:"disabled" });
+  // Depth has a short explanation behind its "i".
+  await page.getByRole("button",{name:"Depth",exact:true}).hover();
+  await page.getByRole("tooltip").filter({hasText:"How the mentor explains"}).waitFor();
+  await shot(page,'learn-depth-hint.png',{clip:{x:700,y:0,width:900,height:420}});
+  await page.mouse.move(5,5);
   const card = (name) => page.locator(".conversation-suggestion").filter({ has: page.locator("strong", { hasText: name }) });
   assert.equal(await page.locator(".conversation-suggestion:visible").count(), 1);
   await page.getByText(/More paths/).click();

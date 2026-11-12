@@ -14,7 +14,7 @@ const labelLines = name => {
   return lines.slice(0,3).map((line,i)=>i===2 && lines.length>3?line+"…":line);
 };
 
-export default function GraphView({ data, selectedName, highlightQuery = "", hoverName, onSelect, ambientMotion = true, reducedMotion = false, hidden = false, onStartLearning, starting = false, focusRequest, onGroupsChange, onScopeChange }) {
+export default function GraphView({ data, selectedName, highlightQuery = "", hoverName, onSelect, ambientMotion = true, reducedMotion = false, hidden = false, onStartLearning, starting = false, focusRequest, onGroupsChange, onScopeChange, onAddTopic, showInfo = true, onToggleInfo }) {
   const { t } = useT();
   const wrap=useRef(null), svg=useRef(null), drag=useRef(null), pointer=useRef(null), fitted=useRef(false), offsets=useRef(new Map());
   // Touch: touches = active fingers, pinch = a two-finger gesture in progress.
@@ -187,8 +187,9 @@ export default function GraphView({ data, selectedName, highlightQuery = "", hov
         </g>;
       })}
     </svg>
-    {!data.nodes.length&&<div className="atlas-empty"><h2>{t("explore.empty")}</h2><p>{t("explore.emptyHint")}</p></div>}
+    {!data.nodes.length&&<div className="atlas-empty"><h2>{t("explore.empty")}</h2><p><button type="button" className="textlink add-topic-link attention" onClick={onAddTopic}>{t("explore.emptyAdd")}</button> {t("explore.emptyHint")}</p></div>}
     {edge&&<div className="edge-detail"><button onClick={()=>setEdge(null)} aria-label={t("common.close")}>×</button><strong>{edge.a} · {t("relation."+edge.type)} · {edge.b}</strong><p>{edge.reason||t("explore.edgeNoReason")}</p></div>}
-    <div className="atlas-bottom"><div className="detail-explainer" aria-live="polite"><strong>{t("zoom."+detail)}</strong><span>{t("zoom."+detail+"Hint")}</span></div><div className="zoom-controls"><button onClick={()=>zoom(1/1.4)} aria-label={t("zoom.out")}>−</button><button onClick={()=>zoom(1.4)} aria-label={t("zoom.in")}>+</button><button onClick={()=>fit(scope?layout.groups.find(g=>g.key===scope):null)}>{t("zoom.fit")}</button></div></div>
+    {/* An empty map has nothing to zoom or explain. The explanation can be hidden; the choice is kept. */}
+    {!!data.nodes.length&&<div className="atlas-bottom">{showInfo?<div className="detail-explainer" aria-live="polite"><strong>{t("zoom."+detail)}</strong><span>{t("zoom."+detail+"Hint")}</span></div>:<span/>}<div className="zoom-controls"><button type="button" className="info-toggle" aria-pressed={showInfo} onClick={onToggleInfo} title={t(showInfo?"map.hideInfo":"map.showInfo")} aria-label={t("map.info")}>i</button><button onClick={()=>zoom(1/1.4)} aria-label={t("zoom.out")}>−</button><button onClick={()=>zoom(1.4)} aria-label={t("zoom.in")}>+</button><button onClick={()=>fit(scope?layout.groups.find(g=>g.key===scope):null)}>{t("zoom.fit")}</button></div></div>}
   </div>;
 }

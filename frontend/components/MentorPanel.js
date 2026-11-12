@@ -135,7 +135,7 @@ export default function MentorPanel({
   const recap = (!state?.summary_stale && state?.summary) || (state?.covered?.length ? state.covered.slice(0, 2).join(" · ") : t("learn.freshStart"));
   const introduction = (withDock) => <header className="lesson-heading">
     <LearningTrail trail={trail} onReturn={onReturn} />
-    <div className="lesson-eyebrow"><span className={"status-dot " + concept.status} />{concept.name}<label className="depth-select">{t("learn.depth")}<select value={level} disabled={busy.chat || busy.explain} onChange={(e) => onLevel(Number(e.target.value))}>{[1,2,3,4,5].map((n) => <option key={n} value={n}>{t("depth." + n)}</option>)}</select></label></div>
+    <div className="lesson-eyebrow"><span className={"status-dot " + concept.status} />{concept.name}<label className="depth-select">{t("learn.depth")}<select value={level} disabled={busy.chat || busy.explain} onChange={(e) => onLevel(Number(e.target.value))}>{[1,2,3,4,5].map((n) => <option key={n} value={n}>{t("depth." + n)}</option>)}</select></label><span className="hint-tip"><button type="button" className="info-dot" aria-label={t("learn.depth")} aria-describedby="depth-hint">i</button><span id="depth-hint" role="tooltip">{t("learn.depthHint")}</span></span></div>
     <h1>{question}</h1>
     <details className="memory-recap"><summary><span><LocalizedText>{recap}</LocalizedText></span><b>{t("learn.viewMemory")}</b></summary><MemoryDetail compact key={concept.name} name={concept.name} state={state} onPatch={onRemoveMemory} onObservation={onObservation} onPosition={onPosition} /></details>
     {(!chat?.messages?.length || withDock) && !lesson && <p className="lesson-definition"><LocalizedText>{concept.definition}</LocalizedText></p>}
