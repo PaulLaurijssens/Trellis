@@ -1,15 +1,15 @@
 /* Trellis service worker.
  *
- * Bewust conservatief. Een agressieve cache in een app die met een API praat levert
- * stale data en spookbugs op, dus:
- *   - /api/**            : NOOIT cachen. Altijd netwerk.
- *   - /_next/static/**   : cache-first. Die bestanden hebben een hash in de naam en
- *                          zijn onveranderlijk, dus dit is veilig en maakt starten snel.
- *   - navigaties         : network-first met de cache als terugval, zodat de app opent
- *                          zonder verbinding en je een shell ziet i.p.v. de dino.
- *   - de rest            : netwerk, cache als terugval.
+ * Conservative on purpose. An aggressive cache in an app that talks to an API gives
+ * stale data and ghost bugs, so:
+ *   - /api/**            : NEVER cached. Always the network.
+ *   - /_next/static/**   : cache-first. These files have a hash in their name and never
+ *                          change, so this is safe and makes starting fast.
+ *   - navigations        : network-first with the cache as fallback, so the app opens
+ *                          offline and you see a shell instead of the dinosaur.
+ *   - the rest           : network, cache as fallback.
  *
- * CACHE bevat de versie. Bij een nieuwe deploy bump je die en ruimt activate de oude op.
+ * CACHE holds the version. Bump it on a new deploy and activate cleans up the old one.
  */
 const CACHE = "trellis-v6";
 const PRECACHE = ["/", "/manifest.webmanifest", "/icons/icon-192.png", "/icons/icon-512.png"];
@@ -44,7 +44,7 @@ self.addEventListener("fetch", (event) => {
 
   const url = new URL(req.url);
   if (url.origin !== self.location.origin) return;
-  if (url.pathname.startsWith("/api/")) return;   // data gaat nooit in de cache
+  if (url.pathname.startsWith("/api/")) return;   // data never goes into the cache
 
   if (isImmutableAsset(url)) {
     event.respondWith(

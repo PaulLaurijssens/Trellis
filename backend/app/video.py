@@ -2,7 +2,7 @@
 import math
 import os
 import httpx
-from . import llm, jobs
+from . import jobs, languages, llm
 
 PROMPT = '''Analyze the attached public YouTube video itself, not prior knowledge about its URL.
 Do not transcribe it. Extract at most 30 important learning concepts and their relationships.
@@ -40,7 +40,7 @@ def normalize(data):
 
 def analyze(url, language='en', job_id=None):
     jobs.update(job_id,'video',0,0,'Analyzing video directly…')
-    prompt=PROMPT.replace('LANGUAGE','English' if language=='en' else 'Dutch')
+    prompt=PROMPT.replace('LANGUAGE',languages.name(language))
     model=os.getenv('VIDEO_MODEL',llm.EXTRACT_MODEL)
     response=httpx.post('https://generativelanguage.googleapis.com/v1beta/interactions',
         headers={'x-goog-api-key':os.getenv('GEMINI_API_KEY') or os.getenv('GOOGLE_API_KEY') or ''},

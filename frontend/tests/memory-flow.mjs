@@ -1,4 +1,5 @@
 // Phase 2 UI integration, all API responses intercepted.
+import {shot} from './mock-api.mjs';
 import assert from "node:assert/strict";
 const {chromium}=await import(process.env.MENTOR_PLAYWRIGHT_MODULE||"playwright");
 const browser=await chromium.launch({headless:true,...(process.env.MENTOR_BROWSER_PATH?{executablePath:process.env.MENTOR_BROWSER_PATH}:{})});
@@ -11,9 +12,16 @@ try {
  const node={id:"v",name:"Vectors",status:"learning"};
  await page.route("http://localhost:8000/**",async route=>{
   const req=route.request(),path=decodeURIComponent(new URL(req.url()).pathname),body=req.postData()?JSON.parse(req.postData()):{};
-  if(req.method()==="OPTIONS"){await route.fulfill({status:204,headers:{"Access-Control-Allow-Origin":"*","Access-Control-Allow-Headers":"content-type","Access-Control-Allow-Methods":"GET,POST,PATCH,OPTIONS"}});return;}
+  if(req.method()==="OPTIONS"){await route.fulfill({status:204,headers:{"Access-Control-Allow-Origin":"http://localhost:3000","Access-Control-Allow-Credentials":"true","Access-Control-Allow-Headers":"content-type","Access-Control-Allow-Methods":"GET,POST,PATCH,OPTIONS"}});return;}
   let data={},status=200;
-  if(path==="/levels")data={1:"First steps",2:"Foundations",3:"Practical",4:"Technical",5:"Advanced"};
+  // Signed in (the app checks the session first); nothing else from Settings is under test here.
+  if(path==="/auth/status")data={setup_needed:false,authenticated:true,person:{id:"paul",name:"Paul",language:"en",is_admin:false},profiles:[],configured:true};
+  else if(path==="/health")data={ok:true,version:"test"};
+  else if(path==="/curriculum")status=503;
+  else if(path==="/translations")data={texts:body.texts};
+  else if(path==="/auth/settings")data={provider:"gemini",lesson_cost_limit:0};
+  else if(path.startsWith("/teach/"))data={enabled:false,cached:0,cost_limit:0,estimated_usd:0,lessons:0,total:0,price_per_mtok:{input:0,output:0}};
+  else if(path==="/levels")data={1:"First steps",2:"Foundations",3:"Practical",4:"Technical",5:"Advanced"};
   else if(path==="/journey/paul")data={goals:[],active_goal:null,recent:null,review:[],sources:[]};
   else if(path==="/journey/paul/examples")data=[];
   else if(path==="/graph")data={nodes:[node],edges:[]};
@@ -24,7 +32,7 @@ try {
   else if(path.endsWith("/position")){if(body.intent)state.intent=body.intent;if(body.assessment)state.self_assessment.value=body.assessment;data=state;}
   else if(path.startsWith("/memory/"))data={ambient_motion:false,ui_language:"en",learning_profile:{},concepts:[{concept:"Vectors",...state}]};
   else throw Error("Unexpected request "+path);
-  await route.fulfill({status,contentType:"application/json",headers:{"Access-Control-Allow-Origin":"*"},body:JSON.stringify(data)});
+  await route.fulfill({status,contentType:"application/json",headers:{"Access-Control-Allow-Origin":"http://localhost:3000","Access-Control-Allow-Credentials":"true"},body:JSON.stringify(data)});
  });
  await page.goto(process.env.MENTOR_TEST_URL||"http://localhost:3000");
  await page.getByRole("button",{name:"Retry memory update",exact:true}).click();
@@ -33,20 +41,20 @@ try {
  await page.locator(".memory-retry").waitFor({state:"detached"});
  await page.locator(".memory-recap > summary").click();
  const memory=page.locator(".memory-recap .memory-evolution");
- await Promise.all([page.waitForResponse(r=>r.url().endsWith("/position")),memory.getByLabel("My understanding",{exact:true}).selectOption("understood")]);
+ await Promise.all([page.waitForResponse(r=>r.url().endsWith("/position")),memory.getByRole("radiogroup",{name:"My understanding"}).getByRole("radio",{name:"Understood",exact:true}).check()]);
  assert.equal(state.self_assessment.value,"understood");
- await Promise.all([page.waitForResponse(r=>r.url().endsWith("/position")),memory.getByLabel("Learning intent",{exact:true}).selectOption("queued")]);
+ await Promise.all([page.waitForResponse(r=>r.url().endsWith("/position")),memory.getByRole("radiogroup",{name:"Learning intent"}).getByRole("radio",{name:"Plan to learn",exact:true}).check()]);
  assert.equal(state.intent,"queued");
  await memory.getByText(/Demonstrated understanding · 1/).click();
  await memory.getByText("The dot product is four.",{exact:true}).waitFor();
  await Promise.all([page.waitForResponse(r=>r.url().endsWith("/observations/difficulty")),memory.getByRole("button",{name:"No longer a difficulty",exact:true}).click()]);
  assert.equal(state.observations[0].state,"resolved");
- await memory.getByText(/Observation history · 1/).click();
+ await memory.getByText(/Earlier observations · 1/).click();
  await memory.getByText(/Your correction/).waitFor();
  await Promise.all([page.waitForResponse(r=>r.url().endsWith("/observations/difficulty")),memory.getByRole("button",{name:"Relevant again",exact:true}).click()]);
  assert.equal(state.observations[0].state,"active");
  await page.locator(".chat-log").evaluate(el=>el.scrollTop=0);
- await page.screenshot({path:"/private/tmp/phase2-memory.png",fullPage:true});
+ await shot(page,'phase2-memory.png',{fullPage:true});
  assert.deepEqual(errors,[]);
  console.log("PASS: memory failure/retry, self-assessment, intent, quoted evidence, resolution history and reactivation; no browser errors.");
 }finally{await browser.close();}

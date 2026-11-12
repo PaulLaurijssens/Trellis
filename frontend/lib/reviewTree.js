@@ -1,8 +1,8 @@
-// Boomstructuur van kandidaten uit een analyse, op basis van candidate_relations.
-// Hoofdtopics: kandidaten die doel zijn van PART_OF/PREREQUISITE_OF en zelf geen
-// ouder hebben (of: ouderloos maar wel in een relatie). Subtopics hangen via
-// PART_OF/PREREQUISITE_OF (ouder) of RELATED_TO (verwant) aan een hoofdtopic.
-// Kandidaten zonder enige relatie vormen de groep "Losse onderwerpen".
+// Tree of candidates from an analysis, based on candidate_relations.
+// Main topics: candidates that are the target of PART_OF/PREREQUISITE_OF and have no
+// parent themselves (or: no parent but in some relation). Subtopics hang below a main
+// topic through PART_OF/PREREQUISITE_OF (parent) or RELATED_TO (related).
+// Candidates without any relation form the "loose topics" group.
 const norm = (s) => String(s || "").toLowerCase().trim();
 export const score = (c) => (c.importance || 0) * 10 + (c.chunk_count || 0) + (c.llm_importance || 0) / 10;
 
@@ -25,14 +25,14 @@ export function buildReviewTree(candidates, relations) {
   const byName = new Map(candidates.map((c) => [c.name, c]));
   const sorted = (names) => [...names].map((n) => byName.get(n)).filter(Boolean).sort((x, y) => score(y) - score(x));
 
-  // Ouder = de hoogst scorende van de structurele ouders; cycli breken we
-  // door een ouder die lager scoort dan het kind zelf te negeren.
+  // Parent = the highest scoring structural parent; cycles are broken by ignoring a
+  // parent that scores lower than the child itself.
   const parent = new Map();
   for (const c of candidates) {
     const ps = sorted(parentsOf.get(c.name) || []).filter((p) => score(p) >= score(c) || !(parentsOf.get(p.name) || new Set()).has(c.name));
     if (ps.length) parent.set(c.name, ps[0].name);
   }
-  // Ketens naar de wortel volgen (met cyclusbeveiliging).
+  // Follow chains to the root (with cycle protection).
   const rootOf = (name) => {
     const seen = new Set();
     let cur = name;
@@ -54,7 +54,7 @@ export function buildReviewTree(candidates, relations) {
   };
   const roots = mains.map((m) => ({ ...buildNode(m, 0), kind: "main" }));
 
-  // Losse RELATED_TO-verwanten onder het hoofdtopic van hun beste buur.
+  // Loose RELATED_TO relatives go under the main topic of their best neighbour.
   for (const c of candidates) {
     if (placed.has(c.name) || !related.has(c.name)) continue;
     const buddies = sorted(related.get(c.name)).filter((b) => placed.has(b.name));
@@ -64,8 +64,8 @@ export function buildReviewTree(candidates, relations) {
     root.children.push({ cand: c, kind: "related", children: [] });
     placed.add(c.name);
   }
-  // Hoofdtopics die alleen verwanten hebben maar zelf niet 'main' werden: al
-  // afgehandeld; wat overblijft zonder relaties is los.
+  // Main topics with only relatives that did not become 'main' themselves are already
+  // handled; what is left without relations is loose.
   const loose = candidates.filter((c) => !placed.has(c.name)).sort((x, y) => score(y) - score(x));
   for (const r of roots) r.children.sort((x, y) => score(y.cand) - score(x.cand));
   return { roots, loose };

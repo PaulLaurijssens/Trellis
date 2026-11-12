@@ -1,19 +1,104 @@
-"""LLM-agnostische laag. Model wisselen = .env aanpassen."""
-import asyncio, json, os, re
+"""Model-agnostic layer. Changing models = changing the settings, not the code."""
+import asyncio, json, os, random, re, time
 import litellm
 
-# Twee taken, twee modellen: extractie is volume-werk (snel/goedkoop),
-# mentor-antwoorden vragen om redeneerkracht.
+from .provider_errors import ProviderError, classify
+
+# Provider presets include reasoning models that reject optional sampling parameters.
+litellm.drop_params = True
+
+# Two jobs, two models: extraction is volume work (fast and cheap), mentor answers
+# need reasoning power.
 EXTRACT_MODEL = os.getenv("EXTRACT_MODEL", "gemini/gemini-3.7-flash")
 MENTOR_MODEL = os.getenv("MENTOR_MODEL", "gemini/gemini-3.1-pro-preview")
 EMBED_MODEL = os.getenv("EMBED_MODEL", "gemini/gemini-embedding-2-preview")
 EMBED_DIM = int(os.getenv("EMBED_DIM", "3072"))
-# Gemini Embedding 2: Google raadt voor tekst-taken een task-instructie als prefix aan.
+# Gemini Embedding 2: Google recommends a task instruction as a prefix for text tasks.
 EMBED_PREFIX = os.getenv("EMBED_PREFIX", "task: search result | query: ")
+
+# Provider "custom" (Other): its own endpoint and key variable, set by settings.apply(). Passed per call,
+# and only for the custom models, so a model set in .env for another provider never gets this endpoint.
+API_BASE: str | None = None
+API_VERSION: str | None = None
+API_KEY_ENV: str | None = None
+CUSTOM_MODELS: set[str] = set()
+
+# Retries on busy (503) and rate limits (429): exponential backoff with jitter, honour retry_after.
+LLM_RETRIES = int(os.getenv("LLM_RETRIES", "3"))
+BACKOFF_BASE = 2.0
+BACKOFF_CAP = 30.0
+_sleep = time.sleep
+_asleep = asyncio.sleep
+
+
+def endpoint(model: str) -> dict:
+    """Extra LiteLLM arguments for this model: api_base/api_version/api_key of the custom provider."""
+    if model not in CUSTOM_MODELS:
+        return {}
+    out = {}
+    if API_BASE:
+        out["api_base"] = API_BASE
+    if API_VERSION:
+        out["api_version"] = API_VERSION
+    if API_KEY_ENV and os.getenv(API_KEY_ENV):
+        out["api_key"] = os.getenv(API_KEY_ENV)
+    return out
+
+
+def _stage(stage: str | None, model: str, phase: str = "") -> str | None:
+    if stage:
+        return stage
+    if phase in ("plan", "author", "agent", "rubric"):
+        return "lesson"
+    if phase in ("extract", "segment", "resolve", "relations") or model == EXTRACT_MODEL:
+        return "extract"
+    if model == MENTOR_MODEL:
+        return "mentor"
+    return None
+
+
+def backoff(attempt: int, err: ProviderError) -> float:
+    """Seconds before retry number `attempt` (0-based)."""
+    if err.retry_after:
+        return min(BACKOFF_CAP, float(err.retry_after) + random.uniform(0, 1))
+    return min(BACKOFF_CAP, BACKOFF_BASE * 2 ** attempt * random.uniform(0.75, 1.25))
+
+
+def call_model(fn, model: str, stage: str | None, retries: int | None = None):
+    """Run one model call; failures become ProviderError, busy/quota are retried."""
+    retries = LLM_RETRIES if retries is None else retries
+    for attempt in range(retries + 1):
+        try:
+            return fn()
+        except Exception as exc:
+            err = classify(exc, model=model, stage=stage)
+            if not err.retryable or attempt >= retries:
+                raise err from exc
+            _sleep(backoff(attempt, err))
+
+
+async def acall_model(fn, model: str, stage: str | None, retries: int | None = None):
+    """Async variant of call_model(): `fn` returns an awaitable."""
+    retries = LLM_RETRIES if retries is None else retries
+    for attempt in range(retries + 1):
+        try:
+            return await fn()
+        except Exception as exc:
+            err = classify(exc, model=model, stage=stage)
+            if not err.retryable or attempt >= retries:
+                raise err from exc
+            await _asleep(backoff(attempt, err))
+
+
+def _check_dim(vector, model: str):
+    if EMBED_DIM and len(vector) != EMBED_DIM:
+        raise ProviderError("provider.embedDim", model=model, stage="embed", expected=EMBED_DIM, got=len(vector),
+                            provider=model.split("/", 1)[0] if "/" in model else None)
+    return vector
 
 
 class Usage:
-    """Tokenteller per fase, zodat een analyse kan rapporteren wat hij kostte."""
+    """Token counter per phase, so an analysis can report what it cost."""
 
     def __init__(self):
         self.phases: dict[str, dict] = {}
@@ -23,7 +108,7 @@ class Usage:
         prompt = getattr(u, "prompt_tokens", None) if u else None
         completion = getattr(u, "completion_tokens", None) if u else None
         if prompt is None:
-            prompt = fallback_chars // 4          # geen usage teruggekregen: schatting
+            prompt = fallback_chars // 4          # no usage returned: estimate
         cached = 0
         details = getattr(u, "prompt_tokens_details", None) if u else None
         if details is not None:
@@ -49,7 +134,7 @@ def _strip_fences(text: str) -> str:
 
 
 def parse_json(text: str):
-    """JSON uit een modelantwoord, tolerant voor fences en pratende inleidingen."""
+    """JSON from a model answer, tolerant of code fences and chatty introductions."""
     text = _strip_fences(text)
     try:
         return json.loads(text)
@@ -63,13 +148,14 @@ def parse_json(text: str):
 
 
 def complete(system: str, user: str, model: str, json_mode: bool = False,
-             usage: Usage | None = None, phase: str = "", timeout: float = 180.0) -> str:
-    resp = litellm.completion(
+             usage: Usage | None = None, phase: str = "", timeout: float = 180.0, stage: str | None = None) -> str:
+    resp = call_model(lambda: litellm.completion(
         model=model,
         messages=[{"role": "system", "content": system}, {"role": "user", "content": user}],
         temperature=0.2,
         timeout=timeout,
-    )
+        **endpoint(model),
+    ), model, _stage(stage, model, phase))
     if usage is not None:
         usage.add(phase, resp, len(system) + len(user))
     text = resp.choices[0].message.content
@@ -77,48 +163,52 @@ def complete(system: str, user: str, model: str, json_mode: bool = False,
 
 
 def complete_json(system: str, user: str, model: str, usage: Usage | None = None,
-                  phase: str = "", timeout: float = 180.0) -> dict | list:
-    return parse_json(complete(system, user, model, json_mode=True, usage=usage, phase=phase, timeout=timeout))
+                  phase: str = "", timeout: float = 180.0, stage: str | None = None) -> dict | list:
+    return parse_json(complete(system, user, model, json_mode=True, usage=usage, phase=phase, timeout=timeout, stage=stage))
 
 
 async def acomplete_json(system: str, user: str, model: str, usage: Usage | None = None,
-                         phase: str = "", timeout: float = 180.0) -> dict | list:
-    """Asynchrone variant voor de parallelle extractie."""
-    resp = await litellm.acompletion(
+                         phase: str = "", timeout: float = 180.0, stage: str | None = None) -> dict | list:
+    """Async variant for the parallel extraction."""
+    resp = await acall_model(lambda: litellm.acompletion(
         model=model,
         messages=[{"role": "system", "content": system}, {"role": "user", "content": user}],
         temperature=0.2,
         timeout=timeout,
-    )
+        **endpoint(model),
+    ), model, _stage(stage, model, phase))
     if usage is not None:
         usage.add(phase, resp, len(system) + len(user))
     return parse_json(resp.choices[0].message.content)
 
 
 def embed(texts: list[str], usage: Usage | None = None, phase: str = "embed") -> list[list[float]]:
-    """Eén call per tekst: Gemini Embedding 2 aggregeert meerdere inputs
-    in één call tot één vector, dus batchen zou concepten samensmelten."""
+    """One call per text: Gemini Embedding 2 aggregates several inputs in one call
+    into one vector, so batching would merge concepts."""
     out = []
+    model = EMBED_MODEL
     for t in texts:
-        resp = litellm.embedding(model=EMBED_MODEL, input=[EMBED_PREFIX + t], dimensions=EMBED_DIM)
+        resp = call_model(lambda: litellm.embedding(model=model, input=[EMBED_PREFIX + t], dimensions=EMBED_DIM, **endpoint(model)),
+                    model, "embed")
         if usage is not None:
             usage.add(phase, resp, len(t))
-        out.append(resp.data[0]["embedding"])
+        out.append(_check_dim(resp.data[0]["embedding"], model))
     return out
 
 
 async def aembed(texts: list[str], usage: Usage | None = None, phase: str = "embed",
                  concurrency: int = 6) -> list[list[float]]:
-    """Zelfde als embed(), maar parallel met een semaphore."""
+    """Same as embed(), but in parallel with a semaphore."""
     sem = asyncio.Semaphore(concurrency)
+    model = EMBED_MODEL
 
     async def one(t: str):
         async with sem:
-            resp = await litellm.aembedding(model=EMBED_MODEL, input=[EMBED_PREFIX + t],
-                                            dimensions=EMBED_DIM)
+            resp = await acall_model(lambda: litellm.aembedding(model=model, input=[EMBED_PREFIX + t],
+                                                          dimensions=EMBED_DIM, **endpoint(model)), model, "embed")
             if usage is not None:
                 usage.add(phase, resp, len(t))
-            return resp.data[0]["embedding"]
+            return _check_dim(resp.data[0]["embedding"], model)
 
     return list(await asyncio.gather(*(one(t) for t in texts)))
 
@@ -176,8 +266,8 @@ def tool_loop(system: str, task: str, tools: list[dict], handler, model: str, ma
                 grace -= 1
                 if grace < 0:
                     raise ToolLoopStopped("cost limit reached")
-        resp = litellm.completion(model=model, messages=messages, tools=tools, tool_choice="auto",
-                                  temperature=0.3, timeout=timeout)
+        resp = call_model(lambda: litellm.completion(model=model, messages=messages, tools=tools, tool_choice="auto",
+                                               temperature=0.3, timeout=timeout, **endpoint(model)), model, "lesson")
         if usage is not None:
             usage.add(phase, resp)
         message = resp.choices[0].message

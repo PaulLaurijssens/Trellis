@@ -1,4 +1,4 @@
-"""Mentor-chat. Bouwt de systeemprompt uit de graph plus het geheugen."""
+"""Mentor chat. Builds the system prompt from the graph plus the memory."""
 import litellm
 import json
 
@@ -23,11 +23,14 @@ How you teach:
 {language_rule}"""
 
 def detect_language(text: str) -> str | None:
-    """Language of a message ('nl', 'en', ...) or None when it cannot be told. See languages.py."""
+    """Language of a message ('en', ...) or None when it cannot be told. See languages.py."""
     return languages.detect(text)
 
 
-def language_rule(reply_lang: str, ui_lang: str) -> str:
+def language_rule(reply_lang: str | None, ui_lang: str) -> str:
+    if reply_lang is None:
+        return (f"- Answer in the language of the learner's last message, whatever language that is."
+                f"\n- When you cannot tell which language that is, answer in {languages.name(ui_lang)}.")
     rule = f"- Answer in {languages.name(reply_lang)}: the language of the learner's last message."
     if reply_lang != ui_lang:
         rule += f"\n- This person's preferred language is {languages.name(ui_lang)}; use it only when the language of a message cannot be told."
@@ -40,7 +43,7 @@ def build_system_prompt(concept_id: str, person_id: str, level: int,
                         last_user_message: str | None = None, extra_context: str = "") -> str:
     ctx = graph.concept_prompt_context(concept_id)
     ui_lang = graph.ui_language(person_id)
-    reply_lang = detect_language(last_user_message or "") or ui_lang
+    reply_lang = detect_language(last_user_message or "") if last_user_message else ui_lang
     parts = [DIDACTIEK.format(audience=LEVELS[level], language_rule=language_rule(reply_lang, ui_lang))]
 
     parts.append(f"\n## Concept\n{ctx.get('name')}: {ctx.get('definition') or '(no definition yet)'}")
@@ -82,22 +85,24 @@ def build_system_prompt(concept_id: str, person_id: str, level: int,
 
 
 def _reply(system: str, messages: list[dict]) -> str:
-    resp = litellm.completion(
-        model=llm.MENTOR_MODEL,
+    model = llm.MENTOR_MODEL
+    resp = llm.call_model(lambda: litellm.completion(
+        model=model,
         messages=[{"role": "system", "content": system}] +
                  [{"role": m["role"], "content": illustrations.message_context(m)} for m in messages],
         temperature=0.4,
-    )
+        **llm.endpoint(model),
+    ), model, "mentor")
     return resp.choices[0].message.content
 
 
 def open_session(concept_name: str, person_id: str, level: int | None,
                  force_new: bool = False) -> dict:
-    """Zoekt het concept op, maakt het zo nodig aan, en levert de actieve sessie."""
+    """Finds the concept, creates it when needed, and returns the active session."""
     concept = graph.find_concept(concept_name)
     seeded = None
     if not concept:
-        # Onbekend concept: eerst door de bestaande leer-flow halen.
+        # Unknown concept: run it through the normal learning flow first.
         res = learning.learn(concept_name, "", level or 3, person_id)
         concept = graph.find_concept(res["concept"])
         seeded = res["explanation"]
@@ -123,7 +128,7 @@ def send(concept_name: str, message: str, person_id: str = "paul",
     opened = open_session(concept_name, person_id, level)
     concept, sid, lvl = opened["concept"], opened["session_id"], opened["level"]
     if level is not None:
-        # Expliciet gekozen niveau blijft de standaard: op de sessie en op UNDERSTANDS.
+        # An explicitly chosen level stays the default: on the session and on UNDERSTANDS.
         graph.set_level(person_id, concept["id"], sid, lvl)
 
     journey.attach_session(person_id, sid)
@@ -146,7 +151,7 @@ def send(concept_name: str, message: str, person_id: str = "paul",
 
 
 def history(concept_name: str, person_id: str = "paul") -> dict | None:
-    """Actieve sessie heropenen, inclusief de begripstoestand voor het paneel."""
+    """Reopens the active session, including the understanding for the panel."""
     concept = graph.find_concept(concept_name)
     if not concept:
         return None

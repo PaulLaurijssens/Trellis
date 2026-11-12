@@ -1,0 +1,253 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/PaulLaurijssens/Trellis/blob/main/docs/memory-format.schema.json",
+  "title": "Trellis learning memory (memory.json), version 1",
+  "description": "One learner's portable learning memory. Human description: docs/MEMORY-FORMAT.md. Readers ignore fields they do not know.",
+  "type": "object",
+  "required": ["format", "version", "exported_at", "person", "map", "conversations", "exercises", "understanding", "profile", "goals", "examples"],
+  "properties": {
+    "format": { "const": "trellis-learning-memory" },
+    "version": { "type": "integer", "minimum": 1 },
+    "exported_at": { "type": "string" },
+    "trellis_version": { "type": "string" },
+    "person": {
+      "type": "object",
+      "properties": {
+        "name": { "type": ["string", "null"] },
+        "ui_language": { "type": "string" },
+        "level": { "type": ["integer", "null"] }
+      }
+    },
+    "map": {
+      "type": "object",
+      "required": ["concepts", "relations", "sources"],
+      "properties": {
+        "concepts": { "type": "array", "items": { "$ref": "#/$defs/concept" } },
+        "relations": { "type": "array", "items": { "$ref": "#/$defs/relation" } },
+        "sources": { "type": "array", "items": { "$ref": "#/$defs/source" } }
+      }
+    },
+    "conversations": { "type": "array", "items": { "$ref": "#/$defs/conversation" } },
+    "exercises": { "type": "array", "items": { "$ref": "#/$defs/exercise" } },
+    "understanding": { "type": "array", "items": { "$ref": "#/$defs/understanding" } },
+    "profile": {
+      "type": "object",
+      "properties": {
+        "learning_profile": { "$ref": "#/$defs/learningProfile" },
+        "ledger": { "type": "object" }
+      }
+    },
+    "goals": { "type": "array", "items": { "$ref": "#/$defs/goal" } },
+    "examples": { "type": "array", "items": { "$ref": "#/$defs/example" } },
+    "asked_about": {
+      "type": "array",
+      "items": { "type": "object", "required": ["concept"], "properties": { "concept": { "type": "string" }, "ts": { "type": ["string", "null"] } } }
+    },
+    "counts": { "type": "object", "additionalProperties": { "type": "integer" } }
+  },
+  "$defs": {
+    "date": { "type": ["string", "null"] },
+    "strings": { "type": "array", "items": { "type": "string" } },
+    "concept": {
+      "type": "object",
+      "required": ["id", "name"],
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string", "minLength": 1 },
+        "aliases": { "$ref": "#/$defs/strings" },
+        "definition": { "type": "string" },
+        "domain": { "type": "string" },
+        "status": { "enum": ["suggested", "queued", "learning", "learned"] },
+        "created_at": { "$ref": "#/$defs/date" }
+      }
+    },
+    "relation": {
+      "type": "object",
+      "required": ["from", "to", "type"],
+      "properties": {
+        "from": { "type": "string" },
+        "to": { "type": "string" },
+        "type": { "enum": ["PREREQUISITE_OF", "PART_OF", "RELATED_TO"] },
+        "strength": { "type": ["number", "null"] },
+        "reason": { "type": ["string", "null"] }
+      }
+    },
+    "source": {
+      "type": "object",
+      "required": ["id"],
+      "properties": {
+        "id": { "type": "string" },
+        "type": { "type": ["string", "null"] },
+        "title": { "type": ["string", "null"] },
+        "url": { "type": ["string", "null"] },
+        "ingested_at": { "$ref": "#/$defs/date" },
+        "mentions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["concept"],
+            "properties": {
+              "concept": { "type": "string" },
+              "context": { "type": ["string", "null"] },
+              "importance": { "type": ["number", "null"] },
+              "start_sec": { "type": ["number", "null"] },
+              "quotes": { "type": "array", "items": { "type": "object" } }
+            }
+          }
+        }
+      }
+    },
+    "message": {
+      "type": "object",
+      "required": ["seq", "role", "content"],
+      "properties": {
+        "seq": { "type": "integer", "minimum": 0 },
+        "role": { "enum": ["user", "assistant"] },
+        "content": { "type": "string" },
+        "ts": { "$ref": "#/$defs/date" },
+        "illustration": {}
+      }
+    },
+    "conversation": {
+      "type": "object",
+      "required": ["id", "concept", "messages"],
+      "properties": {
+        "id": { "type": "string" },
+        "concept": { "type": "string" },
+        "level": { "type": ["integer", "null"] },
+        "started_at": { "$ref": "#/$defs/date" },
+        "last_activity": { "$ref": "#/$defs/date" },
+        "consolidated": { "type": ["boolean", "null"] },
+        "memory_checkpoint": { "type": ["string", "null"] },
+        "messages": { "type": "array", "items": { "$ref": "#/$defs/message" } }
+      }
+    },
+    "exercise": {
+      "type": "object",
+      "required": ["id", "run_id"],
+      "properties": {
+        "id": { "type": "string" },
+        "run_id": { "type": "string" },
+        "activity_id": { "type": ["string", "null"] },
+        "concepts": { "$ref": "#/$defs/strings" },
+        "prompt": { "type": ["string", "null"] },
+        "response": { "type": ["string", "null"] },
+        "outcome": { "type": ["string", "null"] },
+        "assessed_by": { "type": ["string", "null"] },
+        "assistance_level": { "type": ["string", "null"] },
+        "occurred_at": { "$ref": "#/$defs/date" }
+      }
+    },
+    "evidence": {
+      "type": "object",
+      "required": ["id", "outcome"],
+      "properties": {
+        "id": { "type": "string" },
+        "kind": { "type": "string" },
+        "outcome": { "type": "string" },
+        "origin": { "type": "string" },
+        "quote": { "type": "string" },
+        "session_id": { "type": "string" },
+        "seq": { "type": "integer" },
+        "attempt_id": { "type": "string" },
+        "assessment": { "type": ["string", "null"] },
+        "date": { "$ref": "#/$defs/date" }
+      }
+    },
+    "observation": {
+      "type": "object",
+      "required": ["id", "kind", "text", "state"],
+      "properties": {
+        "id": { "type": "string" },
+        "kind": { "type": "string" },
+        "text": { "type": "string" },
+        "state": { "enum": ["active", "resolved", "superseded"] },
+        "origin": { "type": "string" },
+        "evidence_ids": { "$ref": "#/$defs/strings" },
+        "resolution_evidence_ids": { "$ref": "#/$defs/strings" }
+      }
+    },
+    "understanding": {
+      "type": "object",
+      "required": ["concept", "ledger"],
+      "properties": {
+        "concept": { "type": "string" },
+        "level": { "type": ["integer", "null"] },
+        "status": { "type": ["string", "null"] },
+        "since": { "$ref": "#/$defs/date" },
+        "last_session": { "$ref": "#/$defs/date" },
+        "view": {
+          "type": "object",
+          "properties": {
+            "summary": { "type": ["string", "null"] },
+            "covered": { "$ref": "#/$defs/strings" },
+            "struggles": { "$ref": "#/$defs/strings" },
+            "misconceptions": { "$ref": "#/$defs/strings" },
+            "intent": { "enum": ["interested", "queued", "learning"] },
+            "self_assessment": {
+              "type": ["object", "null"],
+              "properties": { "value": { "enum": ["not_yet", "partial", "understood"] }, "date": { "$ref": "#/$defs/date" } }
+            },
+            "quiz_correct": { "type": "integer" },
+            "quiz_wrong": { "type": "integer" },
+            "manual_fields": { "$ref": "#/$defs/strings" },
+            "removed": { "$ref": "#/$defs/strings" },
+            "observations": { "type": "array", "items": { "$ref": "#/$defs/observation" } },
+            "evidence": { "type": "array", "items": { "$ref": "#/$defs/evidence" } },
+            "learning_status": { "enum": ["suggested", "queued", "learning", "learned"] }
+          }
+        },
+        "ledger": {
+          "type": "object",
+          "description": "The memory ledger exactly as Trellis stores it. Other tools should read view instead.",
+          "properties": {
+            "baseline": { "type": "object" },
+            "legacy": { "type": "array" },
+            "sessions": { "type": "object" },
+            "runs": { "type": "object" },
+            "corrections": { "type": "object" }
+          }
+        }
+      }
+    },
+    "learningProfile": {
+      "type": "object",
+      "properties": {
+        "works_well": { "$ref": "#/$defs/strings" },
+        "works_poorly": { "$ref": "#/$defs/strings" },
+        "preferences": { "$ref": "#/$defs/strings" },
+        "teaching_preferences": { "$ref": "#/$defs/strings" },
+        "notes": { "type": ["string", "null"] },
+        "removed": { "$ref": "#/$defs/strings" }
+      }
+    },
+    "goal": {
+      "type": "object",
+      "required": ["id", "title"],
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "status": { "type": ["string", "null"] },
+        "origin": { "type": ["string", "null"] },
+        "source_title": { "type": ["string", "null"] },
+        "source_id": { "type": ["string", "null"] },
+        "steps": { "type": "array", "items": { "type": "object" } },
+        "cycle": { "type": ["boolean", "null"] },
+        "active": { "type": "boolean" }
+      }
+    },
+    "example": {
+      "type": "object",
+      "required": ["id", "concept", "session_id", "seq", "text"],
+      "properties": {
+        "id": { "type": "string" },
+        "concept": { "type": "string" },
+        "session_id": { "type": "string" },
+        "seq": { "type": "integer" },
+        "original": { "type": ["string", "null"] },
+        "text": { "type": "string" },
+        "date": { "$ref": "#/$defs/date" }
+      }
+    }
+  }
+}

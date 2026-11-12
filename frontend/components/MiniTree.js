@@ -5,7 +5,7 @@ import { useT } from "../lib/i18n";
 
 const check = (n) => (n.status === "learned" ? " ✓" : "");
 
-// Compacte variant: de node zelf, voorkennis eronder, verwanten ernaast.
+// Compact variant: the node itself, prerequisites below, relatives beside it.
 function Compact({ tree, onSelect, onConnections, busy }) {
   const { t } = useT();
   const { node, prereqs, dependents, related } = tree;
@@ -47,7 +47,7 @@ function Node({ n, here, onSelect, tag }) {
   );
 }
 
-// Fullscreen-variant: boomstructuur twee niveaus diep, zoals in het ontwerp.
+// Full-screen variant: a tree two levels deep, as in the design.
 function Big({ tree, onSelect, onConnections, busy }) {
   const { t } = useT();
   const { node, prereqs, dependents, related } = tree;
@@ -61,7 +61,7 @@ function Big({ tree, onSelect, onConnections, busy }) {
       ))}
     </div>
   ) : null;
-  // Boven de node: waar dit concept naartoe leidt, geneste ouders eerst.
+  // Above the node: what this concept leads to, nested parents first.
   const renderUp = (items, inner) => {
     if (!items.length) return inner;
     const [first, ...rest] = items;

@@ -3,7 +3,7 @@ import LocalizedText from "./LocalizedText";
 import { useEffect, useRef, useState } from "react";
 import { GoalCard, HelpfulExamples } from "./LearningDirection";
 import LevelPills from "./LevelPills";
-import MemoryBlock from "./MemoryBlock";
+import MemoryDetail from "./MemoryDetail";
 import MiniTree from "./MiniTree";
 import Progress from "./Progress";
 import Chat, { render as renderMarkdown } from "./Chat";
@@ -12,7 +12,7 @@ import StudyGuide from "./StudyGuide";
 import LessonStage from "./LessonStage";
 import { teach as teachApi } from "../lib/teach";
 import LearningTrail from "./LearningTrail";
-import { fmtTs, momentLink } from "../lib/time";
+import { fmtTs, momentLink, safeUrl } from "../lib/time";
 import { useT } from "../lib/i18n";
 
 const ExpandIcon = () => (
@@ -42,8 +42,8 @@ function Actions({ concept, level, busy, onExplain, onMarkLearned }) {
   );
 }
 
-// Tijdcode als "Spring naar 47:12": YouTube linkt naar url + t=<sec>s,
-// een andere bron met url naar die url, zonder url alleen als tekst.
+// Timestamp as "Jump to 47:12": YouTube links to url + t=<sec>s, another source with a url to that
+// url, a source without a url shows text only.
 function Moment({ url, sec }) {
   const { t } = useT();
   const label = t("panel.jumpTo", { ts: fmtTs(sec) });
@@ -64,7 +64,7 @@ export function Sources({ mentions, onAsk, busy }) {
             <i />
             <div style={{ minWidth: 0, flex: 1 }}>
               <div className="source-head">
-                <b>{m.url && !list.length ? <a href={m.url} target="_blank" rel="noopener noreferrer">{m.source} ↗</a> : m.source}</b>
+                <b>{safeUrl(m.url) && !list.length ? <a href={safeUrl(m.url)} target="_blank" rel="noopener noreferrer">{m.source} ↗</a> : m.source}</b>
                 {m.type && <span className="type">{m.type}</span>}
               </div>
               {m.context && <p><LocalizedText>{m.context}</LocalizedText></p>}
@@ -73,7 +73,7 @@ export function Sources({ mentions, onAsk, busy }) {
                 <ul className="moments">
                   {list.map((x, j) => (
                     <li key={j}>
-                      {x.start_sec != null ? <Moment url={m.url} sec={x.start_sec} /> : (m.url && <a className="ts" href={m.url} target="_blank" rel="noopener noreferrer">{t("panel.source")} ↗</a>)}
+                      {x.start_sec != null ? <Moment url={m.url} sec={x.start_sec} /> : (safeUrl(m.url) && <a className="ts" href={safeUrl(m.url)} target="_blank" rel="noopener noreferrer">{t("panel.source")} ↗</a>)}
                       {x.provenance === "ai_video_analysis" && <span className="hint">{t("video.approximate")}</span>}
                       {x.quote && <span className="q">“{x.quote}”</span>}
                     </li>
@@ -137,7 +137,7 @@ export default function MentorPanel({
     <LearningTrail trail={trail} onReturn={onReturn} />
     <div className="lesson-eyebrow"><span className={"status-dot " + concept.status} />{concept.name}<label className="depth-select">{t("learn.depth")}<select value={level} disabled={busy.chat || busy.explain} onChange={(e) => onLevel(Number(e.target.value))}>{[1,2,3,4,5].map((n) => <option key={n} value={n}>{t("depth." + n)}</option>)}</select></label></div>
     <h1>{question}</h1>
-    <details className="memory-recap"><summary><span><LocalizedText>{recap}</LocalizedText></span><b>{t("learn.viewMemory")}</b></summary><MemoryBlock state={state} onRemove={onRemoveMemory} onObservation={onObservation} onPosition={onPosition} /></details>
+    <details className="memory-recap"><summary><span><LocalizedText>{recap}</LocalizedText></span><b>{t("learn.viewMemory")}</b></summary><MemoryDetail compact key={concept.name} name={concept.name} state={state} onPatch={onRemoveMemory} onObservation={onObservation} onPosition={onPosition} /></details>
     {(!chat?.messages?.length || withDock) && !lesson && <p className="lesson-definition"><LocalizedText>{concept.definition}</LocalizedText></p>}
     {withDock && teachEnabled && conceptId && !lesson && <LessonDock conceptId={conceptId} conceptName={concept.name} group={group} lang={lang}
       onOpen={(l) => { setLesson(l); setPane("lesson"); setView("lesson"); }} onReference={openReference} onExploreTopic={onExploreTopic} />}
@@ -178,11 +178,11 @@ export default function MentorPanel({
       <GoalCard goal={goal} onOpen={onSelect} onUpdate={onGoalUpdate} busy={journeyBusy} />
       <HelpfulExamples examples={examples} onEdit={onEditExample} onDelete={onDeleteExample} busy={journeyBusy} />
       {mentions.length > 0 && <details><summary>{t("panel.sources")} · {mentions.length}</summary><Sources mentions={mentions} onAsk={onSend} busy={busy.chat || busy.explain || busy.ending} /></details>}
-      <details><summary>{t("learn.notes")}</summary><MemoryBlock state={state} onRemove={onRemoveMemory} onObservation={onObservation} onPosition={onPosition} /></details>
+      <details><summary>{t("learn.notes")}</summary><MemoryDetail compact key={concept.name} name={concept.name} state={state} onPatch={onRemoveMemory} onObservation={onObservation} onPosition={onPosition} /></details>
       <details><summary>{t("learn.conceptDetails")}</summary><p><LocalizedText>{concept.definition}</LocalizedText></p><Actions concept={concept} level={level} busy={busy} onExplain={onExplain} onMarkLearned={onMarkLearned} /></details>
       {trail?.length > 1 && <button className="textlink context-return" onClick={() => onReturn(trail.length - 2)}>← {t("trail.return", { name: trail[trail.length - 2] })}</button>}
-      {/* Gespreksopties staan hier en niet meer onder het invoerveld: daar staat nu
-          "Volgend onderwerp". Een gesprek afsluiten gebeurt ook vanzelf na 30 minuten stilte. */}
+      {/* Conversation options live here, no longer under the input: that is where "Next
+          topic" is now. A conversation also ends by itself after 30 quiet minutes. */}
       <details className="context-session"><summary>{t("learn.sessionMenu")}</summary><div className="chat-links">
         <button className="textlink" onClick={onEndChat} disabled={busy.chat || busy.explain || busy.ending || !chat?.messages?.length} title={t("chat.endTitle")}>{busy.ending ? t("chat.ending") : t("chat.end")}</button>
         <button className="textlink" onClick={onNewChat} disabled={busy.chat || busy.explain || busy.ending} title={t("chat.newTitle")}>{t("chat.new")}</button>

@@ -32,9 +32,11 @@ def _language_name(code):
 
 
 def language_line(code):
-    """De taal van de illustratie expliciet noemen. "Match the learner's language" alleen
-    was niet genoeg: de rest van de systeemprompt is Nederlands, en het model schreef de
-    illustratie dan soms in het Nederlands onder een Engels antwoord (gezien 2026-09-19)."""
+    """Name the illustration's language explicitly. "Match the learner's language" alone was not
+    enough: the model sometimes wrote the illustration in another language than the answer (seen
+    2026-09-19). Without a known language: the language of the answer."""
+    if code is None:
+        return "\nWrite the illustration title, caption and every label in the same language as the answer."
     return (f"\nWrite the illustration title, caption and every label in "
             f"{_language_name(code)}, the same language as the answer.")
 

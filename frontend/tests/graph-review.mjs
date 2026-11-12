@@ -1,5 +1,6 @@
 // Read-only UI check: optionally render a locally captured /graph response.
 // ALL backend requests are intercepted; no model or database mutations occur.
+import {CORS,fallback,shot} from './mock-api.mjs';
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 const {chromium}=await import(process.env.MENTOR_PLAYWRIGHT_MODULE||"playwright");
@@ -13,7 +14,7 @@ try{
  await page.route("http://localhost:8000/**",async route=>{
   const req=route.request(),path=decodeURIComponent(new URL(req.url()).pathname),body=req.postData()?JSON.parse(req.postData()):{};
   let data={};
-  if(req.method()==="OPTIONS"){await route.fulfill({status:204,headers:{"Access-Control-Allow-Origin":"*","Access-Control-Allow-Headers":"content-type","Access-Control-Allow-Methods":"GET, PATCH, OPTIONS"}});return;}
+  if(req.method()==="OPTIONS"){await route.fulfill({status:204,headers:{...CORS,"Access-Control-Allow-Headers":"content-type","Access-Control-Allow-Methods":"GET, PATCH, OPTIONS"}});return;}
   if(path==="/graph")data=graph;
   else if(path==="/journey/paul")data={goals:[],active_goal:null,recent:null,review:[],sources:[]};
   else if(path==="/journey/paul/examples")data=[];
@@ -23,8 +24,8 @@ try{
   else if(path==="/learn"){started.push(body.concept);data={concept:body.concept,explanation:"A guided explanation of "+body.concept};}
   else if(path.startsWith("/chat/"))data={messages:started.includes(path.slice(6))?[{seq:0,role:"assistant",content:"A guided explanation of "+path.slice(6)}]:[],state:{},suggestions:[]};
   else if(path==="/translations")data={texts:body.texts};
-  else throw Error("Unexpected request "+path);
-  await route.fulfill({status:200,contentType:"application/json",headers:{"Access-Control-Allow-Origin":"*"},body:JSON.stringify(data)});
+  else if((data=fallback(path,JSON.parse(route.request().postData()||'{}')))===undefined) throw Error("Unexpected request "+path);
+  await route.fulfill({status:200,contentType:"application/json",headers:{...CORS},body:JSON.stringify(data)});
  });
  await page.goto(process.env.MENTOR_TEST_URL||"http://localhost:3000");
  await page.locator(".node-core").first().waitFor();
@@ -36,12 +37,11 @@ try{
  assert.ok(await page.locator('.atlas-node[data-tier="1"]').count()>0,"next tier visible even at overview");
  assert.equal(await page.locator('.graph-node-label[data-label-tier="1"]').count(),0,"next-tier names stay hidden at overview");
  assert.ok(await page.locator(".graph-connection").count()>0,"overview has graph connections");
- const dir=process.env.MENTOR_SHOT_DIR||"/private/tmp";
- await page.screenshot({path:dir+"/living-graph-overview.png"});
+ await shot(page,'living-graph-overview.png');
  const group=process.env.MENTOR_GRAPH_FIXTURE?page.getByRole("button",{name:/Explore group Information Retrieval/}):page.locator(".atlas-group-label").first();
  await group.focus();await page.keyboard.press("Enter");
  assert.ok(Number(await page.locator(".atlas-layer").getAttribute("data-depth"))>=1);
- await page.screenshot({path:dir+"/living-graph-zoom.png"});
+ await shot(page,'living-graph-zoom.png');
  const recommended=await page.locator(".cluster-start h2").innerText();
  await page.getByRole("button",{name:/^(Start learning|Review with mentor)/}).click();
  await page.locator(".learn-workspace").waitFor();
@@ -49,7 +49,7 @@ try{
  await page.getByText("A guided explanation of "+started.at(-1),{exact:true}).waitFor();
  await page.getByRole("navigation",{name:"Workspace"}).getByRole("button",{name:"Explore",exact:true}).click();
  await page.getByRole("button",{name:"Zoom in",exact:true}).click();
- await page.screenshot({path:dir+"/living-graph-detail.png"});
+ await shot(page,'living-graph-detail.png');
  // Clicking outside exits focus; dragging the same background only pans.
  const focused=await page.locator(".scope-chip").innerText();
  const canvas=page.locator(".living-graph > svg"), bounds=await canvas.boundingBox();
@@ -68,13 +68,16 @@ try{
  assert.equal(await page.locator(".scope-chip").count(),0,"outside-node selection clears old focus");
   await page.locator(".learn-workspace").waitFor();
   await page.getByRole("button",{name:"Start lesson",exact:true}).waitFor();
-  await page.screenshot({path:dir+"/lesson-start.png"});
+  await shot(page,'lesson-start.png');
   await page.getByRole("button",{name:"Start lesson",exact:true}).click();
   await page.getByText("A guided explanation of "+started.at(-1),{exact:true}).waitFor();
   await page.getByRole("navigation",{name:"Workspace"}).getByRole("button",{name:"Explore",exact:true}).click();
   await page.locator(".preview-close").click();
  }
- await group.focus();await page.keyboard.press("Enter");
+ // Focus a group (unless one still is) and leave it with Escape.
+ await page.waitForTimeout(500);   // returning to Explore may restore the previous focus
+ if(!await page.locator(".scope-chip").count()){await group.focus();await page.keyboard.press("Enter");}
+ await page.locator(".scope-chip").waitFor();
  await canvas.focus();await page.keyboard.press("Escape");
  await page.locator(".scope-chip").waitFor({state:"detached"});
  assert.equal(await page.locator(".scope-chip").count(),0,"Escape restores overview");
@@ -92,7 +95,7 @@ try{
  await page.waitForFunction(()=>{const el=document.querySelector(".living-graph"),r=el.getBoundingClientRect();return el.dataset.orientation===(r.width<r.height?"portrait":"landscape");});
  if(await page.locator(".scope-chip").count())await page.locator(".scope-chip").click();
  await page.getByRole("button",{name:"Fit",exact:true}).click();
- await page.screenshot({path:dir+"/living-graph-mobile.png"});
+ await shot(page,'living-graph-mobile.png');
  assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
  assert.deepEqual(errors,[]);
  console.log(`PASS: ${graph.nodes.length} nodes, connected overview, next-tier dots, semantic zoom, real motion, motion off, reduced motion, keyboard cluster focus, mobile; no runtime errors.`);

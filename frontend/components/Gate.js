@@ -1,16 +1,11 @@
 "use client";
 // First run and login. Shown instead of the app until the API has a session for this browser.
-// Setup: name + language -> model provider + key -> password. Nothing is stored until the last step.
-import { useEffect, useState } from "react";
+// Setup: name + language -> model provider + key (tested live) -> password. Nothing is stored until the last step.
+import { useState } from "react";
 import { useT, LANGS } from "../lib/i18n";
 import { session } from "../lib/session";
-
-const CUSTOM = "custom";
-const keyEnvFor = (model) => { const prefix = (model || "").split("/")[0]; return model.includes("/") && /^[a-z0-9_]+$/i.test(prefix) ? `${prefix.toUpperCase()}_API_KEY` : ""; };
-
-function Field({ label, hint, children }) {
-  return <label className="gate-field"><span>{label}</span>{children}{hint && <small>{hint}</small>}</label>;
-}
+import ProviderForm, { Field, ProviderTest, emptyForm, useProviderCheck } from "./ProviderForm";
+import { applySuggestion, formReady, providerBody } from "../lib/providerErrors.mjs";
 
 export function Login({ status, onDone }) {
   const { t } = useT();
@@ -39,34 +34,24 @@ export function Setup({ status, onDone }) {
   const providers = status.providers || {};
   const [step, setStep] = useState(0);
   const [name, setName] = useState("");
-  const [provider, setProvider] = useState(status.configured ? "" : "gemini");
-  const [key, setKey] = useState("");
-  const [embedProvider, setEmbedProvider] = useState("");
-  const [embedKey, setEmbedKey] = useState("");
-  const [custom, setCustom] = useState({ key_env: "", mentor_model: "", extract_model: "", embed_model: "", embed_dim: "" });
+  const [form, setForm] = useState(() => emptyForm(status.configured ? "" : "gemini"));
   const [password, setPassword] = useState("");
   const [repeat, setRepeat] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
-  const isCustom = provider === CUSTOM;
-  const spec = isCustom ? { key_env: custom.key_env } : providers[provider];
-  const needsEmbed = !isCustom && spec && !spec.embed;
-  const setField = (field) => (e) => setCustom((c) => {
-    const next = { ...c, [field]: e.target.value };
-    // Suggest the key variable from the model prefix (openrouter/... -> OPENROUTER_API_KEY) until the person types one.
-    if (field === "mentor_model" && (!c.key_env || c.key_env === keyEnvFor(c.mentor_model))) next.key_env = keyEnvFor(next.mentor_model);
-    return next;
-  });
-  const customReady = !isCustom || (custom.mentor_model.trim() && custom.extract_model.trim() && custom.embed_model.trim() && Number(custom.embed_dim) > 0);
-  useEffect(() => { if (needsEmbed && !embedProvider) setEmbedProvider(status.embedding_providers?.[0] || ""); }, [needsEmbed]); // eslint-disable-line react-hooks/exhaustive-deps
+  const check = useProviderCheck();
+  // Any edit makes the last test meaningless.
+  const edit = (next) => { setForm(next); check.reset(); };
+  const ready = formReady(form, providers);
+  const test = (value = form) => check.run(providerBody(value, providers, "check"));
+  const suggest = (model) => { const next = applySuggestion(form, model); setForm(next); test(next); };
+  // "Keep the server settings" cannot be tested here: the key lives in .env.
+  const canGo = !form.provider || check.verdict.canProceed;
 
   const finish = async () => {
     setBusy(true); setError("");
     try {
-      await session.setup({ name: name.trim(), language: lang, password, provider: provider || null, mentor_key: key || null,
-        embed_provider: needsEmbed ? embedProvider : null, embed_key: needsEmbed ? embedKey || null : null,
-        ...(isCustom ? { mentor_model: custom.mentor_model.trim(), extract_model: custom.extract_model.trim(), embed_model: custom.embed_model.trim(),
-          embed_dim: Number(custom.embed_dim), key_env: custom.key_env.trim() || null } : {}) });
+      await session.setup({ name: name.trim(), language: lang, password, ...providerBody(form, providers, "setup") });
       onDone();
     } catch (err) { setError(err.message || "error"); }
     finally { setBusy(false); }
@@ -75,36 +60,18 @@ export function Setup({ status, onDone }) {
     <>
       <h1>{t("gate.setupTitle")}</h1><p className="gate-lead">{t("gate.setupLead")}</p>
       <Field label={t("gate.name")} hint={t("gate.nameHint")}><input autoFocus maxLength={80} value={name} onChange={(e) => setName(e.target.value)} /></Field>
-      <Field label={t("gate.language")} hint={t("gate.languageHint")}><div className="seg">{LANGS.map(([code, label]) => <button type="button" key={code} className={code === lang ? "on" : ""} onClick={() => setLang(code)}>{label}</button>)}</div></Field>
+      {LANGS.length > 1 && <Field label={t("gate.language")} hint={t("gate.languageHint")}><div className="seg">{LANGS.map(([code, label]) => <button type="button" key={code} className={code === lang ? "on" : ""} onClick={() => setLang(code)}>{label}</button>)}</div></Field>}
       <button className="btn primary" disabled={!name.trim()} onClick={() => setStep(1)}>{t("gate.next")}</button>
     </>,
     <>
       <h1>{t("gate.modelTitle")}</h1><p className="gate-lead">{t("gate.modelLead")}</p>
       {status.configured && <p className="gate-hint">{t("gate.modelFromEnv")}</p>}
-      <Field label={t("gate.provider")}><select value={provider} onChange={(e) => { setProvider(e.target.value); setKey(""); }}>
-        {status.configured && <option value="">{t("gate.keepEnv")}</option>}
-        {Object.entries(providers).map(([id, p]) => <option key={id} value={id}>{p.label}</option>)}
-        <option value={CUSTOM}>{t("gate.custom")}</option></select></Field>
-      {!isCustom && <p className="gate-hint">{t("gate.presetHint")}</p>}
-      {isCustom && <>
-        <p className="gate-hint">{t("gate.customHint")} <a href="https://docs.litellm.ai/docs/providers" target="_blank" rel="noopener noreferrer">{t("gate.customList")} ↗</a></p>
-        <Field label={t("gate.mentorModel")}><input autoComplete="off" spellCheck={false} placeholder="openrouter/…" value={custom.mentor_model} onChange={setField("mentor_model")} /></Field>
-        <Field label={t("gate.extractModel")} hint={t("gate.extractHint")}><input autoComplete="off" spellCheck={false} value={custom.extract_model} onChange={setField("extract_model")} /></Field>
-        <Field label={t("gate.embedModel")}><input autoComplete="off" spellCheck={false} value={custom.embed_model} onChange={setField("embed_model")} /></Field>
-        <Field label={t("gate.embedDim")} hint={t("gate.embedDimHint")}><input inputMode="numeric" value={custom.embed_dim} onChange={(e) => setCustom((c) => ({ ...c, embed_dim: e.target.value.replace(/\D/g, "") }))} /></Field>
-        <Field label={t("gate.keyEnv")} hint={t("gate.keyEnvHint")}><input autoComplete="off" spellCheck={false} placeholder="OPENROUTER_API_KEY" value={custom.key_env} onChange={(e) => setCustom((c) => ({ ...c, key_env: e.target.value.toUpperCase() }))} /></Field>
-      </>}
-      {spec && <>
-        {!isCustom && <p className="gate-hint">{spec.key_hint} {spec.key_url && <a href={spec.key_url} target="_blank" rel="noopener noreferrer">{t("gate.getKey")} ↗</a>}</p>}
-        {spec.key_env && <Field label={t("gate.key")} hint={t("gate.keyHint")}><input type="password" autoComplete="off" value={key} onChange={(e) => setKey(e.target.value)} /></Field>}
-        {needsEmbed && <>
-          <Field label={t("gate.embedProvider")} hint={t("gate.embedHint")}><select value={embedProvider} onChange={(e) => setEmbedProvider(e.target.value)}>{(status.embedding_providers || []).map((id) => <option key={id} value={id}>{providers[id].label}</option>)}</select></Field>
-          {providers[embedProvider]?.key_env && <Field label={t("gate.embedKey")}><input type="password" autoComplete="off" value={embedKey} onChange={(e) => setEmbedKey(e.target.value)} /></Field>}
-        </>}
-        <p className="gate-hint">{t("gate.costNote")}</p>
-      </>}
+      <ProviderForm value={form} onChange={edit} providers={providers} embeddingProviders={status.embedding_providers || []} allowKeepEnv={!!status.configured} />
+      {form.provider && <p className="gate-hint">{t("gate.costNote")}</p>}
+      {form.provider && <ProviderTest check={check} provider={form.provider} embedProvider={form.embedProvider} disabled={!ready} onTest={() => test()} onSuggest={suggest} />}
+      {form.provider && check.verdict.state === "none" && !check.testing && <p className="gate-hint">{t("gate.testFirst")}</p>}
       <div className="gate-row"><button className="btn ghost" onClick={() => setStep(0)}>{t("gate.back")}</button>
-        <button className="btn primary" disabled={!customReady || (!!spec && !!spec.key_env && !key)} onClick={() => setStep(2)}>{t("gate.next")}</button></div>
+        <button className="btn primary" disabled={!canGo || check.testing} onClick={() => setStep(2)}>{check.verdict.state === "busy" ? t("gate.continueAnyway") : t("gate.next")}</button></div>
     </>,
     <>
       <h1>{t("gate.passwordTitle")}</h1><p className="gate-lead">{t("gate.passwordLead")}</p>

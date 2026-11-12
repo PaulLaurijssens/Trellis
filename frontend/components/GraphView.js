@@ -17,7 +17,7 @@ const labelLines = name => {
 export default function GraphView({ data, selectedName, highlightQuery = "", hoverName, onSelect, ambientMotion = true, reducedMotion = false, hidden = false, onStartLearning, starting = false, focusRequest, onGroupsChange, onScopeChange }) {
   const { t } = useT();
   const wrap=useRef(null), svg=useRef(null), drag=useRef(null), pointer=useRef(null), fitted=useRef(false), offsets=useRef(new Map());
-  // Aanraken: touches = actieve vingers, pinch = een lopend twee-vingergebaar.
+  // Touch: touches = active fingers, pinch = a two-finger gesture in progress.
   const touches=useRef(new Map()), pinch=useRef(null), hintTimer=useRef(null);
   const [gestureHint,setGestureHint]=useState(false);
   const [size,setSize]=useState({w:1000,h:680}), [camera,setCamera]=useState({x:-500,y:-340,k:1});
@@ -86,9 +86,9 @@ export default function GraphView({ data, selectedName, highlightQuery = "", hov
     const x=d.camera.x+(e.clientX-rect.left)/d.camera.k,y=d.camera.y+(e.clientY-rect.top)/d.camera.k;
     if(g&&Math.hypot((x-g.cx)/g.rx,(y-g.cy)/g.ry)>1)clearScope();
   };
-  // Telefoon (< 750px): de pagina scrolt, dus één vinger is voor de pagina en de kaart volgt
-  // pas bij twee vingers (verschuiven + knijpzoomen). Dat is het patroon van ingesloten kaarten;
-  // anders zit je met één veeg vast in de kaart en kom je de pagina niet meer door.
+  // Phone (< 750px): the page scrolls, so one finger is for the page and the map follows
+  // only with two fingers (pan + pinch zoom). That is the pattern of embedded maps;
+  // otherwise one swipe traps you in the map and you can no longer get through the page.
   const pageScrolls=()=>typeof window!=="undefined"&&window.matchMedia("(max-width: 749.98px)").matches;
   const showGestureHint=()=>{if(hintTimer.current)return;setGestureHint(true);hintTimer.current=setTimeout(()=>{setGestureHint(false);hintTimer.current=null;},1800);};
   const startPinch=()=>{
@@ -100,16 +100,16 @@ export default function GraphView({ data, selectedName, highlightQuery = "", hov
   const movePinch=()=>{
     const p=pinch.current,[a,b]=[...touches.current.values()],r=svg.current.getBoundingClientRect();
     const mid={x:(a.x+b.x)/2-r.left,y:(a.y+b.y)/2-r.top},k=clamp(p.camera.k*Math.hypot(a.x-b.x,a.y-b.y)/p.dist);
-    // Het wereldpunt dat onder het beginmidden lag, blijft onder de vingers: zoom en schuif tegelijk.
+    // The world point under the starting midpoint stays under the fingers: zoom and pan at once.
     const wx=p.camera.x+p.mid.x/p.camera.k,wy=p.camera.y+p.mid.y/p.camera.k;
     setCamera({k,x:wx-mid.x/k,y:wy-mid.y/k});
   };
   const endTouch=e=>{if(e.pointerType!=="touch")return;touches.current.delete(e.pointerId);if(touches.current.size<2)pinch.current=null;};
   useEffect(()=>{
     const el=svg.current;
-    // Twee vingers op de kaart: de browser mag dan niet de pagina scrollen of zoomen.
+    // Two fingers on the map: the browser must not scroll or zoom the page then.
     const move=e=>{if(e.touches.length>1&&e.cancelable)e.preventDefault();};
-    const gesture=e=>e.preventDefault(); // iOS Safari: geen pagina-zoom bij knijpen op de kaart
+    const gesture=e=>e.preventDefault(); // iOS Safari: no page zoom when pinching on the map
     el.addEventListener("touchmove",move,{passive:false});el.addEventListener("gesturestart",gesture);
     return()=>{el.removeEventListener("touchmove",move);el.removeEventListener("gesturestart",gesture);clearTimeout(hintTimer.current);};
   },[]);

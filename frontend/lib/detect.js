@@ -1,4 +1,4 @@
-// Zoeken in de kaart: exacte en gedeeltelijke naam-matches.
+// Search in the map: exact and partial name matches.
 export const norm = (s) => String(s || "").toLowerCase().trim().replace(/\s+/g, " ");
 
 export function matchNodes(nodes, query) {

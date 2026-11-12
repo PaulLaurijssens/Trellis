@@ -17,6 +17,7 @@ from urllib.parse import urlparse
 import httpx
 import litellm
 from . import llm
+from .provider_errors import classify
 
 URL_FETCH = os.getenv("INGEST_URL_FETCH", "1") not in ("0", "false", "off")
 MAX_PDF_BYTES = int(os.getenv("INGEST_MAX_PDF_MB", "30")) * 1024 * 1024
@@ -103,9 +104,11 @@ def audio_transcript(data: bytes, content_type: str | None, filename: str, langu
     try:
         response = litellm.completion(model=AUDIO_MODEL, temperature=0, timeout=600, num_retries=0, messages=[{"role": "user", "content": [
             {"type": "text", "text": AUDIO_PROMPT.format(language=language)},
-            {"type": "input_audio", "input_audio": {"data": base64.b64encode(data).decode(), "format": fmt}}]}])
+            {"type": "input_audio", "input_audio": {"data": base64.b64encode(data).decode(), "format": fmt}}]}],
+            **llm.endpoint(AUDIO_MODEL))
     except Exception as exc:
-        raise SourceError("The model could not transcribe this audio: " + str(exc)[:200]) from exc
+        # The transcription is part of fetching the source: name that stage, keep the provider's reason.
+        raise classify(exc, model=AUDIO_MODEL, stage="fetch") from exc
     text = (response.choices[0].message.content or "").strip()
     if len(text) < 40:
         raise SourceError("No intelligible speech found in this audio.")

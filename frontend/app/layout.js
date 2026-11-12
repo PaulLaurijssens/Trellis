@@ -21,7 +21,7 @@ export const metadata = {
   formatDetection: { telephone: false },
 };
 
-// Next 14: themeColor en viewport horen in deze export, niet meer in metadata.
+// Next 14: themeColor and viewport belong in this export, no longer in metadata.
 export const viewport = {
   themeColor: "#070b11",
   width: "device-width",
@@ -31,7 +31,7 @@ export const viewport = {
 
 export default function RootLayout({ children }) {
   return (
-    <html lang="nl">
+    <html lang="en">
       <body>
         {children}
         <PwaRegister />
