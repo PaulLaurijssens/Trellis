@@ -21,7 +21,7 @@ what is wrong before you continue.
 | Preset | Key | Where to get it | Models (mentor / extract / embedding) | Embedding size |
 |---|---|---|---|---|
 | Google Gemini (recommended) | `GEMINI_API_KEY` | <https://aistudio.google.com/apikey> | `gemini/gemini-3.1-pro-preview` / `gemini/gemini-3.7-flash` / `gemini/gemini-embedding-2-preview` | 3072 |
-| OpenAI | `OPENAI_API_KEY` | <https://platform.openai.com/api-keys> | `openai/gpt-5.5` / `openai/gpt-5.5-mini` / `openai/text-embedding-3-large` | 3072 |
+| OpenAI | `OPENAI_API_KEY` | <https://platform.openai.com/api-keys> | `openai/gpt-5.5` / `openai/gpt-5.4-mini` / `openai/text-embedding-3-large` | 3072 |
 | Anthropic Claude | `ANTHROPIC_API_KEY` | <https://console.anthropic.com/settings/keys> | `anthropic/claude-sonnet-5` / `anthropic/claude-haiku-4-5-20251001` / none | from the second provider |
 | Mistral | `MISTRAL_API_KEY` | <https://console.mistral.ai/api-keys> | `mistral/mistral-large-latest` / `mistral/mistral-small-latest` / `mistral/mistral-embed` | 1024 |
 | Ollama (local, free) | no key | <https://ollama.com/download> | `ollama/qwen3:32b` / `ollama/qwen3:8b` / `ollama/nomic-embed-text` | 768 |

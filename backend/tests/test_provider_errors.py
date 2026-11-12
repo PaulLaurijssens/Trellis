@@ -52,14 +52,14 @@ class ClassifyTests(unittest.TestCase):
         self.assertEqual(retry_after(headers={"retry-after-ms": "2500"}), 2)
         self.assertEqual(retry_after(text="Please retry after 20 seconds."), 20)
         self.assertIsNone(retry_after(text="nothing here", headers={}))
-        err = classify(litellm.RateLimitError("Rate limit reached for requests", "openai", "gpt-5.5-mini",
-                                              response=response(429, {"retry-after": "7"})), model="openai/gpt-5.5-mini")
+        err = classify(litellm.RateLimitError("Rate limit reached for requests", "openai", "gpt-5.4-mini",
+                                              response=response(429, {"retry-after": "7"})), model="openai/gpt-5.4-mini")
         self.assertEqual((err.code, err.retry_after), ("provider.quota", 7))
 
     def test_wrapped_connection_error_and_proxy_block_are_network(self):
         # Seen end to end behind a filtering proxy: LiteLLM reports both as an InternalServerError.
-        exc = litellm.InternalServerError("InternalServerError: OpenAIException - Connection error.", "openai", "gpt-5.5-mini")
-        self.assertEqual(classify(exc, model="openai/gpt-5.5-mini").code, "provider.network")
+        exc = litellm.InternalServerError("InternalServerError: OpenAIException - Connection error.", "openai", "gpt-5.4-mini")
+        self.assertEqual(classify(exc, model="openai/gpt-5.4-mini").code, "provider.network")
         exc = litellm.InternalServerError("InternalServerError: Azure_aiException - 403 Forbidden", "azure_ai", "gpt-4o")
         self.assertEqual(classify(exc, model="azure_ai/gpt-4o").code, "provider.network")
 
@@ -240,7 +240,7 @@ class RetryTests(unittest.TestCase):
 class PipelineWarningTests(unittest.TestCase):
     def test_skipped_parts_warning_is_a_code_with_the_reason(self):
         async def fail(*args, **kwargs):
-            raise ProviderError("provider.auth", provider="openai", model="openai/gpt-5.5-mini", stage="extract")
+            raise ProviderError("provider.auth", provider="openai", model="openai/gpt-5.4-mini", stage="extract")
         segments = [{"text": "Attention lets a model weigh the words of a sentence. " * 5, "start_sec": None}]
         with patch.object(pipeline.llm, "acomplete_json", fail):
             out = asyncio.run(pipeline.run(segments, [], False))

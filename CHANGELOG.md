@@ -4,6 +4,10 @@ All notable changes to Trellis. Dates are UTC. Versions follow the git tags.
 
 ## [Unreleased]
 
+### Fixed
+- The OpenAI preset asked for `openai/gpt-5.5-mini`, a model that does not exist, so its setup test
+  always failed on the extract model. It now uses `openai/gpt-5.4-mini`.
+
 ## [0.4.0] - 2026-11-02
 
 ### Added
