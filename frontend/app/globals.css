@@ -293,12 +293,6 @@ button.chip:hover:not(:disabled) { border-color: rgba(84, 169, 255, 0.45); color
 .cmd-actions .meta { font-size:16px; color: var(--text-ghost); margin-right: auto; }
 .menu-lang { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 10px 4px; border-top: 1px solid var(--line-soft); margin-top: 4px; font-size:16px; color: var(--text-dim); }
 
-/* ---- empty state ---- */
-.empty-line { width: 1px; height: 34px; margin-top: 6px; background: linear-gradient(to bottom, rgba(130, 160, 200, 0.4), rgba(130, 160, 200, 0)); }
-.empty-hint {
-  max-width: 380px; text-align: center; font-size:16px; line-height: 1.55; color: var(--text-3);
-  background: var(--glass-soft); border: 1px solid rgba(130, 160, 200, 0.12); border-radius: 10px; padding: 14px 20px;
-}
 
 /* ---- linksonder ---- */
 .corner { position: absolute; left: 28px; bottom: 26px; display: flex; align-items: center; gap: 20px; z-index: 20; }
@@ -1711,3 +1705,32 @@ details.memory-section > summary h4 { margin: 0; }
 .memory-detail [data-focus]:focus { outline: none; }
 .memory-detail [data-focus]:focus-visible { outline: 2px solid #9CC8FF; outline-offset: 4px; }
 .profile .notice { position: sticky; top: 0; z-index: 2; background: #121b26; }
+
+/* ---- empty map: one clear first step ---- */
+/* "Add +" and "Add a topic" breathe while the map is empty; prefers-reduced-motion turns it off (.redesigned rule). */
+@keyframes attention-ring { 0%, 100% { box-shadow: 0 0 0 0 rgba(84, 169, 255, 0); } 50% { box-shadow: 0 0 0 6px rgba(84, 169, 255, 0.28); } }
+@keyframes attention-line { 0%, 100% { background-size: 35% 2px; opacity: .75; } 50% { background-size: 100% 2px; opacity: 1; } }
+.cmd-row .cta.attention { animation: attention-ring 2.4s ease-in-out infinite; border-color: rgba(84, 169, 255, 0.6); }
+.atlas-empty .add-topic-link { pointer-events: auto; font-size: inherit; color: var(--learning-soft); padding-bottom: 3px; cursor: pointer;
+  background: linear-gradient(currentColor, currentColor) left bottom / 35% 2px no-repeat; animation: attention-line 2.4s ease-in-out infinite; }
+.atlas-empty .add-topic-link:hover, .atlas-empty .add-topic-link:focus-visible { color: var(--text-1); }
+
+/* Learning path without topics: looks off, says why on hover or focus. */
+.explore-view-switch button.needs-topics { opacity: .45; cursor: not-allowed; }
+.explore-view-switch .path-hint { display: none; position: absolute; top: calc(100% + 8px); right: 0; width: 280px; z-index: 20;
+  background: #101722; border: 1px solid var(--line-strong); border-radius: 10px; padding: 10px 12px; font-size: 15px; line-height: 1.45; color: var(--text-2); }
+.explore-view-switch .needs-topics:hover + .path-hint, .explore-view-switch .needs-topics:focus-visible + .path-hint, .explore-view-switch .path-hint.shown { display: block; }
+
+/* Map info toggle in the zoom controls. */
+.zoom-controls .info-toggle { font-family: var(--font-mentor); font-style: italic; font-weight: 600; min-width: 40px; }
+.zoom-controls .info-toggle[aria-pressed="false"] { color: var(--text-3); }
+
+/* A small "i" with a short explanation on hover or focus. */
+.hint-tip { position: relative; display: inline-flex; }
+.hint-tip .info-dot { width: 22px; height: 22px; border-radius: 50%; border: 1px solid var(--line-strong); background: none; color: var(--text-3);
+  font-family: var(--font-mentor); font-style: italic; font-size: 14px; line-height: 1; padding: 0; cursor: help; }
+.hint-tip [role="tooltip"] { display: none; position: absolute; top: calc(100% + 8px); right: 0; width: 280px; z-index: 30;
+  background: #101722; border: 1px solid var(--line-strong); border-radius: 10px; padding: 10px 12px; font-size: 15px; line-height: 1.45; color: var(--text-2); }
+.hint-tip:hover [role="tooltip"], .hint-tip:focus-within [role="tooltip"] { display: block; }
+/* While the input card is open, the empty-map invitation behind it has done its job. */
+.stage:has(.cmd-card) .atlas-empty { display: none; }

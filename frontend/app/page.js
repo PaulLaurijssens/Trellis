@@ -74,6 +74,13 @@ function App({ onLogout }) {
   const [levels, setLevels] = useState(FALLBACK_LEVELS);
   const [exploreView, setExploreView] = useState("graph");
   const [legendOpen, setLegendOpen] = useState(false);
+  // The map explanation and legend at the bottom: shown until the person hides them (kept per browser).
+  const [mapInfo, setMapInfo] = useState(true);
+  useEffect(() => { try { if (localStorage.getItem("trellis.mapInfo") === "off") setMapInfo(false); } catch {} }, []);
+  const toggleMapInfo = () => setMapInfo((on) => { try { localStorage.setItem("trellis.mapInfo", on ? "off" : "on"); } catch {} return !on; });
+  const [addRequest, setAddRequest] = useState(0);
+  const [pathHint, setPathHint] = useState(false);   // a tap on the switched-off Learning path shows why (no hover on a phone)
+  useEffect(() => { if (!pathHint) return; const timer = setTimeout(() => setPathHint(false), 4000); return () => clearTimeout(timer); }, [pathHint]);
   const [graph, setGraph] = useState({ nodes: [], links: [] });
   const [loaded, setLoaded] = useState(false);
   const [analysis, setAnalysis] = useState(null);  // latest analysis: {source_id, title, candidates, relations, meta}
@@ -604,6 +611,8 @@ function App({ onLogout }) {
     return names;
   }, [selected, graph]);
   const empty = loaded && graph.nodes.length === 0;
+  // The learning path orders the topics on the map, so it needs at least one.
+  useEffect(() => { if (empty && exploreView === "path") setExploreView("graph"); }, [empty, exploreView]);
   // Why Learn is off: nothing on the map yet, or nothing picked.
   const learnHint = selected ? "" : t(empty ? "nav.learnNeedsSource" : "nav.learnPick");
   // "Next topic" in the lesson follows the learning path. Only fetched in the lesson view;
@@ -616,7 +625,7 @@ function App({ onLogout }) {
     <div className={"stage redesigned" + (expanded && selected ? " is-learning" : "") + (!reviewOpen ? " has-learning-sidebar" : "") + (selected ? " has-selection" : "")}>
       <header className="workspace-header"><Brand /><nav aria-label={t("nav.label")}><button className={!expanded ? "active" : ""} onClick={() => setExpanded(false)} aria-current={!expanded ? "page" : undefined}>{t("nav.explore")}</button><button className={expanded ? "active" : ""} disabled={!selected} onClick={() => setExpanded(true)} aria-current={expanded ? "page" : undefined} title={learnHint || undefined} aria-describedby={learnHint ? "learn-hint" : undefined}>{t("nav.learn")}</button>{learnHint && <span id="learn-hint" className="sr-only">{learnHint}</span>}</nav><button className="profile-trigger" onClick={() => setProfileOpen(true)}>{t("profile.title")}</button></header>
       <div className="explore-workspace" aria-hidden={expanded || undefined} inert={expanded ? "" : undefined}>
-      {!reviewOpen && <div className="explore-view-switch" role="group" aria-label={t("explore.viewLabel")}><button aria-pressed={exploreView==='graph'} onClick={()=>setExploreView('graph')}>{t("explore.graph")}</button><button aria-pressed={exploreView==='path'} onClick={()=>setExploreView('path')}>{t("explore.path")}</button></div>}
+      {!reviewOpen && <div className="explore-view-switch" role="group" aria-label={t("explore.viewLabel")}><button aria-pressed={exploreView==='graph'} onClick={()=>setExploreView('graph')}>{t("explore.graph")}</button><button aria-pressed={exploreView==='path'} aria-disabled={empty||undefined} className={empty?"needs-topics":undefined} onClick={()=>{if(empty)setPathHint(true);else setExploreView('path');}} aria-describedby={empty?"path-hint":undefined}>{t("explore.path")}</button>{empty&&<span id="path-hint" role="tooltip" className={"path-hint"+(pathHint?" shown":"")}>{t("explore.pathNeedsTopics")}</span>}</div>}
       <div className="atlas-surface">
 
       {exploreView==='path' && !reviewOpen && <LearningPath graph={graph} recent={journey?.recent?.concept} goal={journey?.active_goal} due={journey?.review} onCreateGoal={body=>journeyAction(()=>api.createGoal(body))} onLearn={name=>openConcept(name,{learn:true})} onGraph={name=>{setExploreView('graph');openConcept(name);}} />}
@@ -637,6 +646,9 @@ function App({ onLogout }) {
         ambientMotion={ambientMotion}
         reducedMotion={reducedMotion}
         hidden={expanded || exploreView==='path'}
+        onAddTopic={() => setAddRequest(Date.now())}
+        showInfo={mapInfo}
+        onToggleInfo={toggleMapInfo}
       />
       </div>
       </div>
@@ -644,9 +656,9 @@ function App({ onLogout }) {
       <CommandBar
         clusters={clusters} clusterScope={clusterScope} focusRequest={searchRequest}
         onCluster={key=>setClusterRequest({key,serial:Date.now()})}
-        levels={levels}
         level={level}
         nodes={graph.nodes}
+        addRequest={addRequest}
         busy={busy.analyze || busy.learn || null}
         empty={empty}
         shifted={false}
@@ -662,7 +674,7 @@ function App({ onLogout }) {
       />
 
       {/* On a phone collapsed behind one button (hidden on desktop). */}
-      <div className={"map-legend" + (legendOpen ? " open" : "")}><button type="button" className="legend-toggle" aria-expanded={legendOpen} onClick={() => setLegendOpen((o) => !o)}><span className="legend-dots" aria-hidden="true">{["learned","learning","queued","suggested"].map((status) => <i key={status} className={"status-dot " + status} />)}</span>{t("legend.title")} {legendOpen ? "▴" : "▾"}</button>{["learned","learning","queued","suggested"].map((status) => <span key={status}><i className={"status-dot " + status} />{t("status." + status)}</span>)}</div>
+      {!empty && mapInfo && <div className={"map-legend" + (legendOpen ? " open" : "")}><button type="button" className="legend-toggle" aria-expanded={legendOpen} onClick={() => setLegendOpen((o) => !o)}><span className="legend-dots" aria-hidden="true">{["learned","learning","queued","suggested"].map((status) => <i key={status} className={"status-dot " + status} />)}</span>{t("legend.title")} {legendOpen ? "▴" : "▾"}</button>{["learned","learning","queued","suggested"].map((status) => <span key={status}><i className={"status-dot " + status} />{t("status." + status)}</span>)}</div>}
 
 
       {reviewOpen && analysis && !selected && (
