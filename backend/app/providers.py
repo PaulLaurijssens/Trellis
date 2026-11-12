@@ -19,7 +19,7 @@ PROVIDERS = {
         "key_env": "OPENAI_API_KEY",
         "key_url": "https://platform.openai.com/api-keys",
         "key_hint": "Create an account, add a payment method, then 'Create new secret key'.",
-        "mentor": "openai/gpt-5.5", "extract": "openai/gpt-5.5-mini",
+        "mentor": "openai/gpt-5.5", "extract": "openai/gpt-5.4-mini",
         "embed": "openai/text-embedding-3-large", "embed_dim": 3072,
         "voice": False, "video": False,
     },
