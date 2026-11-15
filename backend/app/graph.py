@@ -8,6 +8,11 @@ driver = GraphDatabase.driver(
     os.getenv("NEO4J_URI", "bolt://localhost:7687"),
     auth=(os.getenv("NEO4J_USER", "neo4j"), os.getenv("NEO4J_PASSWORD", "changeme123")),
     notifications_min_severity="OFF",     # schema hints ("index already exists" etc.) flooded the API log
+    # Test an idle pooled connection before using it. When Neo4j restarts (a nightly offline backup
+    # stops it, or `docker compose restart neo4j`), the pool keeps sockets the server has closed;
+    # without this check the API served "Failed to read from defunct connection" errors for hours
+    # until it was restarted. The check is one tiny round trip, only for connections that sat idle.
+    liveness_check_timeout=0,
 )
 
 VALID_RELS = {"PREREQUISITE_OF", "PART_OF", "RELATED_TO"}
