@@ -23,7 +23,13 @@ URL_FETCH = os.getenv("INGEST_URL_FETCH", "1") not in ("0", "false", "off")
 MAX_PDF_BYTES = int(os.getenv("INGEST_MAX_PDF_MB", "30")) * 1024 * 1024
 MAX_AUDIO_BYTES = int(os.getenv("INGEST_MAX_AUDIO_MB", "25")) * 1024 * 1024
 MAX_TEXT_BYTES = 4 * 1024 * 1024
-AUDIO_MODEL = os.getenv("AUDIO_MODEL", os.getenv("VOICE_MODEL", llm.EXTRACT_MODEL))
+
+
+def audio_model() -> str:
+    """Read per call, like the lesson models: the Settings provider sets llm.EXTRACT_MODEL after import."""
+    return os.getenv("AUDIO_MODEL") or os.getenv("VOICE_MODEL") or llm.EXTRACT_MODEL
+
+
 AUDIO_FORMATS = {"audio/mpeg": "mp3", "audio/mp3": "mp3", "audio/mp4": "m4a", "audio/x-m4a": "m4a", "audio/m4a": "m4a",
                  "audio/wav": "wav", "audio/x-wav": "wav", "audio/ogg": "ogg", "audio/webm": "webm", "audio/aac": "aac", "audio/flac": "flac"}
 TEXT_TYPES = {"text/plain", "text/markdown", "text/vtt", "application/x-subrip", "text/srt"}
@@ -102,13 +108,14 @@ def audio_transcript(data: bytes, content_type: str | None, filename: str, langu
     if fmt not in set(AUDIO_FORMATS.values()):
         raise SourceError("Unsupported audio format.")
     try:
-        response = litellm.completion(model=AUDIO_MODEL, temperature=0, timeout=600, num_retries=0, messages=[{"role": "user", "content": [
+        model = audio_model()
+        response = litellm.completion(model=model, temperature=0, timeout=600, num_retries=0, messages=[{"role": "user", "content": [
             {"type": "text", "text": AUDIO_PROMPT.format(language=language)},
             {"type": "input_audio", "input_audio": {"data": base64.b64encode(data).decode(), "format": fmt}}]}],
-            **llm.endpoint(AUDIO_MODEL))
+            **llm.endpoint(model))
     except Exception as exc:
         # The transcription is part of fetching the source: name that stage, keep the provider's reason.
-        raise classify(exc, model=AUDIO_MODEL, stage="fetch") from exc
+        raise classify(exc, model=model, stage="fetch") from exc
     text = (response.choices[0].message.content or "").strip()
     if len(text) < 40:
         raise SourceError("No intelligible speech found in this audio.")

@@ -15,6 +15,9 @@ All notable changes to Trellis. Dates are UTC. Versions follow the git tags.
   you chose last on the learning screen, where **Depth** now has a short explanation behind an **i**.
 
 ### Fixed
+- Lessons now use the AI provider chosen in *Settings → AI provider*. They kept the built-in Gemini
+  models, so with OpenAI, Anthropic or any other provider every lesson failed with "Your model
+  provider key was refused" while the mentor worked. Audio transcription had the same problem.
 - After Neo4j restarted (for example for a nightly offline backup), the API could keep using dead
   database connections and show "The API is not reachable" until it was restarted itself. It now
   tests an idle connection before it uses it and reconnects.

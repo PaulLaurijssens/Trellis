@@ -16,10 +16,21 @@ log = logging.getLogger("uvicorn.error")
 MAX_STEPS = int(os.getenv("TEACH_MAX_STEPS", "40"))
 MAX_SECONDS = int(os.getenv("TEACH_MAX_SECONDS", "600"))
 MAX_VALIDATIONS = int(os.getenv("TEACH_MAX_VALIDATIONS", "3"))      # first try + automated repairs
-AUTHOR_MODEL = os.getenv("TEACH_AUTHOR_MODEL", llm.MENTOR_MODEL)
+
+
+def author_model() -> str:
+    """The model that writes lessons. Read on every call, not at import: the provider chosen in Settings
+    (settings.apply) sets llm.MENTOR_MODEL after this module is loaded, and can change while the API runs.
+    A constant here kept the built-in Gemini default, so lessons failed with "key refused" on OpenAI."""
+    return os.getenv("TEACH_AUTHOR_MODEL") or llm.MENTOR_MODEL
+
+
 # Cost controls (see docs/M0-interactive-mentor-design.md, budgets). The plan step reads the workspace
 # with the cheap model and hands the strong model a plan; the strong model still writes every lesson.
-PLAN_MODEL = os.getenv("TEACH_PLAN_MODEL", llm.EXTRACT_MODEL)
+def plan_model() -> str:
+    return os.getenv("TEACH_PLAN_MODEL") or llm.EXTRACT_MODEL
+
+
 PLAN_STEP = os.getenv("TEACH_PLAN", "1") not in ("0", "false", "off")
 # USD per million tokens, for the cost card only. Override with TEACH_PRICE_IN / TEACH_PRICE_OUT when the
 # list is stale; it is a rough estimate, the provider's bill is the truth.
@@ -31,7 +42,7 @@ def prices() -> tuple[float, float]:
     env_in, env_out = os.getenv("TEACH_PRICE_IN"), os.getenv("TEACH_PRICE_OUT")
     if env_in and env_out:
         return float(env_in), float(env_out)
-    name = AUTHOR_MODEL.lower()
+    name = author_model().lower()
     for key, p_in, p_out in PRICE_TABLE:
         if key in name:
             return p_in, p_out
@@ -165,7 +176,7 @@ def publish_draft(person_id: str, job_id: str, draft: dict) -> dict:
                          ids=[s["source_id"] for s in full["sources"]])
     report = {**(draft.get("report") or {}), "ok": False, "opened_with_issues": issues.summarize(draft.get("errors"))}
     published = lessons.publish_version(person_id, draft["topic_id"], draft.get("objective"), draft["html"], full, report,
-                                        skill.provenance(), draft.get("generator") or AUTHOR_MODEL, job_id, source_snapshot=snapshot)
+                                        skill.provenance(), draft.get("generator") or author_model(), job_id, source_snapshot=snapshot)
     graph.run("MATCH (j:LessonJob {id:$jid, person_id:$pid}) SET j.lesson_id=$lid, j.lesson_version_id=$vid, j.draft_opened_at=$now",
               jid=job_id, pid=person_id, lid=published["lesson_id"], vid=published["version_id"], now=graph._now())
     return published
@@ -278,7 +289,7 @@ class Job:
         snapshot = graph.run("MATCH (s:Source) WHERE s.id IN $ids RETURN s.id AS id, s.title AS title, s.url AS url",
                              ids=[s["source_id"] for s in full["sources"]])
         self.published = lessons.publish_version(self.person_id, self.topic["id"], self.objective, html, full, self.ok_bundle["report"],
-                                                 skill.provenance(), AUTHOR_MODEL, self.job_id, source_snapshot=snapshot)
+                                                 skill.provenance(), author_model(), self.job_id, source_snapshot=snapshot)
         out = {"published": True, "lesson_id": self.published["lesson_id"], "version_id": self.published["version_id"]}
         if edited_since:
             out["note"] = "Published the version that passed validation. Your later edits were not tested and were not shipped."
@@ -421,7 +432,7 @@ class Job:
                                validations=MAX_VALIDATIONS)
             lessons.set_stage(self.job_id, "generating")
             limit = cost_limit()
-            summary = llm.tool_loop(skill.system_prompt(), task, TOOLS, self.handle, AUTHOR_MODEL, max_steps=MAX_STEPS,
+            summary = llm.tool_loop(skill.system_prompt(), task, TOOLS, self.handle, author_model(), max_steps=MAX_STEPS,
                                     deadline=time.monotonic() + MAX_SECONDS, usage=self.usage, phase="author",
                                     should_stop=lambda: lessons.cancel_requested(self.job_id),
                                     over_budget=(lambda: usage_usd(self.usage) >= limit) if limit else None,
@@ -532,7 +543,7 @@ class Job:
             artifacts.store_draft(self.job_id, {
                 "person_id": self.person_id, "topic_id": self.topic["id"], "concept_id": self.request.get("concept_id"),
                 "objective": {"id": self.objective.get("id"), "revision": self.objective.get("revision")} if self.objective else None,
-                "files": files, "errors": errors[:25], "manifest": full, "html": html, "generator": AUTHOR_MODEL,
+                "files": files, "errors": errors[:25], "manifest": full, "html": html, "generator": author_model(),
                 "report": {k: (report or {}).get(k) for k in ("errors", "warnings", "phone_issues", "bundle", "ready_ms")},
                 "created_at": graph._now()})
             self.draft = {"issues": issues.summarize(errors), "can_open": html is not None}
@@ -550,7 +561,7 @@ class Job:
         try:
             user = (f"Topic: {self.topic['title']}\nFocus concept: {concept}\nTime budget: {req['time_budget_min']} minutes\n"
                     f"Language: {languages.name(req['language'])}\n\n{text}")
-            plan = llm.complete_json(PLAN_SYSTEM, user, PLAN_MODEL, usage=self.usage, phase="plan", timeout=120)
+            plan = llm.complete_json(PLAN_SYSTEM, user, plan_model(), usage=self.usage, phase="plan", timeout=120)
             if not isinstance(plan, dict) or not plan.get("outcome"):
                 return ""
             steps = "\n".join(f"   - {s}" for s in (plan.get("steps") or [])[:6] if isinstance(s, str))
@@ -559,15 +570,15 @@ class Job:
                      "- Steps:\n" + steps if steps else "",
                      "- Look up in sources: " + ", ".join(str(q) for q in (plan.get("source_queries") or [])[:5]),
                      "- Avoid: " + "; ".join(str(a) for a in (plan.get("avoid") or [])[:5])]
-            self.trace.append({"tool": "plan", "args": {"model": PLAN_MODEL}, "ok": True, "error": None, "ms": 0})
+            self.trace.append({"tool": "plan", "args": {"model": plan_model()}, "ok": True, "error": None, "ms": 0})
             return "\n".join(l for l in lines if l) + "\n\n"
         except Exception as exc:
             log.warning("plan step skipped for %s: %s", self.job_id, exc)
-            self.trace.append({"tool": "plan", "args": {"model": PLAN_MODEL}, "ok": False, "error": str(exc)[:200], "ms": 0})
+            self.trace.append({"tool": "plan", "args": {"model": plan_model()}, "ok": False, "error": str(exc)[:200], "ms": 0})
             return ""
 
     def _finish(self, stage, **fields):
-        trace = {"skill": skill.provenance(), "model": AUTHOR_MODEL, "steps": self.trace[-80:], "validations": self.validations,
+        trace = {"skill": skill.provenance(), "model": author_model(), "steps": self.trace[-80:], "validations": self.validations,
                  "proposals": self.proposals, "workspace_files": len(self.files)}
         lessons.set_stage(self.job_id, stage, usage_json=json.dumps(self.usage.report()), trace_json=json.dumps(trace, ensure_ascii=False), **fields)
 

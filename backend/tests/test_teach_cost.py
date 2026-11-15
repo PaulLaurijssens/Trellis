@@ -95,7 +95,7 @@ class CostLimitTests(unittest.TestCase):
         src = (Path(__file__).resolve().parents[1] / 'app/teach/orchestrator.py').read_text()
         start, end = src.index('PRICE_TABLE = '), src.index('WRAP_UP = ')
         self.stored = {}
-        self.ns = {'os': os, 'AUTHOR_MODEL': 'gemini/gemini-3.1-pro-preview', 'llm': SimpleNamespace(Usage=object),
+        self.ns = {'os': os, 'author_model': lambda: 'gemini/gemini-3.1-pro-preview', 'llm': SimpleNamespace(Usage=object),
                    'settings': SimpleNamespace(get=lambda: dict(self.stored))}
         exec(src[start:end], self.ns)
 
