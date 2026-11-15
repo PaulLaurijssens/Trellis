@@ -15,6 +15,9 @@ All notable changes to Trellis. Dates are UTC. Versions follow the git tags.
   you chose last on the learning screen, where **Depth** now has a short explanation behind an **i**.
 
 ### Fixed
+- After Neo4j restarted (for example for a nightly offline backup), the API could keep using dead
+  database connections and show "The API is not reachable" until it was restarted itself. It now
+  tests an idle connection before it uses it and reconnects.
 - The OpenAI preset asked for `openai/gpt-5.5-mini`, a model that does not exist, so its setup test
   always failed on the extract model. It now uses `openai/gpt-5.4-mini`.
 
