@@ -187,7 +187,7 @@ def lesson_usage_summary(person_id: str, days: int = 30):
     """Token use of the last `days` days plus a rough cost estimate from the price table in settings."""
     summary = lessons.usage_summary(person_id, max(1, min(days, 365)))
     price_in, price_out = orchestrator.prices()
-    summary["model"] = orchestrator.AUTHOR_MODEL
+    summary["model"] = orchestrator.author_model()
     summary["price_per_mtok"] = {"input": price_in, "output": price_out}
     summary["estimated_usd"] = round(orchestrator.estimate_usd(summary["prompt"], summary["cached"], summary["completion"]), 2)
     summary["cost_limit"] = orchestrator.cost_limit()
